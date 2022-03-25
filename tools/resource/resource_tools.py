@@ -50,21 +50,21 @@ def filter_sites(site_details, location='usa only'):
         "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson").json()
 
     # Creates a new dataframe to contain only the selected sites
-    site_details_selected = pd.DataFrame(columns=['site_nums', 'Lat', 'Lon', 'solar_filenames', 'wind_filenames'])
+    site_details_selected = pd.DataFrame(columns=site_details.columns)
     #  Only sites on land (includes lakes)
     if location == 'on land only':
         for site_index, site in site_details.iterrows():
-            is_on_land = globe.is_land(site['Lat'], site['Lon'])
+            is_on_land = globe.is_land(site['lat'], site['lon'])
             if is_on_land:
-                site_details_selected = site_details_selected.append(site_details.loc[site_index, :])
+                site_details_selected = pd.concat([site_details_selected,site_details.loc[[site_index], :]])
                 # print('details appended for sites on land')
 
     #  Only sites in the Continental US
     if location == 'usa only':
         for site_index, site in site_details.iterrows():
-            is_in_usa = (get_country(site['Lat'], site['Lon'], geo_data=geo_data) == 'United States of America')
+            is_in_usa = (get_country(site['lat'], site['lon'], geo_data=geo_data) == 'United States of America')
             if is_in_usa:
-                site_details_selected = site_details_selected.append(site_details.loc[site_index, :])
+                site_details_selected = pd.concat([site_details_selected,site_details.loc[[site_index], :]])
                 # print('details appended for sites in the USA')
 
     return site_details_selected
