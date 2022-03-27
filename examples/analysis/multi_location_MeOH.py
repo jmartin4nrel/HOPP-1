@@ -413,9 +413,15 @@ def run_hybrid_calc(year, site_num, scenario_descriptions, results_dir, load_res
     hopp_outputs_all['Solar File Used'].append(resource_filename_solar)
     hopp_outputs_all['Wind File Used'].append(resource_filename_wind)
     hopp_outputs_all['Time Zone (for solar)'].append(Site['tz'])
-    hopp_outputs_all_dataframe = pd.DataFrame(hopp_outputs_all)
+    #hopp_outputs_all_dataframe = pd.DataFrame(hopp_outputs_all)
 
-    return hopp_outputs_all_dataframe
+    lat = hopp_outputs_all['Site Lat'][0]
+    lon = hopp_outputs_all['Site Lon'][0]
+    LCOE = hopp_outputs_all['Hybrid LCOE (real)'][0]
+
+    print('Finished site number {}'.format(site_num))
+
+    return [lat, lon, LCOE]#_dataframe
 
 
 def run_all_hybrid_calcs(site_details, scenario_descriptions, results_dir, load_resource_from_file, wind_size,
@@ -440,7 +446,10 @@ def run_all_hybrid_calcs(site_details, scenario_descriptions, results_dir, load_
     :return: DataFrame of results for run_hybrid_calc at all sites (save_all_runs)
     """
     # Establish output DataFrame
-    save_all_runs = pd.DataFrame()
+    #save_all_runs = pd.DataFrame()
+    lats = []
+    lons = []
+    LCOEs = []
 
     # Combine all arguments to pass to run_hybrid_calc
     all_args = zip(site_details['year'], site_details['site_nums'], repeat(scenario_descriptions), repeat(results_dir),
@@ -453,20 +462,22 @@ def run_all_hybrid_calcs(site_details, scenario_descriptions, results_dir, load_
                    repeat(correct_wind_speed_for_height))
 
     # Run a multi-threaded analysis
-    with multiprocessing.Pool(12) as p:
-        try:
-            dataframe_result = p.starmap(run_hybrid_calc, all_args)
-            save_all_runs = save_all_runs.append(dataframe_result, sort=False)
-        except:
-            exception = sys.exc_info()
+    with multiprocessing.Pool(8) as p:
+        # try:
+        result = p.starmap(run_hybrid_calc, all_args)
+        #save_all_runs = save_all_runs.append(dataframe_result, sort=False)
+        # except:
+        #     exception = sys.exc_info()
 
-            def eprint(*args):
-                print(*args, file=sys.stderr)
+        #     def eprint(*args):
+        #         print(*args, file=sys.stderr)
 
-            error = exception[1]
-            eprint("Error in run_hopp execution:", error.args[0])
-            eprint("Hub Height: ", hub_height)
-            raise RuntimeError(error.args[0])
+        #     error = exception[1]
+        #     eprint("Error in run_hopp execution:", error.args[0])
+        #     eprint("Hub Height: ", hub_height)
+        #     raise RuntimeError(error.args[0])
+
+    save_all_runs = pd.DataFrame(data=np.array(result),columns=['Latitude','Longitude','LCOE (real) [$/MWh]'])
 
     return save_all_runs
 
@@ -499,7 +510,7 @@ if __name__ == '__main__':
     bos_details['wind_bos_reduction_hybrid'] = 0
     bos_details['solar_bos_reduction_hybrid'] = 0
 
-    load_resource_from_file = True
+    load_resource_from_file = False
     solar_from_file = True
     wind_from_file = True
     on_land_only = False
@@ -507,8 +518,8 @@ if __name__ == '__main__':
 
     # Set Analysis Location and Details
     year = 2013
-    lat_int = 3 # lattitute interval in degrees
-    lon_int = 3 # longitude interval in degrees
+    lat_int = 1 # lattitute interval in degrees
+    lon_int = 1 # longitude interval in degrees
     NE_vertex = np.array([43.3,-77.3]) # NE of Buffalo
     SE_vertex = np.array([40.3,-79.7]) # SE of Pittsburgh
     SW_vertex = np.array([24.6,-98.3]) # SW of Brownsville
@@ -528,11 +539,13 @@ if __name__ == '__main__':
     # Load wind and solar resource files for location nearest desired lats and lons
     # NB this resource information will be overriden by API retrieved data if load_resource_from_file is set to False
     sitelist_name = 'filtered_site_details_{}_locs_{}_year'.format(num_loc, year)
+    #sitelist_name = 'site_details.csv'
     if load_resource_from_file:
         # Loads resource files in 'resource_files', finds nearest files to 'desired_lats' and 'desired_lons'
-        site_details = resource_loader_file(resource_dir, desired_lats, desired_lons, year, not_rect=True)  # Return contains
-        site_details.to_csv(os.path.join(resource_dir, 'site_details.csv'))
+        site_details = resource_loader_file(resource_dir, desired_lats, desired_lons, year, not_rect=True,\
+                                            max_dist=np.sqrt(lat_int**2+lon_int**2)/2)  # Return contains
         site_details = filter_sites(site_details, location='usa only')
+        site_details.to_csv(os.path.join(resource_dir, 'site_details.csv'))
     else:
         # Creates the site_details file containing grid of lats, lons, years, and wind and solar filenames (blank
         # - to force API resource download)
@@ -540,7 +553,7 @@ if __name__ == '__main__':
             site_details = pd.read_csv(sitelist_name)
         else:
             site_details = site_details_creator.site_details_creator(desired_lats, desired_lons, year, not_rect=True)
-            # Filter to locations in USA
+            # Filter to locations in USA - MOVE TO PARALLEL
             site_details = filter_sites(site_details, location='usa only')
             site_details.to_csv(sitelist_name)
 
@@ -579,5 +592,5 @@ if __name__ == '__main__':
                                     solar_bos_reduction, hub_height)
 
                         save_all_runs.to_csv(os.path.join(results_dir,
-                                             all_run_filename))
+                                            all_run_filename))
                         print(save_all_runs)

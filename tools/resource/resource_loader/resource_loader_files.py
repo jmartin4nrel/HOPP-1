@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 
 
-def resource_loader_file(resource_dir, desired_lats, desired_lons, year="2012", not_rect=False):
+def resource_loader_file(resource_dir, desired_lats, desired_lons, year="2012", not_rect=False, max_dist=180):
     """
     Determines the wind and solar resource files which are nearest the desired_lats and desired_lons and
     adds the site_num, lat, lon, solar_filenames and wind_filenames to the 'all_sites' Dataframe
@@ -13,6 +13,8 @@ def resource_loader_file(resource_dir, desired_lats, desired_lons, year="2012", 
     :param desired_lons: Desired Longitudes
     :param not_rect: False if finding product of Lat and Long lists to make rectilinear grid, True if
         making an unevely shaped grid (in which case Lat and Long lists must be same length)
+    :param max_dist = Maximum distance in degrees of lat/lon from nearest site allowable without downloading
+        a new file at the exact location from the API
     :return: all_sites Dataframe of site_num, lat, lon, solar_filenames, wind_filenames
     """
     # directory to resource_files
@@ -33,7 +35,7 @@ def resource_loader_file(resource_dir, desired_lats, desired_lons, year="2012", 
 
     # Check if making rectilinear grid
     if not_rect:
-        if N_lat is not N_lon:
+        if N_lat != N_lon:
             raise ValueError("# of lats & longs must be the same if not making rectilinear grid")
 
     # Get list of files in the directory
@@ -124,17 +126,25 @@ def resource_loader_file(resource_dir, desired_lats, desired_lons, year="2012", 
 
     # Find the solar and wind files corresponding to the nearest locations to the desired lat/lon
     for i in range(len(all_sites)):
+        j = len(all_sites)-i-1
         solar_dist = np.sqrt(
-            (all_sites['lat'][i] - solar_sites['lat']) ** 2 + (all_sites['lon'][i] - solar_sites['lon']) ** 2)
-        solar_idx = np.where(solar_dist == np.min(solar_dist))
-        nearest_solar_file = os.path.join(solar_dir, solar_sites['Filename'][solar_idx[0][0]])
-        nearest_solar_files.append(nearest_solar_file)
+            (all_sites['lat'][j] - solar_sites['lat']) ** 2 + (all_sites['lon'][j] - solar_sites['lon']) ** 2)
+        if np.min(solar_dist) <= max_dist:
+            solar_idx = np.where(solar_dist == np.min(solar_dist))
+            nearest_solar_file = os.path.join(solar_dir, solar_sites['Filename'][solar_idx[0][0]])
+            nearest_solar_files.append(nearest_solar_file)
+        else:
+            nearest_solar_files.append('')
 
         wind_dist = np.sqrt(
-            (all_sites['lat'][i] - wind_sites['lat']) ** 2 + (all_sites['lon'][i] - wind_sites['lon']) ** 2)
-        wind_idx = np.where(wind_dist == np.min(wind_dist))
-        nearest_wind_file = os.path.join(wind_dir, wind_sites['Filename'][wind_idx[0][0]])
-        nearest_wind_files.append(nearest_wind_file)
+            (all_sites['lat'][j] - wind_sites['lat']) ** 2 + (all_sites['lon'][j] - wind_sites['lon']) ** 2)
+        if np.min(wind_dist) <= max_dist:
+            wind_idx = np.where(wind_dist == np.min(wind_dist))
+            nearest_wind_file = os.path.join(wind_dir, wind_sites['Filename'][wind_idx[0][0]])
+            nearest_wind_files.append(nearest_wind_file)
+        else:
+            nearest_wind_files.append('')
+        
         years.append(str(year))
 
     all_sites['solar_filenames'] = nearest_solar_files

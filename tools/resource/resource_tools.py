@@ -61,10 +61,13 @@ def filter_sites(site_details, location='usa only'):
 
     #  Only sites in the Continental US
     if location == 'usa only':
+        count = 0
         for site_index, site in site_details.iterrows():
             is_in_usa = (get_country(site['lat'], site['lon'], geo_data=geo_data) == 'United States of America')
             if is_in_usa:
                 site_details_selected = pd.concat([site_details_selected,site_details.loc[[site_index], :]])
+                count += 1
+                print(count)
                 # print('details appended for sites in the USA')
 
     return site_details_selected

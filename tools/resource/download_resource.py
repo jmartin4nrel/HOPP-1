@@ -1,4 +1,5 @@
 from hybrid.resource import WindResource, SolarResource
+from hybrid.keys import set_nrel_key_dot_env
 
 # California Site
 # lat = 33.907295
@@ -18,6 +19,7 @@ lon = -68.157669
 year = 2012
 hubheight = 116.5
 
+set_nrel_key_dot_env()
 
 WindResource(lat=lat, lon=lon, year=year, wind_turbine_hub_ht=hubheight)
 

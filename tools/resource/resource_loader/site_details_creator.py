@@ -22,7 +22,7 @@ def site_details_creator(desired_lats, desired_lons, year="2012", not_rect=False
 
     # Check if making rectilinear grid
     if not_rect:
-        if N_lat is not N_lon:
+        if N_lat != N_lon:
             raise ValueError("# of lats & longs must be the same if not making rectilinear grid")
 
     count = 0
