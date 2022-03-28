@@ -149,8 +149,8 @@ def run_hopp_calc(Site, scenario_description, bos_details, total_hybrid_plant_ca
         Site['resource_filename_solar'] = ""  # Unsetting resource filename to force API download of wind resource
         Site['resource_filename_wind'] = ""  # Unsetting resource filename to force API download of solar resource
 
-    site = SiteInfo(Site)#, solar_resource_file=sample_site['resource_filename_solar'],
-                    #wind_resource_file=sample_site['resource_filename_wind'])
+    site = SiteInfo(Site, solar_resource_file=Site['resource_filename_solar'],
+                    wind_resource_file=Site['resource_filename_wind'])
 
     #TODO: Incorporate this in SiteInfo
     # if 'roll_tz' in Site.keys():
@@ -195,7 +195,7 @@ def run_hopp_calc(Site, scenario_description, bos_details, total_hybrid_plant_ca
 def run_hybrid_calc(year, site_num, scenario_descriptions, results_dir, load_resource_from_file,
                     resource_filename_wind, resource_filename_solar, site_lat, site_lon,
                     wind_size, solar_size, hybrid_size, interconnection_size,
-                    bos_details, ppa_price, solar_tracking_mode, hub_height, correct_wind_speed_for_height):
+                    bos_details, ppa_price, solar_tracking_mode, hub_height, correct_wind_speed_for_height, all_run_dir):
     """
     run_hybrid_calc loads the specified resource for each site, and runs wind, solar, hybrid and solar addition
     scenarios by calling run_hopp_calc for each scenario. Returns a DataFrame of all results for the supplied site
@@ -219,6 +219,7 @@ def run_hybrid_calc(year, site_num, scenario_descriptions, results_dir, load_res
     :param hub_height: hub height in meters.
     :param correct_wind_speed_for_height: (boolean) flag determining whether wind speed is extrapolated
      to hub height.
+    :param all_run_dir: path to directory for results from all runs
     :return: save_outputs_resource_loop_dataframe <pandas dataframe> dataframe of all site outputs from hopp runs
     """
     # Set up hopp_outputs dictionary
@@ -421,12 +422,15 @@ def run_hybrid_calc(year, site_num, scenario_descriptions, results_dir, load_res
 
     print('Finished site number {}'.format(site_num))
 
-    return [lat, lon, LCOE]#_dataframe
+    results_filename = all_run_dir+'\{}_{}.txt'.format(lat,lon)
+    np.savetxt(results_filename,[LCOE])
+
+    # return [lat, lon, LCOE]#_dataframe
 
 
 def run_all_hybrid_calcs(site_details, scenario_descriptions, results_dir, load_resource_from_file, wind_size,
                          solar_size, hybrid_size, interconnection_size, bos_details, ppa_price, solar_tracking_mode, hub_height,
-                         correct_wind_speed_for_height):
+                         correct_wind_speed_for_height, all_run_dir):
     """
     Performs a multi-threaded run of run_hybrid_calc for the given input parameters.
     Returns a dataframe result for all sites
@@ -443,6 +447,7 @@ def run_all_hybrid_calcs(site_details, scenario_descriptions, results_dir, load_
     :param solar_tracking_mode: solar tracking mode
     :param hub_height: hub height in meters.
     :param correct_wind_speed_for_height: (boolean) flag determining whether wind speed is extrapolated to hub height.
+    :param all_run_dir: path to directory for results from all runs
     :return: DataFrame of results for run_hybrid_calc at all sites (save_all_runs)
     """
     # Establish output DataFrame
@@ -459,12 +464,13 @@ def run_all_hybrid_calcs(site_details, scenario_descriptions, results_dir, load_
                    repeat(wind_size), repeat(solar_size), repeat(hybrid_size), repeat(interconnection_size),
                    repeat(bos_details), repeat(ppa_price),
                    repeat(solar_tracking_mode), repeat(hub_height),
-                   repeat(correct_wind_speed_for_height))
+                   repeat(correct_wind_speed_for_height), repeat(all_run_dir))
 
     # Run a multi-threaded analysis
     with multiprocessing.Pool(8) as p:
         # try:
-        result = p.starmap(run_hybrid_calc, all_args)
+        p.starmap(run_hybrid_calc, all_args)
+        # result = p.starmap(run_hybrid_calc, all_args)
         #save_all_runs = save_all_runs.append(dataframe_result, sort=False)
         # except:
         #     exception = sys.exc_info()
@@ -477,9 +483,9 @@ def run_all_hybrid_calcs(site_details, scenario_descriptions, results_dir, load_
         #     eprint("Hub Height: ", hub_height)
         #     raise RuntimeError(error.args[0])
 
-    save_all_runs = pd.DataFrame(data=np.array(result),columns=['Latitude','Longitude','LCOE (real) [$/MWh]'])
+    # save_all_runs = pd.DataFrame(data=np.array(result),columns=['Latitude','Longitude','LCOE (real) [$/MWh]'])
 
-    return save_all_runs
+    # return save_all_runs
 
 
 if __name__ == '__main__':
@@ -510,7 +516,7 @@ if __name__ == '__main__':
     bos_details['wind_bos_reduction_hybrid'] = 0
     bos_details['solar_bos_reduction_hybrid'] = 0
 
-    load_resource_from_file = False
+    load_resource_from_file = True
     solar_from_file = True
     wind_from_file = True
     on_land_only = False
@@ -539,7 +545,7 @@ if __name__ == '__main__':
     # Load wind and solar resource files for location nearest desired lats and lons
     # NB this resource information will be overriden by API retrieved data if load_resource_from_file is set to False
     sitelist_name = 'filtered_site_details_{}_locs_{}_year'.format(num_loc, year)
-    #sitelist_name = 'site_details.csv'
+    # sitelist_name = 'site_details.csv'
     if load_resource_from_file:
         # Loads resource files in 'resource_files', finds nearest files to 'desired_lats' and 'desired_lons'
         site_details = resource_loader_file(resource_dir, desired_lats, desired_lons, year, not_rect=True,\
@@ -578,19 +584,21 @@ if __name__ == '__main__':
                         # Establish any additional arguments for analysis
                         bos_details['solar_bos_reduction_hybrid'] = solar_bos_reduction
 
+                        # Save results from all locations to folder
+                        all_run_folder = 'All_Runs_{}_WindSize_{}_MW_SolarSize_{}_MW_ppa_price_$' \
+                                           '{}_solar_bos_reduction_fraction_{}_{}m_hub_height'\
+                            .format(bos_details['BOSScenarioDescription'], wind_size, solar_size, ppa_price,
+                                    solar_bos_reduction, hub_height)
+                        all_run_dir = os.path.join(parent_path, all_run_folder)
+                        if not os.path.exists(all_run_dir):
+                            os.mkdir(all_run_dir)
+
                         # Run hybrid calculation for all sites
-                        save_all_runs = run_all_hybrid_calcs(site_details, "greenfield", results_dir,
+                        # save_all_runs = 
+                        run_all_hybrid_calcs(site_details, "greenfield", results_dir,
                                                              load_resource_from_file, wind_size,
                                                              solar_size, hybrid_size, interconnection_size, bos_details,
                                                              ppa_price, solar_tracking_mode, hub_height,
-                                                             correct_wind_speed_for_height)
-
-                        # Save master dataframe containing all locations to .csv
-                        all_run_filename = 'All_Runs_{}_WindSize_{}_MW_SolarSize_{}_MW_ppa_price_$' \
-                                           '{}_solar_bos_reduction_fraction_{}_{}m_hub_height.csv'\
-                            .format(bos_details['BOSScenarioDescription'], wind_size, solar_size, ppa_price,
-                                    solar_bos_reduction, hub_height)
-
-                        save_all_runs.to_csv(os.path.join(results_dir,
-                                            all_run_filename))
-                        print(save_all_runs)
+                                                             correct_wind_speed_for_height, all_run_dir)
+                    
+                        # print(save_all_runs)

@@ -54,37 +54,37 @@ def resource_loader_file(resource_dir, desired_lats, desired_lons, year="2012", 
     # Get Solar Data
     x_lon_solar = np.zeros(len(files_solar))
     y_lat_solar = np.zeros(len(files_solar))
+    act_lat_solar = np.zeros(len(files_solar))
+    act_lon_solar = np.zeros(len(files_solar))
 
     for i in range(0, len(files_solar)):
         strFile = solar_dir / files_solar[i]
         df = pd.read_csv(strFile, nrows=1)
-        # print(df['Longitude'][0])
-        if str(df['Longitude'][0]) == '-101.94':
-            x_lon_solar[i] = files_solar[i][:-13].rsplit('_')[1]
-        else:
-            x_lon_solar[i] = df['Longitude']
+        # Requested lat/lon from filename - used for determining whether grid data is downloaded
+        x_lon_solar[i] = files_solar[i][:-13].rsplit('_')[1]
+        y_lat_solar[i] = files_solar[i].rsplit('_')[0]
+        # Actual site lat/lon from 1st row of downloaded data
+        act_lon_solar[i] = df['Longitude']
+        act_lat_solar[i] = df['Latitude']
 
-        if str(df['Latitude'][0]) == '35.21':
-            y_lat_solar[i] = files_solar[i].rsplit('_')[0]
-        else:
-            y_lat_solar[i] = df['Latitude']
+    # Get Wind Data
+    x_lon_wind = np.zeros(len(files_wind))
+    y_lat_wind = np.zeros(len(files_wind))
+    act_lon_wind = np.zeros(len(files_wind))
+    act_lat_wind = np.zeros(len(files_wind))
 
-        # Get Wind Data
-        x_lon_wind = np.zeros(len(files_wind))
-        y_lat_wind = np.zeros(len(files_wind))
-
-        # get size of the files
-        strFile = wind_dir / files_wind[0]
+    # get size of the files
+    strFile = wind_dir / files_wind[0]
 
     for i in range(0, len(files_wind)):
         strFile = wind_dir / files_wind[i]
         df = pd.read_csv(strFile, nrows=1)
-        if (df.columns[5] == '39.759235') & (df.columns[6] == '-105.21756'):
-            y_lat_wind[i] = files_wind[i][:-4].rsplit('t')[1].rsplit('_')[0]
-            x_lon_wind[i] = files_wind[i][:-4].rsplit('_')[1]
-        else:
-            x_lon_wind[i] = float(df.columns[6])
-            y_lat_wind[i] = float(df.columns[5])
+        # Requested lat/lon from filename - used for determining whether grid data is downloaded
+        y_lat_wind[i] = files_wind[i][:-4].rsplit('_')[0]
+        x_lon_wind[i] = files_wind[i][:-4].rsplit('_')[1]
+        # Actual site lat/lon from 1st row of downloaded data
+        act_lon_wind[i] = float(df.columns[6])
+        act_lat_wind[i] = float(df.columns[5])
 
         # Create site description arrays for Solar and Wind
     solar_sites = pd.DataFrame({'lat': y_lat_solar[:len(x_lon_solar)], 'lon': x_lon_solar[:len(x_lon_solar)],
@@ -123,33 +123,48 @@ def resource_loader_file(resource_dir, desired_lats, desired_lons, year="2012", 
     nearest_solar_files = []
     nearest_wind_files = []
     years = []
+    nearest_solar_lats = []
+    nearest_solar_lons = []
+    nearest_wind_lats = []
+    nearest_wind_lons = []
 
-    # Find the solar and wind files corresponding to the nearest locations to the desired lat/lon
+    # Find the solar and wind files corresponding to the nearest requested locations to the desired lat/lon
     for i in range(len(all_sites)):
-        j = len(all_sites)-i-1
         solar_dist = np.sqrt(
-            (all_sites['lat'][j] - solar_sites['lat']) ** 2 + (all_sites['lon'][j] - solar_sites['lon']) ** 2)
+            (all_sites['lat'][i] - solar_sites['lat']) ** 2 + (all_sites['lon'][i] - solar_sites['lon']) ** 2)
         if np.min(solar_dist) <= max_dist:
             solar_idx = np.where(solar_dist == np.min(solar_dist))
             nearest_solar_file = os.path.join(solar_dir, solar_sites['Filename'][solar_idx[0][0]])
             nearest_solar_files.append(nearest_solar_file)
+            nearest_solar_lats.append(act_lat_solar[solar_idx[0][0]])
+            nearest_solar_lons.append(act_lon_solar[solar_idx[0][0]])
         else:
             nearest_solar_files.append('')
+            nearest_solar_lats.append('')
+            nearest_solar_lons.append('')
 
         wind_dist = np.sqrt(
-            (all_sites['lat'][j] - wind_sites['lat']) ** 2 + (all_sites['lon'][j] - wind_sites['lon']) ** 2)
+            (all_sites['lat'][i] - wind_sites['lat']) ** 2 + (all_sites['lon'][i] - wind_sites['lon']) ** 2)
         if np.min(wind_dist) <= max_dist:
             wind_idx = np.where(wind_dist == np.min(wind_dist))
             nearest_wind_file = os.path.join(wind_dir, wind_sites['Filename'][wind_idx[0][0]])
             nearest_wind_files.append(nearest_wind_file)
+            nearest_wind_lats.append(act_lat_wind[wind_idx[0][0]])
+            nearest_wind_lons.append(act_lon_wind[wind_idx[0][0]])
         else:
             nearest_wind_files.append('')
+            nearest_wind_lats.append('')
+            nearest_wind_lons.append('')
         
         years.append(str(year))
 
     all_sites['solar_filenames'] = nearest_solar_files
     all_sites['wind_filenames'] = nearest_wind_files
     all_sites['year'] = years
+    all_sites['actual solar site latitutde'] = nearest_solar_lats
+    all_sites['actual solar site longitutde'] = nearest_solar_lons
+    all_sites['actual wind site latitutde'] = nearest_wind_lats
+    all_sites['actual wind site longitutde'] = nearest_wind_lons
 
     return all_sites
 

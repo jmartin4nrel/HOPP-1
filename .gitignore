@@ -9,6 +9,7 @@ log/
 HOPP_examples/
 HOPP-demos/
 tests/analysis/results/
+resource_files/
 
 .idea/*
 .idea/workspace.xml
