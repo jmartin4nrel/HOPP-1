@@ -10,6 +10,8 @@ HOPP_examples/
 HOPP-demos/
 tests/analysis/results/
 resource_files/
+examples/analysis/filtered_site_details*
+examples/analysis/All_Runs*
 
 .idea/*
 .idea/workspace.xml

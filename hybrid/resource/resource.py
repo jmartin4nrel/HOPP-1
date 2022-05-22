@@ -5,7 +5,6 @@ import requests
 import time
 import warnings
 
-
 class Resource(metaclass=ABCMeta):
     """
     Class to manage resource data for a given lat & lon. If a resource file doesn't exist,
@@ -89,9 +88,9 @@ class Resource(metaclass=ABCMeta):
                 elif r.status_code == 404:
                     raise requests.exceptions.HTTPError
                 elif r.status_code == 429:
-                    print("Download request rate exceeded! Waiting 1 min...")
+                    print("Download request rate exceeded! Waiting 10 min...")
                     n_tries += 1
-                    time.sleep(60)
+                    time.sleep(600)
                 else:
                     n_tries += 1
             except requests.exceptions.Timeout:

@@ -101,8 +101,9 @@ def resource_loader_file(resource_dir, desired_lats, desired_lons, year="2012", 
         desired_lons_grid = np.zeros(N_lat * N_lon)
         desired_lats_grid = np.zeros(N_lat * N_lon)
     if N_lat * N_lon == 1:
-        desired_lats_grid = [desired_lats]
-        desired_lons_grid = [desired_lons]
+        desired_lats_grid = desired_lats
+        desired_lons_grid = desired_lons
+        count = 1
     else:
         for desired_lon in desired_lons:
             if not_rect:
