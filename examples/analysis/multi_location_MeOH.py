@@ -5,6 +5,7 @@ Simulates 600 MW wind plants over a targeted region of the US for H2 electrolysi
 (& eventual MeOH production w/NGCC plant captured CO2)
 """
 
+from email.base64mime import header_length
 import os
 import sys
 import pandas as pd
@@ -13,6 +14,8 @@ import multiprocessing
 import operator
 from pathlib import Path
 from itertools import repeat
+import time
+rng = np.random.default_rng()
 
 from hybrid.keys import set_nrel_key_dot_env
 from hybrid.log import analysis_logger as logger
@@ -226,6 +229,11 @@ def run_hybrid_calc(year, site_num, scenario_descriptions, results_dir, load_res
     :param all_run_dir: path to directory for results from all runs
     :return: save_outputs_resource_loop_dataframe <pandas dataframe> dataframe of all site outputs from hopp runs
     """
+    
+    # Wait to de-synchronize api requests
+    wait = 10+rng.integers(10)
+    time.sleep(wait)
+
     # Set up hopp_outputs dictionary
     hopp_outputs = dict()
 
@@ -423,11 +431,14 @@ def run_hybrid_calc(year, site_num, scenario_descriptions, results_dir, load_res
     lat = hopp_outputs_all['Site Lat'][0]
     lon = hopp_outputs_all['Site Lon'][0]
     LCOE = hopp_outputs_all['Hybrid LCOE (real)'][0]
+    NPV = hopp_outputs_all['Hybrid NPV ($-million)'][0]
 
     print('Finished site number {}'.format(site_num))
 
-    results_filename = all_run_dir+'\{}_{}.txt'.format(lat,lon)
+    results_filename = all_run_dir+'_LCOE\{}_{}.txt'.format(lat,lon)
     np.savetxt(results_filename,[LCOE])
+    results_filename = all_run_dir+'_NPV\{}_{}.txt'.format(lat,lon)
+    np.savetxt(results_filename,[NPV])
 
     # return [lat, lon, LCOE]#_dataframe
 
@@ -470,13 +481,13 @@ def run_all_hybrid_calcs(site_details, scenario_descriptions, results_dir, load_
                    repeat(solar_tracking_mode), repeat(hub_height),
                    repeat(correct_wind_speed_for_height), repeat(all_run_dir))
 
-    # # Run a multi-threaded analysis
-    # with multiprocessing.Pool(4) as p:
-    #     p.starmap(run_hybrid_calc, all_args)
+    # Run a multi-threaded analysis
+    with multiprocessing.Pool(8) as p:
+        p.starmap(run_hybrid_calc, all_args)
 
-    # Run a single-threaded analysis
-    for all_arg in all_args:
-        run_hybrid_calc(*all_arg)
+    # # Run a single-threaded analysis
+    # for all_arg in all_args:
+    #     run_hybrid_calc(*all_arg)
 
 if __name__ == '__main__':
 
@@ -533,61 +544,81 @@ if __name__ == '__main__':
     desired_lons = list(coords[:,1])
 
     # Load locations from list - cancels out previous block
-    lon_lat_name = 'ngcc_locs.csv'
-    lon_lats = pd.read_csv(lon_lat_name)
-    desired_lats = list(lon_lats.values[:,1])
-    desired_lons = list(lon_lats.values[:,0])
+    lon_lat_name_list = ['ngcc_just2.csv',]
+# 'ngcc1.csv',
+#                         'ngcc2.csv',
+#                         'ngcc3.csv',
+#                         'ngcc4.csv',
+#                         'ngcc5.csv',
+#                         'ngcc6.csv',
+#                         'ngcc7.csv',
+#                         'ngcc8.csv',
+#                         'ngcc9.csv',
+    # lon_lat_name_list = ['ngcc10.csv',
+    #                     'ngcc11.csv',
+    #                     'ngcc12.csv',
+    #                     'ngcc13.csv',
+    #                     'ngcc14.csv',
+    #                     'ngcc15.csv',
+    #                     'ngcc16.csv',
+    #                     'ngcc17.csv',
+    #                     'ngcc18.csv',
+    #                     'ngcc19.csv']
+    for lon_lat_name in lon_lat_name_list:
+        lon_lats = pd.read_csv(lon_lat_name,header=None)
+        desired_lats = list(lon_lats.values[:,1])
+        desired_lons = list(lon_lats.values[:,0])
 
-    # Load wind and solar resource files for location nearest desired lats and lons
-    # NB this resource information will be overriden by API retrieved data if load_resource_from_file is set to False
-    sitelist_name = 'filtered_site_details_{}_locs_{}_year'.format(num_loc, year)
-    # sitelist_name = 'site_details.csv'
-    if load_resource_from_file:
-        # Loads resource files in 'resource_files', finds nearest files to 'desired_lats' and 'desired_lons'
-        site_details = resource_loader_file(resource_dir, desired_lats, desired_lons, year, not_rect=True,\
-                                            max_dist=.1)  # Return contains
-        # site_details = filter_sites(site_details, location='usa only')
-        site_details.to_csv(os.path.join(resource_dir, 'site_details.csv'))
-    else:
-        # Creates the site_details file containing grid of lats, lons, years, and wind and solar filenames (blank
-        # - to force API resource download)
-        if os.path.exists(sitelist_name):
-            site_details = pd.read_csv(sitelist_name)
+        # Load wind and solar resource files for location nearest desired lats and lons
+        # NB this resource information will be overriden by API retrieved data if load_resource_from_file is set to False
+        sitelist_name = 'filtered_site_details_{}_locs_{}_year'.format(num_loc, year)
+        # sitelist_name = 'site_details.csv'
+        if load_resource_from_file:
+            # Loads resource files in 'resource_files', finds nearest files to 'desired_lats' and 'desired_lons'
+            site_details = resource_loader_file(resource_dir, desired_lats, desired_lons, year, not_rect=True,\
+                                                max_dist=.1)  # Return contains
+            # site_details = filter_sites(site_details, location='usa only')
+            site_details.to_csv(os.path.join(resource_dir, 'site_details.csv'))
         else:
-            site_details = site_details_creator.site_details_creator(desired_lats, desired_lons, year, not_rect=True)
-            # Filter to locations in USA - MOVE TO PARALLEL
-            site_details = filter_sites(site_details, location='usa only')
-            site_details.to_csv(sitelist_name)
+            # Creates the site_details file containing grid of lats, lons, years, and wind and solar filenames (blank
+            # - to force API resource download)
+            if os.path.exists(sitelist_name):
+                site_details = pd.read_csv(sitelist_name)
+            else:
+                site_details = site_details_creator.site_details_creator(desired_lats, desired_lons, year, not_rect=True)
+                # Filter to locations in USA - MOVE TO PARALLEL
+                site_details = filter_sites(site_details, location='usa only')
+                site_details.to_csv(sitelist_name)
 
-    solar_tracking_mode = 'Fixed'  # Currently not making a difference
-    ppa_prices = [0.00]  # [0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10]
-    hub_height_options = [200]  # [100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
-    correct_wind_speed_for_height = True
-    interconnection_sizes = [400]
-    wind_sizes = [600,300,0]
-    solar_sizes = [0,300,600]
-    hybrid_sizes = [wind_sizes[i] + solar_sizes[i] for i in range(len(wind_sizes))]
+        solar_tracking_mode = 'Fixed'  # Currently not making a difference
+        ppa_prices = [0.00]  # [0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10]
+        hub_height_options = [200]  # [100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200]
+        correct_wind_speed_for_height = True
+        interconnection_sizes = [400]
+        wind_sizes = [600,500,400,300,200,100,0]
+        solar_sizes = [0,100,200,300,400,500,600]
+        hybrid_sizes = [wind_sizes[i] + solar_sizes[i] for i in range(len(wind_sizes))]
 
-    for ppa_price in ppa_prices:
-        for hub_height in hub_height_options:
-            for interconnection_size in interconnection_sizes:
-                for i, wind_size in enumerate(wind_sizes):
-                    solar_size = solar_sizes[i]
-                    hybrid_size = hybrid_sizes[i]
+        for ppa_price in ppa_prices:
+            for hub_height in hub_height_options:
+                for interconnection_size in interconnection_sizes:
+                    for i, wind_size in enumerate(wind_sizes):
+                        solar_size = solar_sizes[i]
+                        hybrid_size = hybrid_sizes[i]
 
-                    # Save results from all locations to folder
-                    all_run_folder = 'All_Runs_WindSize_{}_MW_SolarSize_{}_MW'\
-                        .format(wind_size, solar_size)
-                    all_run_dir = os.path.join(parent_path, all_run_folder)
-                    if not os.path.exists(all_run_dir):
-                        os.mkdir(all_run_dir)
+                        # Save results from all locations to folder
+                        all_run_folder = 'All_Runs_WindSize_{}_MW_SolarSize_{}_MW'\
+                            .format(wind_size, solar_size)
+                        all_run_dir = os.path.join(parent_path, all_run_folder)
+                        if not os.path.exists(all_run_dir):
+                            os.mkdir(all_run_dir)
 
-                    # Run hybrid calculation for all sites
-                    # save_all_runs = 
-                    run_all_hybrid_calcs(site_details, "greenfield", results_dir,
-                                                        load_resource_from_file, wind_size,
-                                                        solar_size, hybrid_size, interconnection_size, bos_details,
-                                                        ppa_price, solar_tracking_mode, hub_height,
-                                                        correct_wind_speed_for_height, all_run_dir)
-                
-                    # print(save_all_runs)
+                        # Run hybrid calculation for all sites
+                        # save_all_runs = 
+                        run_all_hybrid_calcs(site_details, "greenfield", results_dir,
+                                                            load_resource_from_file, wind_size,
+                                                            solar_size, hybrid_size, interconnection_size, bos_details,
+                                                            ppa_price, solar_tracking_mode, hub_height,
+                                                            correct_wind_speed_for_height, all_run_dir)
+                    
+                        # print(save_all_runs)

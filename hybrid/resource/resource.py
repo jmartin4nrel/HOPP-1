@@ -4,6 +4,8 @@ import json
 import requests
 import time
 import warnings
+import numpy
+rng = numpy.random.default_rng()
 
 class Resource(metaclass=ABCMeta):
     """
@@ -88,9 +90,10 @@ class Resource(metaclass=ABCMeta):
                 elif r.status_code == 404:
                     raise requests.exceptions.HTTPError
                 elif r.status_code == 429:
-                    print("Download request rate exceeded! Waiting 10 min...")
+                    wait = 10+10**n_tries+rng.integers(10)
+                    print("Download request rate exceeded! Waiting {} sec...".format(wait))
+                    time.sleep(wait)
                     n_tries += 1
-                    time.sleep(600)
                 else:
                     n_tries += 1
             except requests.exceptions.Timeout:
