@@ -38,6 +38,10 @@ examples/data
 examples/analysis/All_Runs*
 resource_files/solar/*.csv
 resource_files/wind/*.srw
+tests/analysis/results/
+resource_files/
+examples/analysis/filtered_site_details*
+examples/analysis/All_Runs*
 
 .idea/*
 .idea/workspace.xml

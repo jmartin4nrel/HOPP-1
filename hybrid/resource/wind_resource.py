@@ -105,7 +105,10 @@ class WindResource(Resource):
                 success = self.call_api(url, filename=f)
 
             if not success:
-                raise ValueError('Unable to download wind data')
+                # raise ValueError('Unable to download wind data')
+                print('Warning: Unable to download wind data for lat={}, lon={}'.format(self.latitude,self.longitude))
+            else:
+                print('Downloaded wind file lat={}, lon={}'.format(self.latitude, self.longitude))
 
         # combine into one file to pass to SAM
         if len(list(self.file_resource_heights.keys())) > 1:

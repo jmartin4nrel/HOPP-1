@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 
 
-def site_details_creator(desired_lats, desired_lons, year="2012"):
+def site_details_creator(desired_lats, desired_lons, year="2012", not_rect=False):
     """
     Creates a "site_details" dataframe for analyzing
     :return: all_sites Dataframe of site_num, lat, lon, solar_filenames, wind_filenames
@@ -20,24 +20,38 @@ def site_details_creator(desired_lats, desired_lons, year="2012"):
     else:
         N_lon = len(desired_lons)
 
-    site_nums = np.linspace(1, N_lat * N_lon, N_lat * N_lon)
-    site_nums = site_nums.astype(int)
+    # Check if making rectilinear grid
+    if not_rect:
+        if N_lat != N_lon:
+            raise ValueError("# of lats & longs must be the same if not making rectilinear grid")
+
     count = 0
-    desired_lons_grid = np.zeros(N_lat * N_lon)
-    desired_lats_grid = np.zeros(N_lat * N_lon)
+    if not_rect:
+        desired_lons_grid = np.zeros(N_lat)
+        desired_lats_grid = np.zeros(N_lat)
+    else:    
+        desired_lons_grid = np.zeros(N_lat * N_lon)
+        desired_lats_grid = np.zeros(N_lat * N_lon)
     if N_lat * N_lon == 1:
         desired_lats_grid = [desired_lats]
         desired_lons_grid = [desired_lons]
     else:
         for desired_lon in desired_lons:
-            for desired_lat in desired_lats:
+            if not_rect:
                 desired_lons_grid[count] = desired_lon
-                desired_lats_grid[count] = desired_lat
+                desired_lats_grid[count] = desired_lats[count]
                 count = count + 1
+            else:
+                for desired_lat in desired_lats:
+                    desired_lons_grid[count] = desired_lon
+                    desired_lats_grid[count] = desired_lat
+                    count = count + 1
+    site_nums = np.linspace(1, count, count)
+    site_nums = site_nums.astype(int)
 
     all_sites = pd.DataFrame(
-        {'site_nums': site_nums, 'Lat': desired_lats_grid[:len(desired_lats_grid)],
-         'Lon': desired_lons_grid[:len(desired_lons_grid)]})
+        {'site_nums': site_nums, 'lat': desired_lats_grid[:len(desired_lats_grid)],
+         'lon': desired_lons_grid[:len(desired_lons_grid)]})
 
     # Fill the wind and solar resource locations with blanks (for resource API use)
     solar_filenames = []

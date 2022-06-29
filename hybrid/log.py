@@ -1,3 +1,4 @@
+import multiprocessing
 import sys
 import os
 import logging
@@ -29,10 +30,10 @@ else:
         os.mkdir(log_path)
     log_path = log_path / ("hybrid_systems" + run_suffix + ".log")
     print(log_path)
-    # logging.basicConfig(level=logging_level,
-    #                     datefmt='%m-%d %H:%M',
-    #                     filename=str(log_path),
-    #                     filemode='w')
+    logging.basicConfig(level=logging_level,
+                        datefmt='%m-%d %H:%M',
+                        filename=str(log_path),
+                        filemode='w')
     handler = logging.FileHandler(str(log_path))
     handler.setFormatter(formatter)
 
@@ -49,12 +50,16 @@ flicker_logger = hybrid_logger
 bos_logger = hybrid_logger
 analysis_logger = hybrid_logger
 opt_logger = logging.getLogger('Optimization')
+mp_logger = multiprocessing.get_logger()
 
 hybrid_logger.addHandler(handler)
 opt_logger.addHandler(handler)
+mp_logger.addHandler(handler)
 hybrid_logger.addHandler(console)
 opt_logger.addHandler(console)
+mp_logger.addHandler(console)
 
 logging.getLogger('').propagate = False
 logging.getLogger('HybridSim').propagate = False
 logging.getLogger('Optimization').propagate = False
+multiprocessing.get_logger().propagate = False

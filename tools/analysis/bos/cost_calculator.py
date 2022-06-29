@@ -164,15 +164,15 @@ def create_cost_calculator(interconnection_mw: float,
                            modify_costs: bool = False,
                            cost_reductions=dict()) -> CostCalculator:
 
-    if modify_costs:
-        cost_reductions['solar_capex_reduction'] = 0
-        cost_reductions['wind_capex_reduction'] = 0
-        cost_reductions['wind_bos_reduction'] = 0
-        cost_reductions['solar_bos_reduction'] = 0
-        cost_reductions['wind_capex_reduction_hybrid'] = 0.1
-        cost_reductions['solar_capex_reduction_hybrid'] = 0.1
-        cost_reductions['wind_bos_reduction_hybrid'] = 0.1
-        cost_reductions['solar_bos_reduction_hybrid'] = 0.1
+    # if modify_costs:
+    #     cost_reductions['solar_capex_reduction'] = 0
+    #     cost_reductions['wind_capex_reduction'] = 0
+    #     cost_reductions['wind_bos_reduction'] = 0
+    #     cost_reductions['solar_bos_reduction'] = 0
+    #     cost_reductions['wind_capex_reduction_hybrid'] = 0.1
+    #     cost_reductions['solar_capex_reduction_hybrid'] = 0.1
+    #     cost_reductions['wind_bos_reduction_hybrid'] = 0.1
+    #     cost_reductions['solar_bos_reduction_hybrid'] = 0.1
 
     if atb_costs:
         from .atb_lookup import ATBLookup
