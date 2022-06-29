@@ -610,8 +610,10 @@ if __name__ == '__main__':
                         all_run_folder = 'All_Runs_WindSize_{}_MW_SolarSize_{}_MW'\
                             .format(wind_size, solar_size)
                         all_run_dir = os.path.join(parent_path, all_run_folder)
-                        if not os.path.exists(all_run_dir):
-                            os.mkdir(all_run_dir)
+                        if not os.path.exists(all_run_dir+'_LCOE'):
+                            os.mkdir(all_run_dir+'_LCOE')
+                        if not os.path.exists(all_run_dir+'_NPV'):
+                            os.mkdir(all_run_dir+'_NPV')
 
                         # Run hybrid calculation for all sites
                         # save_all_runs = 
