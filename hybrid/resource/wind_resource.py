@@ -40,9 +40,8 @@ class WindResource(Resource):
 
         self.__dict__.update(kwargs)
 
-        self.hub_height_meters = wind_turbine_hub_ht
-
         self.file_resource_heights = None
+        self.update_height(wind_turbine_hub_ht)
 
         if filepath == "":
             self.filename = ""
@@ -154,7 +153,7 @@ class WindResource(Resource):
         Format as 'wind_resource_data' dictionary for use in PySAM.
         """
         if not os.path.isfile(self.filename):
-            raise FileNotFoundError(self.filename + " does not exist. Try `download_resource` first.")
+            raise FileNotFoundError(f"{self.filename} does not exist. Try `download_resource` first.")
 
         self.data = self.filename
 
