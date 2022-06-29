@@ -10,6 +10,10 @@ HOPP_examples/
 HOPP-demos/
 tests/analysis/results/
 
+examples/analysis/All_Runs*
+resource_files/solar/*.csv
+resource_files/wind/*.srw
+
 .idea/*
 .idea/workspace.xml
 
