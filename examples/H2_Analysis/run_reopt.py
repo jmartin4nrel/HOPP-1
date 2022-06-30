@@ -151,7 +151,7 @@ def run_reopt(site, scenario, load, interconnection_limit_kw, critical_load_fact
             scenario['Site Name'], scenario['Scenario Name'], critical_load_factor), "wb"))
 
     else:
-        print("Not running reopt. Loading Dummy data")
+        # print("Not running reopt. Loading Dummy data")
         precompute_path = 'results/reopt_precomputes/'
         precompute_path_abs = Path(__file__).parent / precompute_path
         result = pickle.load(

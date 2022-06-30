@@ -357,8 +357,9 @@ class HybridDispatchBuilderSolver:
 
     def simulate_power(self):
         if self.needs_dispatch:
-            # Dispatch Optimization Simulation with Rolling Horizon
-            print("Simulating system with dispatch optimization...")
+            # # Dispatch Optimization Simulation with Rolling Horizon
+            # print("Simulating system with dispatch optimization...")
+            False # Had to put something here
         else:
             print("Dispatch optimization not required...")
             return
@@ -380,8 +381,8 @@ class HybridDispatchBuilderSolver:
                         # TODO: can we make the csp and battery model run with heuristic dispatch here?
                         #  Maybe calling a simulate_with_heuristic() method
                 else:
-                    if (i % 73) == 0:
-                        print("\t {:.0f} % complete".format(i*20/73))
+                    # if (i % 73) == 0:
+                    #     print("\t {:.0f} % complete".format(i*20/73))
                     self.simulate_with_dispatch(t)
         else:
 
