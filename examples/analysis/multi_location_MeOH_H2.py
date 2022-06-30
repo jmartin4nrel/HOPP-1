@@ -372,7 +372,7 @@ def run_all_hybrid_calcs(site_details, scenario_descriptions, results_dir, load_
                    repeat(correct_wind_speed_for_height), repeat(all_run_dir))
 
     # Run a multi-threaded analysis
-    with multiprocessing.Pool(8) as p:
+    with multiprocessing.Pool(10) as p:
         p.starmap(run_hybrid_calc, all_args)
 
     # # Run a single-threaded analysis
@@ -432,26 +432,8 @@ if __name__ == '__main__':
     desired_lons = list(coords[:,1])
 
     # Load locations from list - cancels out previous block
-    # 'ngcc_just2.csv',]
-    lon_lat_name_list = ['ngcc1.csv',
-                        'ngcc2.csv',
-                        'ngcc3.csv',
-                        'ngcc4.csv',
-                        'ngcc5.csv',
-                        'ngcc6.csv',
-                        'ngcc7.csv',
-                        'ngcc8.csv',
-                        'ngcc9.csv',
-                        'ngcc10.csv',
-                        'ngcc11.csv',
-                        'ngcc12.csv',
-                        'ngcc13.csv',
-                        'ngcc14.csv',
-                        'ngcc15.csv',
-                        'ngcc16.csv',
-                        'ngcc17.csv',
-                        'ngcc18.csv',
-                        'ngcc19.csv']
+    num_files = 38
+    lon_lat_name_list = ['ngcc'+str(i)+'.csv' for i in np.arange(1,num_files)]
     for lon_lat_name in lon_lat_name_list:
         lon_lats = pd.read_csv(lon_lat_name,header=None)
         desired_lats = list(lon_lats.values[:,1])
