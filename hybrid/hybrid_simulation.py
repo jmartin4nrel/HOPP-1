@@ -7,6 +7,7 @@ import json
 from collections import OrderedDict
 
 import numpy as np
+import pandas as pd
 from scipy.stats import pearsonr
 import PySAM.GenericSystem as GenericSystem
 from tools.analysis import create_cost_calculator
@@ -1064,3 +1065,11 @@ class HybridSimulation:
                     linewidth=4.0
                     ):
         self.layout.plot(figure, axes, wind_color, pv_color, site_border_color, site_alpha, linewidth)
+
+    def tune(self, tuning_file):
+
+        self.tuning_file = tuning_file
+        tune_array = pd.read_csv(tuning_file)
+        for _, row in tune_array.iterrows():
+            # Set power source values to values specified in tuning file
+            getattr(self,row['power_source']).value(row['name'],row['value'])

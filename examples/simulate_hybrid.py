@@ -37,6 +37,8 @@ hybrid_plant.pv.system_capacity_kw = solar_size_mw * 1000
 hybrid_plant.wind.system_capacity_by_num_turbines(wind_size_mw * 1000)
 hybrid_plant.ppa_price = 0.1
 hybrid_plant.pv.dc_degradation = [0] * 25
+tuning_file = examples_dir / "resource_files" / "June IESS Tune.csv"
+hybrid_plant.tune(tuning_file)
 hybrid_plant.simulate(25)
 
 # Save the outputs
