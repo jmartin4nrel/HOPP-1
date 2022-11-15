@@ -12,9 +12,9 @@ examples_dir = Path(__file__).parent.absolute()
 set_nrel_key_dot_env()
 
 # Set wind, solar, and interconnection capacities (in MW)
-solar_size_mw = 50
-wind_size_mw = 50
-interconnection_size_mw = 50
+solar_size_mw = 0.43
+wind_size_mw = 1.5
+interconnection_size_mw = 1
 
 technologies = {'pv': {
                     'system_capacity_kw': solar_size_mw * 1000
@@ -37,8 +37,16 @@ hybrid_plant.pv.system_capacity_kw = solar_size_mw * 1000
 hybrid_plant.wind.system_capacity_by_num_turbines(wind_size_mw * 1000)
 hybrid_plant.ppa_price = 0.1
 hybrid_plant.pv.dc_degradation = [0] * 25
+
 tuning_file = examples_dir / "resource_files" / "June IESS Tune.csv"
-hybrid_plant.tune(tuning_file)
+hybrid_plant.tune_manual(tuning_file)
+
+tuning_files = {'pv': examples_dir / "resource_files" / "FirstSolar.csv",
+                'wind': examples_dir / "resource_files" / "GE1pt5.csv",}
+resource_files = {'pv': examples_dir / "resource_files" / "TuningSun.csv",
+                'wind': examples_dir / "resource_files" / "TuningWind.csv",}
+hybrid_plant.tune_data(tuning_files, resource_files)
+
 hybrid_plant.simulate(25)
 
 # Save the outputs
