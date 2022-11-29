@@ -1,0 +1,5 @@
+Up to June 1 21: DHI Data Correlated from NSRDB
+Jan 22: DHI Data Bad? Doesn't matter b/c 1st solar inactive?
+Feb 1 21 thru June 1 21: All solar data from NSRDB
+2022: Solar Zenith Angle averaged from previous years
+Calculated DNI from Sep 15th 22 onward

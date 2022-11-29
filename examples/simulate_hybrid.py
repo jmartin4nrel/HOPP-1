@@ -41,11 +41,12 @@ hybrid_plant.pv.dc_degradation = [0] * 25
 tuning_file = examples_dir / "resource_files" / "June IESS Tune.csv"
 hybrid_plant.tune_manual(tuning_file)
 
-tuning_files = {'pv': examples_dir / "resource_files" / "FirstSolar.csv",
-                'wind': examples_dir / "resource_files" / "GE1pt5.csv",}
-resource_files = {'pv': examples_dir / "resource_files" / "TuningSun.csv",
-                'wind': examples_dir / "resource_files" / "TuningWind.csv",}
-hybrid_plant.tune_data(tuning_files, resource_files)
+tuning_files = {'pv': examples_dir / "resource_files" / "FirstSolar_YYYY.csv",
+                'wind': examples_dir / "resource_files" / "GE1pt5MW_YYYY.csv",}
+resource_files = {'pv': examples_dir / "resource_files" / "solar_m2_YYYY.csv",
+                'wind': examples_dir / "resource_files" / "wind_m5_YYYY.srw",}
+years = [2019,2020,2021,2022]
+hybrid_plant.tune_data(tuning_files, resource_files, years)
 
 hybrid_plant.simulate(25)
 

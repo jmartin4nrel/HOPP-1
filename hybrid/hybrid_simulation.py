@@ -1074,9 +1074,20 @@ class HybridSimulation:
             # Set power source values to values specified in tuning file
             getattr(self,row['power_source']).value(row['name'],row['value'])
 
-    def tune_data(self, tuning_files: dict):
+    def tune_data(self, tuning_files: dict, resource_files: dict, years: list):
 
-        for power_source in tuning_files.keys:
-            # Find good days
-            power_df = pd.read_csv(tuning_files[power_source])
-            dummy = 0
+        # Build lists of tuning/resource file paths
+        tun_filepaths = {}
+        res_filepaths = {}
+        for power_source in tuning_files.keys():
+            tun_filename = str(tuning_files[power_source])
+            res_filename = str(resource_files[power_source])
+            tun_idx = tun_filename.find('YYYY')
+            tun_sfx = tun_filename[(tun_idx+4):]
+            res_idx = res_filename.find('YYYY')
+            res_sfx = res_filename[(res_idx+4):]
+            tun_filepaths[power_source] = []
+            res_filepaths[power_source] = []
+            for year in years:
+                tun_filepaths[power_source].append(Path(tun_filename[:tun_idx]+str(year)+tun_sfx))
+                res_filepaths[power_source].append(Path(res_filename[:res_idx]+str(year)+res_sfx))
