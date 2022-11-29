@@ -1,5 +1,4 @@
 power_source,name,value
-pv,array_type,0
 pv,tilt,25
 pv,dc_ac_ratio,1.149
 pv,losses,1.006

@@ -1091,3 +1091,5 @@ class HybridSimulation:
             for year in years:
                 tun_filepaths[power_source].append(Path(tun_filename[:tun_idx]+str(year)+tun_sfx))
                 res_filepaths[power_source].append(Path(res_filename[:res_idx]+str(year)+res_sfx))
+
+        dummy = 0
