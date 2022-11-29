@@ -24,7 +24,7 @@ wind_power_curve = examples_dir / "resource_files" / "NREL_Reference_1.5MW_Turbi
 wind_shear_exp = 0.15
 wind_wake_model = 3 # constant wake loss, layout-independent
 
-interconnection_size_mw = 1
+interconnection_size_mw = 2
 
 technologies = {'pv': {
                     'system_capacity_kw': solar_size_mw * 1000,

@@ -9,6 +9,7 @@ from collections import OrderedDict
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
+import matplotlib.pyplot as plt
 import PySAM.GenericSystem as GenericSystem
 from tools.analysis import create_cost_calculator
 from hybrid.sites import SiteInfo
@@ -1092,4 +1093,23 @@ class HybridSimulation:
                 tun_filepaths[power_source].append(Path(tun_filename[:tun_idx]+str(year)+tun_sfx))
                 res_filepaths[power_source].append(Path(res_filename[:res_idx]+str(year)+res_sfx))
 
-        dummy = 0
+        # Simulate year by year
+        for i, year in enumerate(years):
+            
+            # Simulate generation
+            self.site.solar_resource = res_filepaths['pv'][i]
+            self.site.wind_resource = res_filepaths['wind'][i]
+            self.simulate(1)
+            pv_gen = self.pv.generation_profile
+            wind_gen = self.wind.generation_profile
+
+            # Load actual generation data
+            pv_tun = np.loadtxt(tun_filepaths['pv'][i])
+            wind_tun = np.loadtxt(tun_filepaths['wind'][i])
+            plt.subplot(2,1,1)
+            plt.plot(np.arange(8760),pv_gen)
+            plt.plot(np.arange(8760),pv_tun)
+            plt.subplot(2,1,2)
+            plt.plot(np.arange(8760),wind_gen)
+            plt.plot(np.arange(8760),wind_tun)
+            plt.show()
