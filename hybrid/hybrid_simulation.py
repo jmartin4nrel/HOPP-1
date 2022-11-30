@@ -1079,7 +1079,7 @@ class HybridSimulation:
             # Set power source values to values specified in tuning file
             getattr(self,row['power_source']).value(row['name'],row['value'])
 
-    def tune_data(self, technologies: dict, tuning_files: dict, resource_files: dict, years: list):
+    def tune_data(self, tuning_files: dict, resource_files: dict, years: list):
 
         # Build lists of tuning/resource file paths
         tun_filepaths = {}
@@ -1102,16 +1102,10 @@ class HybridSimulation:
         for i, year in enumerate(years):
             
             # Simulate generation for this specific year
-            # NewSolarRes = SolarResource(self.site.lat,self.site.lon,year,filepath=res_filepaths['pv'][i])
-            # self.pv._system_model.SolarResource = NewSolarRes
-            # self.site.solar_resource = NewSolarRes
-            # NewWindRes = WindResource(self.site.lat,self.site.lon,year,hub_ht,filepath=res_filepaths['wind'][i])
-            # self.wind._system_model.Resource = NewWindRes
-            # self.site.wind_resource = NewWindRes
-            new_site = SiteInfo(self.site.data, solar_resource_file=res_filepaths['pv'][i],
-                                                wind_resource_file=res_filepaths['wind'][i])
-            self.pv = PVPlant(new_site, technologies['pv'])
-            self.wind = WindPlant(new_site, technologies['wind'])
+            NewSolarRes = SolarResource(self.site.lat,self.site.lon,year,filepath=res_filepaths['pv'][i])
+            NewWindRes = WindResource(self.site.lat,self.site.lon,year,hub_ht,filepath=res_filepaths['wind'][i])
+            self.pv._system_model.SolarResource.solar_resource_data = NewSolarRes.data
+            self.wind._system_model.Resource.wind_resource_data = NewWindRes.data
             self.simulate_power(1)
             pv_gen = self.pv.generation_profile
             wind_gen = self.wind.generation_profile
@@ -1127,5 +1121,3 @@ class HybridSimulation:
             plt.plot(times,wind_gen)
             plt.plot(times,wind_tun)
             plt.show()
-
-            dummy = 0

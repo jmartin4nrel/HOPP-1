@@ -73,9 +73,9 @@ tuning_files = {'pv': examples_dir / "resource_files" / "FirstSolar_YYYY.csv",
                 'wind': examples_dir / "resource_files" / "GE1pt5MW_YYYY.csv",}
 resource_files = {'pv': examples_dir / "resource_files" / "solar_m2_YYYY.csv",
                 'wind': examples_dir / "resource_files" / "wind_m5_YYYY.srw",}
-years = [2022,] #[2019,2020,2021,2022]
+years = [2019,2020,2021,2022]
 hybrid_plant.pv.dc_degradation = [0]*len(years)
-hybrid_plant.tune_data(technologies, tuning_files, resource_files, years)
+hybrid_plant.tune_data(tuning_files, resource_files, years)
 
 hybrid_plant.simulate(1)
 
