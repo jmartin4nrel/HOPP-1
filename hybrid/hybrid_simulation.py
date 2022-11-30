@@ -1104,12 +1104,13 @@ class HybridSimulation:
             wind_gen = self.wind.generation_profile
 
             # Load actual generation data
-            pv_tun = np.loadtxt(tun_filepaths['pv'][i])
-            wind_tun = np.loadtxt(tun_filepaths['wind'][i])
+            pv_tun = np.loadtxt(tun_filepaths['pv'][i],delimiter=',')
+            wind_tun = np.loadtxt(tun_filepaths['wind'][i],delimiter=',')
+            times = pd.date_range(start=str(year)+'-01-01 00:30:00',periods=8760,freq='H')
             plt.subplot(2,1,1)
-            plt.plot(np.arange(8760),pv_gen)
-            plt.plot(np.arange(8760),pv_tun)
+            plt.plot(times,pv_gen)
+            plt.plot(times,pv_tun)
             plt.subplot(2,1,2)
-            plt.plot(np.arange(8760),wind_gen)
-            plt.plot(np.arange(8760),wind_tun)
+            plt.plot(times,wind_gen)
+            plt.plot(times,wind_tun)
             plt.show()

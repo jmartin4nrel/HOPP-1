@@ -27,8 +27,7 @@ wind_wake_model = 3 # constant wake loss, layout-independent
 interconnection_size_mw = 2
 
 technologies = {'pv': {
-                    'system_capacity_kw': solar_size_mw * 1000,
-                    'array_type': array_type
+                    'system_capacity_kw': solar_size_mw * 1000
                 },
                 'wind': {
                     'num_turbines': 1,
@@ -52,6 +51,7 @@ hybrid_plant = HybridSimulation(technologies, site, interconnect_kw=interconnect
 
 hybrid_plant.pv.system_capacity_kw = solar_size_mw * 1000
 hybrid_plant.wind.system_capacity_by_num_turbines(wind_size_mw * 1000)
+hybrid_plant.pv.value('array_type',0)
 hybrid_plant.ppa_price = 0.1
 hybrid_plant.pv.dc_degradation = [0]
 
@@ -59,6 +59,11 @@ hybrid_plant.pv.dc_degradation = [0]
 curve_data = pd.read_csv(wind_power_curve)
 wind_speed = curve_data['Wind Speed [m/s]'].values.tolist() 
 curve_power = curve_data['Power [kW]']
+hybrid_plant.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds = wind_speed
+hybrid_plant.wind._system_model.Turbine.wind_turbine_powercurve_powerout = curve_power
+hybrid_plant.wind.wake_model = wind_wake_model
+hybrid_plant.wind.system_capacity_by_num_turbines(wind_size_mw * 1000)
+hybrid_plant.wind._system_model.Turbine.wind_resource_shear = wind_shear_exp
 
 # Tune the model to IESS data
 tuning_file = examples_dir / "resource_files" / "June IESS Tune.csv"
