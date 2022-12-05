@@ -1113,25 +1113,24 @@ class HybridSimulation:
             # Load actual generation data
             pv_tun = np.loadtxt(tun_filepaths['pv'][i],delimiter=',')
             wind_tun = np.loadtxt(tun_filepaths['wind'][i],delimiter=',')
-            times = pd.date_range(start=str(year)+'-01-01 00:30:00',periods=8760,freq='H')
+            if year % 4 == 0:
+                # Take out leap day
+                times = pd.date_range(start=str(year)+'-01-01 00:30:00',periods=8784,freq='H')
+                times = times[:1416].union(times[1440:])
+            else:
+                times = pd.date_range(start=str(year)+'-01-01 00:30:00',periods=8760,freq='H')
             plt.subplot(2,1,1)
             plt.plot(times,pv_gen,label='HOPP Modeled Output')
             plt.plot(times,pv_tun,label='ARIES Data')
             plt.title('First Solar Array')
             plt.ylabel('Active Power [kW]')
-            if year % 4 == 0:
-                plt.xlabel('Time (need to remove leap day from time series)')
-            else:
-                plt.xlabel('Time')
+            plt.xlabel('Time')
             plt.legend()
             plt.subplot(2,1,2)
             plt.plot(times,wind_gen,label='HOPP Modeled Output')
             plt.plot(times,wind_tun,label='ARIES Data')
             plt.title('GE Turbine')
             plt.ylabel('Active Power [kW]')
-            if year % 4 == 0:
-                plt.xlabel('Time (need to remove leap day from time series)')
-            else:
-                plt.xlabel('Time')
+            plt.xlabel('Time')
             plt.legend()
             plt.show()
