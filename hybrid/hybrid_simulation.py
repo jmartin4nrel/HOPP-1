@@ -1083,6 +1083,8 @@ class HybridSimulation:
     def tune_data(self, tuning_files: dict, resource_files: dict, good_period_file: str, years: list):
 
         hub_ht = self.wind._system_model.Turbine.wind_turbine_hub_ht
+        good_pv = pd.DataFrame()
+        good_wind = pd.DataFrame()
         
         # Build lists of tuning/resource file paths
         tun_filepaths = {}
@@ -1145,6 +1147,8 @@ class HybridSimulation:
             for i, pv_start in enumerate(pv_starts_year):
                 pv_stop = pv_stops_year[i]
                 good_period = patch.Rectangle([pv_start,Ylim[0]],pv_stop-pv_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5)
+                good_inds = (times>pv_start)&(times<pv_stop)
+                good_pv = pd.concat((good_pv,pd.DataFrame([pv_gen[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
                 ax1.add_patch(good_period)
             ax1.set_ylim(Ylim)
             plt.title('First Solar Array')
@@ -1158,6 +1162,8 @@ class HybridSimulation:
             for i, wind_start in enumerate(wind_starts_year):
                 wind_stop = wind_stops_year[i]
                 good_period = patch.Rectangle([wind_start,Ylim[0]],wind_stop-wind_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5)
+                good_inds = (times>wind_start)&(times<wind_stop)
+                good_wind = pd.concat((good_wind,pd.DataFrame([wind_gen[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
                 ax2.add_patch(good_period)
             ax2.set_ylim(Ylim)
             plt.title('GE Turbine')
