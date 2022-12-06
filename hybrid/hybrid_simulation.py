@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
 import matplotlib.pyplot as plt
+import matplotlib.patches as patch
 import PySAM.GenericSystem as GenericSystem
 from tools.analysis import create_cost_calculator
 from hybrid.sites import SiteInfo
@@ -1079,8 +1080,10 @@ class HybridSimulation:
             # Set power source values to values specified in tuning file
             getattr(self,row['power_source']).value(row['name'],row['value'])
 
-    def tune_data(self, tuning_files: dict, resource_files: dict, years: list):
+    def tune_data(self, tuning_files: dict, resource_files: dict, good_period_file: str, years: list):
 
+        hub_ht = self.wind._system_model.Turbine.wind_turbine_hub_ht
+        
         # Build lists of tuning/resource file paths
         tun_filepaths = {}
         res_filepaths = {}
@@ -1097,8 +1100,13 @@ class HybridSimulation:
                 tun_filepaths[power_source].append(Path(tun_filename[:tun_idx]+str(year)+tun_sfx))
                 res_filepaths[power_source].append(Path(res_filename[:res_idx]+str(year)+res_sfx))
 
+        period_df = pd.read_csv(good_period_file)
+        pv_starts = pd.DatetimeIndex(period_df.loc[:,'PV Starts'])
+        pv_stops = pd.DatetimeIndex(period_df.loc[:,'PV Stops'])
+        wind_starts = pd.DatetimeIndex(period_df.loc[:,'Wind Starts'])
+        wind_stops = pd.DatetimeIndex(period_df.loc[:,'Wind Stops'])
+             
         # Simulate year by year
-        hub_ht = self.wind._system_model.Turbine.wind_turbine_hub_ht
         for i, year in enumerate(years):
             
             # Simulate generation for this specific year
@@ -1119,16 +1127,39 @@ class HybridSimulation:
                 times = times[:1416].union(times[1440:])
             else:
                 times = pd.date_range(start=str(year)+'-01-01 00:30:00',periods=8760,freq='H')
-            plt.subplot(2,1,1)
+            
+            # Get good periods
+            pv_starts_year = pv_starts[pv_starts.year==year]
+            pv_stops_year = pv_stops.shift(-1, freq='H')
+            pv_stops_year = pv_stops_year[pv_stops_year.year==year]
+            pv_stops_year = pv_stops_year.shift(1, freq='H')
+            wind_starts_year = wind_starts[wind_starts.year==year]
+            wind_stops_year = wind_stops.shift(-1, freq='H')
+            wind_stops_year = wind_stops_year[wind_stops_year.year==year]
+            wind_stops_year = wind_stops_year.shift(1, freq='H')
+            
+            ax1 = plt.subplot(2,1,1)
             plt.plot(times,pv_gen,label='HOPP Modeled Output')
             plt.plot(times,pv_tun,label='ARIES Data')
+            Ylim = ax1.get_ylim()
+            for i, pv_start in enumerate(pv_starts_year):
+                pv_stop = pv_stops_year[i]
+                good_period = patch.Rectangle([pv_start,Ylim[0]],pv_stop-pv_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5)
+                ax1.add_patch(good_period)
+            ax1.set_ylim(Ylim)
             plt.title('First Solar Array')
             plt.ylabel('Active Power [kW]')
             plt.xlabel('Time')
-            plt.legend()
-            plt.subplot(2,1,2)
+            plt.legend() 
+            ax2 = plt.subplot(2,1,2)
             plt.plot(times,wind_gen,label='HOPP Modeled Output')
             plt.plot(times,wind_tun,label='ARIES Data')
+            Ylim = ax2.get_ylim()
+            for i, wind_start in enumerate(wind_starts_year):
+                wind_stop = wind_stops_year[i]
+                good_period = patch.Rectangle([wind_start,Ylim[0]],wind_stop-wind_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5)
+                ax2.add_patch(good_period)
+            ax2.set_ylim(Ylim)
             plt.title('GE Turbine')
             plt.ylabel('Active Power [kW]')
             plt.xlabel('Time')
