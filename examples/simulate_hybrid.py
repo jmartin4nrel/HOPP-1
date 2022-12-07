@@ -13,7 +13,7 @@ examples_dir = Path(__file__).parent.absolute()
 set_nrel_key_dot_env()
 
 # Set wind, solar, and interconnection system info
-solar_size_mw = 0.43
+solar_size_mw = 0.48
 array_type = 0 # Fixed-angle
 dc_degradation = 0
 
