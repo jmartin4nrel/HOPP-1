@@ -1128,6 +1128,12 @@ class HybridSimulation:
             else:
                 times = pd.date_range(start=str(year)+'-01-01 00:30:00',periods=8760,freq='H')
             
+            period_df = pd.read_csv(good_period_file)
+            pv_starts = pd.DatetimeIndex(period_df.loc[:,'PV Starts'])
+            pv_stops = pd.DatetimeIndex(period_df.loc[:,'PV Stops'])
+            wind_starts = pd.DatetimeIndex(period_df.loc[:,'Wind Starts'])
+            wind_stops = pd.DatetimeIndex(period_df.loc[:,'Wind Stops'])
+            
             # Get good periods
             pv_starts_year = pv_starts[pv_starts.year==year]
             pv_stops_year = pv_stops.shift(-1, freq='H')
