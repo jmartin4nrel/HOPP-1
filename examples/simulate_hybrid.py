@@ -1,3 +1,9 @@
+############### LOCAL FOR GEN - DO NOT COMMIT ##################
+import sys
+from pathlib import Path
+sys.path.append('/home/gstarke/Research_Programs/HOPP/HOPP/')
+################################################################
+
 import json
 from pathlib import Path
 import pandas as pd
@@ -73,7 +79,9 @@ tuning_files = {'pv': examples_dir / "resource_files" / "FirstSolar_YYYY.csv",
                 'wind': examples_dir / "resource_files" / "GE1pt5MW_YYYY.csv",}
 resource_files = {'pv': examples_dir / "resource_files" / "solar_m2_YYYY.csv",
                 'wind': examples_dir / "resource_files" / "wind_m5_YYYY.srw",}
-good_period_file = examples_dir / "resource_files" / "GE_FirstSolar_Periods.csv"
+# good_period_file = examples_dir / "resource_files" / "GE_FirstSolar_Periods.csv"
+good_period_file = examples_dir / "resource_files" / "GE_FirstSolar_Periods_Extended.csv"
+
 years = [2019,2020,2021,2022]
 hybrid_plant.pv.dc_degradation = [0]*len(years)
 hybrid_plant.tune_data(tuning_files, resource_files, good_period_file, years)

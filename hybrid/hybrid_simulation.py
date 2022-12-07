@@ -1103,12 +1103,6 @@ class HybridSimulation:
             for year in years:
                 tun_filepaths[power_source].append(Path(tun_filename[:tun_idx]+str(year)+tun_sfx))
                 res_filepaths[power_source].append(Path(res_filename[:res_idx]+str(year)+res_sfx))
-
-        period_df = pd.read_csv(good_period_file)
-        pv_starts = pd.DatetimeIndex(period_df.loc[:,'PV Starts'])
-        pv_stops = pd.DatetimeIndex(period_df.loc[:,'PV Stops'])
-        wind_starts = pd.DatetimeIndex(period_df.loc[:,'Wind Starts'])
-        wind_stops = pd.DatetimeIndex(period_df.loc[:,'Wind Stops'])
              
         # Simulate year by year
         for i, year in enumerate(years):
