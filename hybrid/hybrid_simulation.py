@@ -1199,9 +1199,6 @@ class HybridSimulation:
             for i, pv_start in enumerate(pv_starts_year):
                 pv_stop = pv_stops_year[i]
                 good_period = patch.Rectangle([pv_start,Ylim[0]],pv_stop-pv_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5)
-                good_inds = (times>pv_start)&(times<pv_stop)
-                good_pv_gen = pd.concat((good_pv_gen,pd.DataFrame([pv_gen[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
-                good_pv_tun = pd.concat((good_pv_tun,pd.DataFrame([pv_tun[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
                 ax1.add_patch(good_period)
             ax1.set_ylim(Ylim)
             plt.title('First Solar Array')
@@ -1215,11 +1212,30 @@ class HybridSimulation:
             for i, wind_start in enumerate(wind_starts_year):
                 wind_stop = wind_stops_year[i]
                 good_period = patch.Rectangle([wind_start,Ylim[0]],wind_stop-wind_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5)
-                good_inds = (times>wind_start)&(times<wind_stop)
-                good_wind_gen = pd.concat((good_wind_gen,pd.DataFrame([wind_gen[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
-                good_wind_tun = pd.concat((good_wind_tun,pd.DataFrame([wind_tun[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
                 ax2.add_patch(good_period)
             ax2.set_ylim(Ylim)
+            plt.title('GE Turbine')
+            plt.ylabel('Active Power [kW]')
+            plt.xlabel('Time')
+            plt.legend()
+            plt.show()
+
+            # Re-plot with residual
+            plt.clf()
+            plt.subplot(2,1,1)
+            for i, pv_start in enumerate(pv_starts_year):
+                pv_stop = pv_stops_year[i]
+                good_inds = (times>pv_start)&(times<pv_stop)
+                plt.plot(times[good_inds],np.diff(np.vstack([pv_gen,pv_tun]),axis=0)[0][good_inds])
+            plt.title('First Solar Array')
+            plt.ylabel('Active Power [kW]')
+            plt.xlabel('Time')
+            plt.legend() 
+            plt.subplot(2,1,2)
+            for i, wind_start in enumerate(wind_starts_year):
+                wind_stop = wind_stops_year[i]
+                good_inds = (times>wind_start)&(times<wind_stop)
+                plt.plot(times[good_inds],np.diff(np.vstack([wind_gen,wind_tun]),axis=0)[0][good_inds])
             plt.title('GE Turbine')
             plt.ylabel('Active Power [kW]')
             plt.xlabel('Time')
