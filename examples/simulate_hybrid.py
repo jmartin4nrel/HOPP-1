@@ -72,7 +72,7 @@ hybrid_plant.wind.system_capacity_by_num_turbines(wind_size_mw * 1000)
 hybrid_plant.wind._system_model.Turbine.wind_resource_shear = wind_shear_exp
 
 # Tune the model to IESS data
-tuning_file = examples_dir / "resource_files" / "June IESS Tune.csv"
+tuning_file = examples_dir / "resource_files" / "IESS no loss tune.csv"
 hybrid_plant.tune_manual(tuning_file)
 
 tuning_files = {'pv': examples_dir / "resource_files" / "FirstSolar_YYYY.csv",
