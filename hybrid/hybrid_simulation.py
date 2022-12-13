@@ -1083,10 +1083,25 @@ class HybridSimulation:
     def tune_data(self, tuning_files: dict, resource_files: dict, good_period_file: str, years: list):
 
         hub_ht = self.wind._system_model.Turbine.wind_turbine_hub_ht
+        old_pv_loss = getattr(self,'pv').value('losses')
+        old_wind_loss = getattr(self,'wind').value('turb_specific_loss')
         good_pv_gen = pd.DataFrame()
         good_pv_tun = pd.DataFrame()
         good_wind_gen = pd.DataFrame()
         good_wind_tun = pd.DataFrame()
+        
+        # Down-select periods where generation data matches resource data
+        period_df = pd.read_csv(good_period_file)
+        pv_starts = pd.DatetimeIndex(period_df.loc[:,'PV Starts'])
+        pv_stops = pd.DatetimeIndex(period_df.loc[:,'PV Stops'])
+        good_pv_starts = [i in years for i in pv_starts.year]
+        pv_starts = pv_starts[good_pv_starts]
+        pv_stops = pv_stops[good_pv_starts]
+        wind_starts = pd.DatetimeIndex(period_df.loc[:,'Wind Starts'])
+        wind_stops = pd.DatetimeIndex(period_df.loc[:,'Wind Stops'])
+        good_wind_starts = [i in years for i in wind_starts.year]
+        wind_starts = wind_starts[good_wind_starts]
+        wind_stops = wind_stops[good_wind_starts]
         
         # Build lists of tuning/resource file paths
         tun_filepaths = {}
@@ -1105,6 +1120,8 @@ class HybridSimulation:
                 res_filepaths[power_source].append(Path(res_filename[:res_idx]+str(year)+res_sfx))
              
         # Simulate year by year
+        pv_tun_all = []
+        wind_tun_all = []
         for i, year in enumerate(years):
             
             # Simulate generation for this specific year
@@ -1121,18 +1138,14 @@ class HybridSimulation:
             wind_tun = np.loadtxt(tun_filepaths['wind'][i],delimiter=',')
             pv_tun = [np.max([i,0]) for i in pv_tun]
             wind_tun = [np.max([i,0]) for i in wind_tun]
+            pv_tun_all.extend(pv_tun)
+            wind_tun_all.extend(wind_tun)
             if year % 4 == 0:
                 # Take out leap day
                 times = pd.date_range(start=str(year)+'-01-01 00:30:00',periods=8784,freq='H')
                 times = times[:1416].union(times[1440:])
             else:
                 times = pd.date_range(start=str(year)+'-01-01 00:30:00',periods=8760,freq='H')
-            
-            period_df = pd.read_csv(good_period_file)
-            pv_starts = pd.DatetimeIndex(period_df.loc[:,'PV Starts'])
-            pv_stops = pd.DatetimeIndex(period_df.loc[:,'PV Stops'])
-            wind_starts = pd.DatetimeIndex(period_df.loc[:,'Wind Starts'])
-            wind_stops = pd.DatetimeIndex(period_df.loc[:,'Wind Stops'])
             
             # Get good periods
             pv_starts_year = pv_starts[pv_starts.year==year]
@@ -1144,100 +1157,118 @@ class HybridSimulation:
             wind_stops_year = wind_stops_year[wind_stops_year.year==year]
             wind_stops_year = wind_stops_year.shift(1, freq='H')
             
-            ax1 = plt.subplot(2,1,1)
-            plt.plot(times,pv_gen,label='HOPP Modeled Output')
-            plt.plot(times,pv_tun,label='ARIES Data')
-            Ylim = ax1.get_ylim()
+            # ax1 = plt.subplot(2,1,1)
+            # plt.plot(times,pv_gen,label='HOPP Modeled Output')
+            # plt.plot(times,pv_tun,label='ARIES Data')
+            # Ylim = ax1.get_ylim()
             for i, pv_start in enumerate(pv_starts_year):
                 pv_stop = pv_stops_year[i]
-                good_period = patch.Rectangle([pv_start,Ylim[0]],pv_stop-pv_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5)
+                # good_period = patch.Rectangle([pv_start,Ylim[0]],pv_stop-pv_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5)
                 good_inds = (times>pv_start)&(times<pv_stop)
                 good_pv_gen = pd.concat((good_pv_gen,pd.DataFrame([pv_gen[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
                 good_pv_tun = pd.concat((good_pv_tun,pd.DataFrame([pv_tun[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
-                ax1.add_patch(good_period)
-            ax1.set_ylim(Ylim)
-            plt.title('First Solar Array')
-            plt.ylabel('Active Power [kW]')
-            plt.xlabel('Time')
-            plt.legend() 
-            ax2 = plt.subplot(2,1,2)
-            plt.plot(times,wind_gen,label='HOPP Modeled Output')
-            plt.plot(times,wind_tun,label='ARIES Data')
-            Ylim = ax2.get_ylim()
+                # ax1.add_patch(good_period)
+            # ax1.set_ylim(Ylim)
+            # plt.title('First Solar Array')
+            # plt.ylabel('Active Power [kW]')
+            # plt.xlabel('Time')
+            # plt.legend() 
+            # ax2 = plt.subplot(2,1,2)
+            # plt.plot(times,wind_gen,label='HOPP Modeled Output')
+            # plt.plot(times,wind_tun,label='ARIES Data')
+            # Ylim = ax2.get_ylim()
             for i, wind_start in enumerate(wind_starts_year):
                 wind_stop = wind_stops_year[i]
-                good_period = patch.Rectangle([wind_start,Ylim[0]],wind_stop-wind_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5)
+                # good_period = patch.Rectangle([wind_start,Ylim[0]],wind_stop-wind_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5)
                 good_inds = (times>wind_start)&(times<wind_stop)
                 good_wind_gen = pd.concat((good_wind_gen,pd.DataFrame([wind_gen[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
                 good_wind_tun = pd.concat((good_wind_tun,pd.DataFrame([wind_tun[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
-                ax2.add_patch(good_period)
-            ax2.set_ylim(Ylim)
-            plt.title('GE Turbine')
-            plt.ylabel('Active Power [kW]')
-            plt.xlabel('Time')
-            plt.legend()
-            plt.show()
+                # ax2.add_patch(good_period)
+            # ax2.set_ylim(Ylim)
+            # plt.title('GE Turbine')
+            # plt.ylabel('Active Power [kW]')
+            # plt.xlabel('Time')
+            # plt.legend()
+            # plt.show()
 
-            # Get new loss coefficients from "good" data
-            old_pv_loss = getattr(self,'pv').value('losses')
-            old_wind_loss = getattr(self,'wind').value('turb_specific_loss')
-            new_pv_loss = (1-np.sum(good_pv_tun.values)/np.sum(good_pv_gen.values)*(100-old_pv_loss)/100)*100
-            new_wind_loss = (1-np.sum(good_wind_tun.values)/np.sum(good_wind_gen.values)*(100-old_wind_loss)/100)*100
-            new_pv_loss = np.max([new_pv_loss,0])
-            new_wind_loss = np.max([new_wind_loss,0])
-            getattr(self,'pv').value('losses',new_pv_loss)
-            getattr(self,'wind').value('turb_specific_loss',new_wind_loss)
+        # Get new loss coefficients from "good" data
+        new_pv_loss = (1-np.sum(good_pv_tun.values)/np.sum(good_pv_gen.values)*(100-old_pv_loss)/100)*100
+        new_wind_loss = (1-np.sum(good_wind_tun.values)/np.sum(good_wind_gen.values)*(100-old_wind_loss)/100)*100
+        new_pv_loss = np.max([new_pv_loss,0])
+        new_wind_loss = np.max([new_wind_loss,0])
+        getattr(self,'pv').value('losses',new_pv_loss)
+        getattr(self,'wind').value('turb_specific_loss',new_wind_loss)
 
-            # Re-simulate and re-plot with new loss coefficients
+        # Re-simulate and re-plot with new loss coefficients
+        pv_gen_all = []
+        wind_gen_all = []
+        times_all = []
+        for i, year in enumerate(years):
+            # Simulate generation for this specific year
+            NewSolarRes = SolarResource(self.site.lat,self.site.lon,year,filepath=res_filepaths['pv'][i])
+            NewWindRes = WindResource(self.site.lat,self.site.lon,year,hub_ht,filepath=res_filepaths['wind'][i])
+            self.pv._system_model.SolarResource.solar_resource_data = NewSolarRes.data
+            self.wind._system_model.Resource.wind_resource_data = NewWindRes.data
             self.simulate_power(1)
             pv_gen = self.pv.generation_profile
             wind_gen = self.wind.generation_profile
-            ax1 = plt.subplot(2,1,1)
-            plt.plot(times,pv_gen,label='HOPP Modeled Output, new loss coefficient = {:.3f}%'.format(new_pv_loss))
-            plt.plot(times,pv_tun,label='ARIES Data')
-            Ylim = ax1.get_ylim()
-            for i, pv_start in enumerate(pv_starts_year):
-                pv_stop = pv_stops_year[i]
-                good_period = patch.Rectangle([pv_start,Ylim[0]],pv_stop-pv_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5)
-                ax1.add_patch(good_period)
-            ax1.set_ylim(Ylim)
-            plt.title('First Solar Array')
-            plt.ylabel('Active Power [kW]')
-            plt.xlabel('Time')
-            plt.legend() 
-            ax2 = plt.subplot(2,1,2)
-            plt.plot(times,wind_gen,label='HOPP Modeled Output, new loss coefficient = {:.3f}%'.format(new_wind_loss))
-            plt.plot(times,wind_tun,label='ARIES Data')
-            Ylim = ax2.get_ylim()
-            for i, wind_start in enumerate(wind_starts_year):
-                wind_stop = wind_stops_year[i]
-                good_period = patch.Rectangle([wind_start,Ylim[0]],wind_stop-wind_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5)
-                ax2.add_patch(good_period)
-            ax2.set_ylim(Ylim)
-            plt.title('GE Turbine')
-            plt.ylabel('Active Power [kW]')
-            plt.xlabel('Time')
-            plt.legend()
-            plt.show()
+            pv_gen_all.extend(pv_gen)
+            wind_gen_all.extend(wind_gen)
+            if year % 4 == 0:
+                # Take out leap day
+                times = pd.date_range(start=str(year)+'-01-01 00:30:00',periods=8784,freq='H')
+                times = times[:1416].union(times[1440:])
+            else:
+                times = pd.date_range(start=str(year)+'-01-01 00:30:00',periods=8760,freq='H')
+            times_all.extend(times)
+        times_all = pd.DatetimeIndex(times_all)
+        
+        ax1 = plt.subplot(2,1,1)
+        plt.plot(times_all,pv_gen_all,label='HOPP Modeled Output, new loss coefficient = {:.3f}%'.format(new_pv_loss))
+        plt.plot(times_all,pv_tun_all,label='ARIES Data')
+        Ylim = ax1.get_ylim()
+        for i, pv_start in enumerate(pv_starts):
+            pv_stop = pv_stops[i]
+            good_period = patch.Rectangle([pv_start,Ylim[0]],pv_stop-pv_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5)
+            ax1.add_patch(good_period)
+        ax1.set_ylim(Ylim)
+        plt.title('First Solar Array')
+        plt.ylabel('Active Power [kW]')
+        plt.xlabel('Time')
+        plt.legend() 
+        ax2 = plt.subplot(2,1,2)
+        plt.plot(times_all,wind_gen_all,label='HOPP Modeled Output, new loss coefficient = {:.3f}%'.format(new_wind_loss))
+        plt.plot(times_all,wind_tun_all,label='ARIES Data')
+        Ylim = ax2.get_ylim()
+        for i, wind_start in enumerate(wind_starts):
+            wind_stop = wind_stops[i]
+            good_period = patch.Rectangle([wind_start,Ylim[0]],wind_stop-wind_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5)
+            ax2.add_patch(good_period)
+        ax2.set_ylim(Ylim)
+        plt.title('GE Turbine')
+        plt.ylabel('Active Power [kW]')
+        plt.xlabel('Time')
+        plt.legend()
+        plt.show()
 
-            # Re-plot with residual
-            plt.clf()
-            plt.subplot(2,1,1)
-            for i, pv_start in enumerate(pv_starts_year):
-                pv_stop = pv_stops_year[i]
-                good_inds = (times>pv_start)&(times<pv_stop)
-                plt.plot(times[good_inds],np.diff(np.vstack([pv_gen,pv_tun]),axis=0)[0][good_inds])
-            plt.title('First Solar Array')
-            plt.ylabel('Active Power [kW]')
-            plt.xlabel('Time')
-            plt.legend() 
-            plt.subplot(2,1,2)
-            for i, wind_start in enumerate(wind_starts_year):
-                wind_stop = wind_stops_year[i]
-                good_inds = (times>wind_start)&(times<wind_stop)
-                plt.plot(times[good_inds],np.diff(np.vstack([wind_gen,wind_tun]),axis=0)[0][good_inds])
-            plt.title('GE Turbine')
-            plt.ylabel('Active Power [kW]')
-            plt.xlabel('Time')
-            plt.legend()
-            plt.show()
+        # Re-plot with residual
+        plt.clf()
+        plt.subplot(2,1,1)
+        for i, pv_start in enumerate(pv_starts):
+            pv_stop = pv_stops[i]
+            good_inds = (times_all>pv_start)&(times_all<pv_stop)
+            plt.plot(times_all[good_inds],np.diff(np.vstack([pv_gen_all,pv_tun_all]),axis=0)[0][good_inds])
+        plt.title('First Solar Array')
+        plt.ylabel('Active Power [kW]')
+        plt.xlabel('Time')
+        plt.legend() 
+        plt.subplot(2,1,2)
+        for i, wind_start in enumerate(wind_starts):
+            wind_stop = wind_stops[i]
+            good_inds = (times_all>wind_start)&(times_all<wind_stop)
+            plt.plot(times_all[good_inds],np.diff(np.vstack([wind_gen_all,wind_tun_all]),axis=0)[0][good_inds])
+        plt.title('GE Turbine')
+        plt.ylabel('Active Power [kW]')
+        plt.xlabel('Time')
+        plt.legend()
+        plt.show()
