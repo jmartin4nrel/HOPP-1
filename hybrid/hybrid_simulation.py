@@ -1122,6 +1122,7 @@ class HybridSimulation:
         good_wind_tun = pd.DataFrame()
         pv_tun_all = []
         wind_tun_all = []
+        poa_all = []
         wind_speed_all = []
         good_pv_inds_all = []
         good_wind_inds_all = []
@@ -1134,6 +1135,7 @@ class HybridSimulation:
             self.pv._system_model.SolarResource.solar_resource_data = NewSolarRes.data
             self.wind._system_model.Resource.wind_resource_data = NewWindRes.data
             self.simulate_power(1)
+            poa_all.extend([i for i in getattr(self,'pv').value('poa')])
             pv_gen = self.pv.generation_profile
             wind_gen = self.wind.generation_profile
 
@@ -1174,9 +1176,19 @@ class HybridSimulation:
                 good_wind_gen = pd.concat((good_wind_gen,pd.DataFrame([wind_gen[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
                 good_wind_tun = pd.concat((good_wind_tun,pd.DataFrame([wind_tun[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
         
-        # Generate new wind power curve
+        # Generate new power curves (just making curve for wind now)
         good_wind_speed = [wind_speed_all[i] for i in good_wind_inds_all]
+        good_poa = [poa_all[i] for i in good_pv_inds_all]
+        plt.subplot(1,2,1)
+        plt.grid('on')
+        plt.plot(good_poa,good_pv_tun.values,'.')
+        plt.xlabel('Plane of array irradiance [W/m^2], 1 hour avg.')
+        plt.ylabel('Active power [kW], 1 hour avg.')
+        plt.subplot(1,2,2)
+        plt.grid('on')
         plt.plot(good_wind_speed,good_wind_tun.values,'.')
+        plt.xlabel('Wind speed [m/s], 1 hour avg.')
+        plt.ylabel('Active power [kW], 1 hour avg.')
         bin_starts = np.array([0,.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,9,10,11])
         bin_ends = np.array([.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,9,10,11,12])
         ## Using manual bins for now, can uncomment this to get automatic binning
@@ -1191,7 +1203,7 @@ class HybridSimulation:
             bin_speeds.append(np.mean([good_wind_speed[i] for i in bin_inds]))
             bin_powers.append(np.mean(good_wind_tun.values[bin_inds]))
         # plt.plot(bin_speeds,bin_powers,'-')
-        # plt.show()
+        plt.show()
         bin_speeds.append(20)
         bin_powers.append(bin_powers[-1])
         self.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds = bin_speeds
@@ -1249,30 +1261,42 @@ class HybridSimulation:
         times_all = pd.DatetimeIndex(times_all)
 
         ax1 = plt.subplot(2,1,1)
+        plt.grid('on')
         plt.plot(times_all,pv_gen_all,label='HOPP Modeled Output')
         plt.plot(times_all,pv_tun_all,label='ARIES Data')
+        plt.ylim([0,600])
         Ylim = ax1.get_ylim()
         for i, pv_start in enumerate(pv_starts):
             pv_stop = pv_stops[i]
-            good_period = patch.Rectangle([pv_start,Ylim[0]],pv_stop-pv_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5)
+            if i == 0:
+                label = 'Usable periods of "clean" data'
+            else:
+                label = None
+            good_period = patch.Rectangle([pv_start,Ylim[0]],pv_stop-pv_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5,label=label)
             ax1.add_patch(good_period)
         ax1.set_ylim(Ylim)
         plt.title('First Solar Array')
         plt.ylabel('Active Power [kW]')
-        plt.xlabel('Time')
+        # plt.xlabel('Time')
         plt.legend() 
         ax2 = plt.subplot(2,1,2)
+        plt.grid('on')
         plt.plot(times_all,wind_gen_all,label='HOPP Modeled Output')
         plt.plot(times_all,wind_tun_all,label='ARIES Data')
+        plt.ylim([0,1200])
         Ylim = ax2.get_ylim()
         for i, wind_start in enumerate(wind_starts):
             wind_stop = wind_stops[i]
-            good_period = patch.Rectangle([wind_start,Ylim[0]],wind_stop-wind_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5)
+            if i == 0:
+                label = 'Usable periods of "clean" data'
+            else:
+                label = None
+            good_period = patch.Rectangle([wind_start,Ylim[0]],wind_stop-wind_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5,label=label)
             ax2.add_patch(good_period)
         ax2.set_ylim(Ylim)
         plt.title('GE Turbine')
         plt.ylabel('Active Power [kW]')
-        plt.xlabel('Time')
+        # plt.xlabel('Time')
         plt.legend()
         plt.show()
 
@@ -1281,6 +1305,7 @@ class HybridSimulation:
         plt.clf()
         plt.subplot(2,2,1)
         # Time of day
+        plt.grid('on')
         avgs = []
         stds = []
         hours = pd.date_range(start='00:30:00',periods=24,freq='H')
@@ -1297,6 +1322,7 @@ class HybridSimulation:
         plt.ylabel('Error (model - actual) [kW]')
         plt.subplot(2,2,2)
         # Power level
+        plt.grid('on')
         avgs = []
         stds = []
         interval = 50
@@ -1313,6 +1339,7 @@ class HybridSimulation:
         plt.ylabel('Error (model - actual) [kW]')
         plt.subplot(2,2,3)
         # Month
+        plt.grid('on')
         avgs = []
         stds = []
         months = pd.date_range(start='01/01/20',periods=12,freq='MS')
@@ -1329,6 +1356,7 @@ class HybridSimulation:
         plt.ylabel('Error (model - actual) [kW]')
         plt.subplot(2,2,4)
         # Year
+        plt.grid('on')
         avgs = []
         stds = []
         for year in years:
@@ -1341,6 +1369,7 @@ class HybridSimulation:
         plt.plot(years,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
         plt.xlabel('Year')
         plt.ylabel('Error (model - actual) [kW]')
+        plt.xticks(years)
         plt.show()
 
         # Plot Wind residuals
@@ -1348,6 +1377,7 @@ class HybridSimulation:
         plt.clf()
         plt.subplot(2,2,1)
         # Time of day
+        plt.grid('on')
         avgs = []
         stds = []
         hours = pd.date_range(start='00:30:00',periods=24,freq='H')
@@ -1364,6 +1394,7 @@ class HybridSimulation:
         plt.ylabel('Error (model - actual) [kW]')
         plt.subplot(2,2,2)
         # Power level
+        plt.grid('on')
         avgs = []
         stds = []
         interval = 100
@@ -1381,6 +1412,7 @@ class HybridSimulation:
         plt.ylabel('Error (model - actual) [kW]')
         plt.subplot(2,2,3)
         # Month
+        plt.grid('on')
         avgs = []
         stds = []
         months = pd.date_range(start='01/01/20',periods=12,freq='MS')
@@ -1397,6 +1429,7 @@ class HybridSimulation:
         plt.ylabel('Error (model - actual) [kW]')
         plt.subplot(2,2,4)
         # Year
+        plt.grid('on')
         avgs = []
         stds = []
         for year in years:
@@ -1409,4 +1442,5 @@ class HybridSimulation:
         plt.plot(years,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
         plt.xlabel('Year')
         plt.ylabel('Error (model - actual) [kW]')
+        plt.xticks(years)
         plt.show()
