@@ -1209,12 +1209,16 @@ class HybridSimulation:
         bin_powers.append(bin_powers[-1])
         self.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds = bin_speeds
         self.wind._system_model.Turbine.wind_turbine_powercurve_powerout = bin_powers
-        
+
+        # Save new generation curve
+        wind_curve_df = pd.DataFrame(data=np.column_stack([bin_speeds,bin_powers]),columns=['Wind Speed [m/s]','Power [kW]'])
+        wind_curve_df.to_csv(Path(str(tuning_files['wind'])[:-8]+'newcurve.csv'))
+
         # Re-simulate with new wind curve and solar angles
         tilt = copy.deepcopy(self.pv._system_model.SystemDesign.tilt)
         azim = copy.deepcopy(self.pv._system_model.SystemDesign.azimuth)
-        tilt_adds = [-2.5,0]#np.linspace(-5,0,11)
-        azim_adds = [-3,0]#np.linspace(-8,2,11)
+        tilt_adds = [0,-2.5]#np.linspace(-5,0,11)
+        azim_adds = [0,-3]#np.linspace(-8,2,11)
         pv_gen_all_lols = []
         good_pv_gen_lols = []
         for k in range(len(tilt_adds)):
@@ -1329,8 +1333,8 @@ class HybridSimulation:
         for k, tilt_add in enumerate(tilt_adds):
             pv_residual_lols.append([])
             for l, azim_add in enumerate(azim_adds):
-                # total_scaling_factor = np.sum([pv_tun_all[i] for i in good_pv_inds_all])/np.sum([pv_gen_all_lols[k][l][i] for i in good_pv_inds_all])
-                # pv_gen_all_lols[k][l] = [i*total_scaling_factor for i in pv_gen_all_lols[k][l]]
+                total_scaling_factor = np.sum([pv_tun_all[i] for i in good_pv_inds_all])/np.sum([pv_gen_all_lols[k][l][i] for i in good_pv_inds_all])
+                pv_gen_all_lols[k][l] = [i*total_scaling_factor for i in pv_gen_all_lols[k][l]]
                 pv_residual_lols[k].append(np.diff(np.vstack([pv_tun_all,pv_gen_all_lols[k][l]]),axis=0)[0][good_pv_inds_all])
                 pv_RMSE[k,l] = np.sqrt(np.mean(np.square(pv_residual_lols[k][l])))
         plt.clf()
