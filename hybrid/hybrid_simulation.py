@@ -1081,12 +1081,56 @@ class HybridSimulation:
             # Set power source values to values specified in tuning file
             getattr(self,row['power_source']).value(row['name'],row['value'])
 
-    def tune_data(self, tuning_files: dict, resource_files: dict, good_period_file: str, years: list):
+    def get_yaw_mismatch(self, yaw_file, tenmin_wind_file, years):
+
+        yaw_mat = np.loadtxt(yaw_file)
+        tenmin_wind_df = pd.read_json(tenmin_wind_file)
+        tenmin_wind_df.index = tenmin_wind_df.index.shift(-7, freq='H')
+        direction_label = 'Direction (sonic_74m)'
+        yaw_label = 'Turbine Yaw [deg]'
+        wind_label = 'Speed (cup_ 80 m)'
+        used_points = 0
+        year_hour_mismatches = np.zeros((len(years),8760))
+        hour_mat = np.transpose(np.array([[],[],[],[]]))
+        for i, year in enumerate(years):
+            print('Calculating yaw mismatch for {:.0f}...'.format(year))
+            year_start = pd.DatetimeIndex([str(year)])[0]
+            year_end = pd.DatetimeIndex([str(year+1)])[0]
+            times = pd.date_range(start=year_start, end=year_end, freq='10min')[:-1]
+            hours = pd.date_range(start=year_start, end=year_end, freq='H')
+            year_df = pd.DataFrame(yaw_mat[used_points:(used_points+len(times))], index=times, columns=[yaw_label])
+            used_points += len(times)
+            year_df = pd.concat((year_df,tenmin_wind_df.loc[(tenmin_wind_df.index>=year_start)&(tenmin_wind_df.index<year_end)]),axis=1)
+            if year % 4 == 0:
+                leap_start = pd.DatetimeIndex([str(year)+'-02-29'])[0]
+                leap_end = pd.DatetimeIndex([str(year)+'-03-01'])[0]
+                year_df = pd.concat((year_df.loc[(year_df.index<leap_start)],year_df.loc[(year_df.index>=leap_end)]))
+                hours = hours[(hours<leap_start)|(hours>=leap_end)]
+            for hour_idx, hour in enumerate(hours[:-1]):
+                hour_df = year_df.loc[(year_df.index>hour)&(year_df.index<=hours[hour_idx+1])]
+                mismatches = hour_df.loc[:,direction_label]+180-hour_df.loc[:,yaw_label]
+                mismatches[mismatches>180] = mismatches[mismatches>180]-360
+                year_hour_mismatches[i,hour_idx] = np.mean(mismatches)
+                mean_hour = np.array([[np.mean(hour_df.loc[:,direction_label]),\
+                                        np.mean(hour_df.loc[:,yaw_label]),\
+                                        np.mean(mismatches),\
+                                        np.mean(hour_df.loc[:,wind_label])]])
+                hour_mat = np.vstack((hour_mat,mean_hour))
+        hourly_df = pd.DataFrame(data=hour_mat, columns=['Wind Direction [deg]', yaw_label, 'Yaw Mismatch [deg]', 'Wind Speed [m/s]'])
+        hourly_df.to_json(Path(str(yaw_file)[:-4]+' mismatch'))
+        hourly_df.to_csv(Path(str(yaw_file)[:-4]+' mismatch.csv'))
+        
+
+    def tune_data(self, tuning_files: dict, resource_files: dict, good_period_file: str, yaw_file: str, years: list):
 
         hub_ht = self.wind._system_model.Turbine.wind_turbine_hub_ht
         old_pv_loss = getattr(self,'pv').value('losses')
         old_wind_loss = getattr(self,'wind').value('turb_specific_loss')
-        
+
+        yaw_df = pd.read_json(Path(str(yaw_file)[:-4]+' mismatch'))
+        dir_label = 'Wind Direction [deg]'
+        mismatch_label = 'Yaw Mismatch [deg]'
+
         # Down-select periods where generation data matches resource data
         period_df = pd.read_csv(good_period_file)
         pv_starts = pd.DatetimeIndex(period_df.loc[:,'PV Starts'])
@@ -1179,6 +1223,16 @@ class HybridSimulation:
         
         # Generate new power curves (just making curve for wind now)
         good_wind_speed = [wind_speed_all[i] for i in good_wind_inds_all]
+        
+        min_angle = 243
+        max_angle = 310
+        max_mismatch = 25
+        good_wind_dir = np.array([yaw_df.loc[:,dir_label].values[i] for i in good_wind_inds_all])
+        angle_wind_dir_inds = np.where((good_wind_dir<max_angle)&(good_wind_dir>min_angle))[0]
+        good_wind_mismatch = np.array([yaw_df.loc[:,mismatch_label].values[i] for i in good_wind_inds_all])
+        angle_wind_mismatch_inds = np.where((good_wind_dir<max_angle)&(good_wind_dir>min_angle)&\
+                                            (good_wind_mismatch>-max_mismatch)&(good_wind_mismatch<max_mismatch))[0]
+        
         good_poa = [poa_all[i] for i in good_pv_inds_all]
         # plt.subplot(1,2,1)
         # plt.grid('on')
@@ -1186,10 +1240,14 @@ class HybridSimulation:
         # plt.xlabel('Plane of array irradiance [W/m^2], 1 hour avg.')
         # plt.ylabel('Active power [kW], 1 hour avg.')
         # plt.subplot(1,2,2)
-        # plt.grid('on')
-        # plt.plot(good_wind_speed,good_wind_tun.values,'.')
-        # plt.xlabel('Wind speed [m/s], 1 hour avg.')
-        # plt.ylabel('Active power [kW], 1 hour avg.')
+        plt.grid('on')
+        plt.plot(good_wind_speed,good_wind_tun.values,'.',label='Measured data points')
+        # plt.plot(np.array(good_wind_speed)[angle_wind_dir_inds],good_wind_tun.values[angle_wind_dir_inds],\
+        #             '.',label='Measured data points with wind between {} and {} deg'.format(min_angle,max_angle))
+        # plt.plot(np.array(good_wind_speed)[angle_wind_mismatch_inds],good_wind_tun.values[angle_wind_mismatch_inds],\
+        #             '.',label='Measured data points with wind between {} and {} deg and less than {} deg yaw mismatch'.format(min_angle,max_angle,max_mismatch))
+        plt.xlabel('Wind speed [m/s], 1 hour avg.')
+        plt.ylabel('Active power [kW], 1 hour avg.')
         bin_starts = np.array([0,.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,9,10,11])
         bin_ends = np.array([.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,9,10,11,12])
         ## Using manual bins for now, can uncomment this to get automatic binning
@@ -1203,16 +1261,26 @@ class HybridSimulation:
             bin_inds = np.where((good_wind_speed>bin_start)&(good_wind_speed<=bin_end))[0]
             bin_speeds.append(np.mean([good_wind_speed[i] for i in bin_inds]))
             bin_powers.append(np.mean(good_wind_tun.values[bin_inds]))
-        # plt.plot(bin_speeds,bin_powers,'-')
-        # plt.show()
+        plt.plot(bin_speeds,bin_powers,'-',label='New measured power curve')
+        plt.plot(self.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds,\
+                self.wind._system_model.Turbine.wind_turbine_powercurve_powerout,\
+                '-',label='Refactored power curve')
+        cd = Path(__file__).parent.absolute()
+        wind_power_curve = cd / '..' / 'examples' / "resource_files" / "NREL_Reference_1.5MW_Turbine_Site_Level.csv"
+        curve_data = pd.read_csv(wind_power_curve)
+        wind_speed = curve_data['Wind Speed [m/s]'].values.tolist() 
+        curve_power = curve_data['Power [kW]']
+        plt.plot(wind_speed,curve_power,'-',label='Original power curve')
+        plt.legend()
+        plt.show()
         bin_speeds.append(20)
         bin_powers.append(bin_powers[-1])
-        self.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds = bin_speeds
-        self.wind._system_model.Turbine.wind_turbine_powercurve_powerout = bin_powers
+        # self.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds = bin_speeds
+        # self.wind._system_model.Turbine.wind_turbine_powercurve_powerout = bin_powers
 
-        # Save new generation curve
-        wind_curve_df = pd.DataFrame(data=np.column_stack([bin_speeds,bin_powers]),columns=['Wind Speed [m/s]','Power [kW]'])
-        wind_curve_df.to_csv(Path(str(tuning_files['wind'])[:-8]+'newcurve.csv'))
+        # # Save new generation curve
+        # wind_curve_df = pd.DataFrame(data=np.column_stack([bin_speeds,bin_powers]),columns=['Wind Speed [m/s]','Power [kW]'])
+        # wind_curve_df.to_csv(Path(str(tuning_files['wind'])[:-8]+'newcurve.csv'))
 
         # Re-simulate with new wind curve and solar angles
         tilt = copy.deepcopy(self.pv._system_model.SystemDesign.tilt)
@@ -1264,7 +1332,7 @@ class HybridSimulation:
                 getattr(self,'pv').value('tilt',tilt+tilt_add)
                 for l, azim_add in enumerate(azim_adds):
                     getattr(self,'pv').value('azimuth',azim+azim_add)
-                    good_pv_gen = pd.DataFrame()
+                    # good_pv_gen = pd.DataFrame()
                     self.simulate_power(1)
 
                     pv_gen = self.pv.generation_profile
@@ -1285,47 +1353,47 @@ class HybridSimulation:
 
         times_all = pd.DatetimeIndex(times_all)
 
-        # ax1 = plt.subplot(2,1,1)
-        # plt.grid('on')
-        # for k, tilt_add in enumerate(tilt_adds):
-        #     for l, azim_add in enumerate(azim_adds):
-        #         plt.plot(times_all,pv_gen_all_lols[k][l],label='HOPP Modeled Output, Tilt {}, Azimuth {}'.format(tilt+tilt_add,azim+azim_add))
-        # plt.plot(times_all,pv_tun_all,label='ARIES Data')
-        # plt.ylim([0,600])
-        # Ylim = ax1.get_ylim()
-        # for i, pv_start in enumerate(pv_starts):
-        #     pv_stop = pv_stops[i]
-        #     if i == 0:
-        #         label = 'Usable periods of "clean" data'
-        #     else:
-        #         label = None
-        #     good_period = patch.Rectangle([pv_start,Ylim[0]],pv_stop-pv_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5,label=label)
-        #     ax1.add_patch(good_period)
-        # ax1.set_ylim(Ylim)
-        # plt.title('First Solar Array')
-        # plt.ylabel('Active Power [kW]')
-        # # plt.xlabel('Time')
-        # plt.legend() 
-        # ax2 = plt.subplot(2,1,2)
-        # plt.grid('on')
-        # plt.plot(times_all,wind_gen_all,label='HOPP Modeled Output')
-        # plt.plot(times_all,wind_tun_all,label='ARIES Data')
-        # plt.ylim([0,1200])
-        # Ylim = ax2.get_ylim()
-        # for i, wind_start in enumerate(wind_starts):
-        #     wind_stop = wind_stops[i]
-        #     if i == 0:
-        #         label = 'Usable periods of "clean" data'
-        #     else:
-        #         label = None
-        #     good_period = patch.Rectangle([wind_start,Ylim[0]],wind_stop-wind_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5,label=label)
-        #     ax2.add_patch(good_period)
-        # ax2.set_ylim(Ylim)
-        # plt.title('GE Turbine')
-        # plt.ylabel('Active Power [kW]')
-        # # plt.xlabel('Time')
-        # plt.legend()
-        # plt.show()
+        ax1 = plt.subplot(2,1,1)
+        plt.grid('on')
+        for k, tilt_add in enumerate(tilt_adds):
+            for l, azim_add in enumerate(azim_adds):
+                plt.plot(times_all,pv_gen_all_lols[k][l],label='HOPP Modeled Output, Tilt {}, Azimuth {}'.format(tilt+tilt_add,azim+azim_add))
+        plt.plot(times_all,pv_tun_all,label='ARIES Data')
+        plt.ylim([0,600])
+        Ylim = ax1.get_ylim()
+        for i, pv_start in enumerate(pv_starts):
+            pv_stop = pv_stops[i]
+            if i == 0:
+                label = 'Usable periods of "clean" data'
+            else:
+                label = None
+            good_period = patch.Rectangle([pv_start,Ylim[0]],pv_stop-pv_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5,label=label)
+            ax1.add_patch(good_period)
+        ax1.set_ylim(Ylim)
+        plt.title('First Solar Array')
+        plt.ylabel('Active Power [kW]')
+        # plt.xlabel('Time')
+        plt.legend() 
+        ax2 = plt.subplot(2,1,2)
+        plt.grid('on')
+        plt.plot(times_all,wind_gen_all,label='HOPP Modeled Output')
+        plt.plot(times_all,wind_tun_all,label='ARIES Data')
+        plt.ylim([0,1200])
+        Ylim = ax2.get_ylim()
+        for i, wind_start in enumerate(wind_starts):
+            wind_stop = wind_stops[i]
+            if i == 0:
+                label = 'Usable periods of "clean" data'
+            else:
+                label = None
+            good_period = patch.Rectangle([wind_start,Ylim[0]],wind_stop-wind_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5,label=label)
+            ax2.add_patch(good_period)
+        ax2.set_ylim(Ylim)
+        plt.title('GE Turbine')
+        plt.ylabel('Active Power [kW]')
+        # plt.xlabel('Time')
+        plt.legend()
+        plt.show()
 
         # Plot PV residuals
         pv_residual_lols = []
@@ -1344,7 +1412,7 @@ class HybridSimulation:
         plt.ylabel('Tilt [deg]')
         plt.xlabel('Azimuth [deg]')
         plt.show()
-        # plt.subplot(2,2,1)
+        plt.subplot(2,2,1)
         # Time of day
         plt.grid('on')
         avg_lols = []
@@ -1371,128 +1439,169 @@ class HybridSimulation:
                 plt.legend()
         plt.xlabel('Time of Day')
         plt.ylabel('Error (model - actual) [kW]')
+        plt.subplot(2,2,2)
+        # Power level
+        plt.grid('on')
+        avgs = []
+        stds = []
+        interval = 50
+        bin_starts = np.arange(0,np.max(good_pv_gen.values),interval)
+        for bin_start in bin_starts:
+            inds = np.where((good_pv_gen.values>bin_start)&(good_pv_gen.values<=(bin_start+interval)))[0]
+            power_residuals = [pv_residual_lols[0][0][i] for i in inds]
+            avgs.append(np.mean(power_residuals))
+            stds.append(np.std(power_residuals))
+        avgs = np.divide(np.array(avgs),np.array(bin_starts)+interval/2)*100
+        stds = np.divide(np.array(stds),np.array(bin_starts)+interval/2)*100
+        plt.plot(bin_starts+interval/2,avgs,'k-')
+        plt.plot(bin_starts+interval/2,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
+        plt.plot(bin_starts+interval/2,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
+        plt.xlabel('Output level [kW]')
+        plt.ylabel('Error (model - actual) [% of modeled output]')
+        plt.subplot(2,2,3)
+        # Month
+        plt.grid('on')
+        avgs = []
+        stds = []
+        months = pd.date_range(start='01/01/20',periods=12,freq='MS')
+        num_months = np.arange(1,13)
+        for month in num_months:
+            inds = np.where(good_pv_gen.index.month==month)[0]
+            month_residuals = [pv_residual_lols[0][0][i] for i in inds]
+            avgs.append(np.mean(month_residuals))
+            stds.append(np.std(month_residuals))
+        plt.plot(num_months,avgs,'k-')
+        plt.plot(num_months,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
+        plt.plot(num_months,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
+        plt.xlabel('Month')
+        plt.ylabel('Error (model - actual) [kW]')
+        plt.subplot(2,2,4)
+        # Year
+        plt.grid('on')
+        avgs = []
+        stds = []
+        for year in years:
+            inds = np.where(good_pv_gen.index.year==year)[0]
+            year_residuals = [pv_residual_lols[0][0][i] for i in inds]
+            avgs.append(np.mean(year_residuals))
+            stds.append(np.std(year_residuals))
+        plt.plot(years,avgs,'k-')
+        plt.plot(years,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
+        plt.plot(years,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
+        plt.xlabel('Year')
+        plt.ylabel('Error (model - actual) [kW]')
+        plt.xticks(years)
         plt.show()
-        # plt.subplot(2,2,2)
-        # # Power level
-        # plt.grid('on')
-        # avgs = []
-        # stds = []
-        # interval = 50
-        # bin_starts = np.arange(0,np.max(good_pv_gen.values),interval)
-        # for bin_start in bin_starts:
-        #     inds = np.where((good_pv_gen.values>bin_start)&(good_pv_gen.values<=(bin_start+interval)))[0]
-        #     power_residuals = [pv_residuals[i] for i in inds]
-        #     avgs.append(np.mean(power_residuals))
-        #     stds.append(np.std(power_residuals))
-        # plt.plot(bin_starts+interval/2,avgs,'k-')
-        # plt.plot(bin_starts+interval/2,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
-        # plt.plot(bin_starts+interval/2,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
-        # plt.xlabel('Output level [kW]')
-        # plt.ylabel('Error (model - actual) [kW]')
-        # plt.subplot(2,2,3)
-        # # Month
-        # plt.grid('on')
-        # avgs = []
-        # stds = []
-        # months = pd.date_range(start='01/01/20',periods=12,freq='MS')
-        # num_months = np.arange(1,13)
-        # for month in num_months:
-        #     inds = np.where(good_pv_gen.index.month==month)[0]
-        #     month_residuals = [pv_residuals[i] for i in inds]
-        #     avgs.append(np.mean(month_residuals))
-        #     stds.append(np.std(month_residuals))
-        # plt.plot(num_months,avgs,'k-')
-        # plt.plot(num_months,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
-        # plt.plot(num_months,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
-        # plt.xlabel('Month')
-        # plt.ylabel('Error (model - actual) [kW]')
-        # plt.subplot(2,2,4)
-        # # Year
-        # plt.grid('on')
-        # avgs = []
-        # stds = []
-        # for year in years:
-        #     inds = np.where(good_pv_gen.index.year==year)[0]
-        #     year_residuals = [pv_residuals[i] for i in inds]
-        #     avgs.append(np.mean(year_residuals))
-        #     stds.append(np.std(year_residuals))
-        # plt.plot(years,avgs,'k-')
-        # plt.plot(years,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
-        # plt.plot(years,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
-        # plt.xlabel('Year')
-        # plt.ylabel('Error (model - actual) [kW]')
-        # plt.xticks(years)
-        # plt.show()
 
-        # # Plot Wind residuals
-        # wind_residuals = np.diff(np.vstack([wind_tun_all,wind_gen_all]),axis=0)[0][good_wind_inds_all]
-        # plt.clf()
-        # plt.subplot(2,2,1)
-        # # Time of day
-        # plt.grid('on')
-        # avgs = []
-        # stds = []
-        # hours = pd.date_range(start='00:30:00',periods=24,freq='H')
-        # num_hours = np.arange(0,24)
-        # for hour in num_hours:
-        #     inds = np.where(good_wind_gen.index.hour==hour)[0]
-        #     hour_residuals = [wind_residuals[i] for i in inds]
-        #     avgs.append(np.mean(hour_residuals))
-        #     stds.append(np.std(hour_residuals))
-        # plt.plot(num_hours,avgs,'k-')
-        # plt.plot(num_hours,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
-        # plt.plot(num_hours,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
-        # plt.xlabel('Time of Day')
-        # plt.ylabel('Error (model - actual) [kW]')
-        # plt.subplot(2,2,2)
-        # # Power level
-        # plt.grid('on')
-        # avgs = []
-        # stds = []
-        # interval = 100
-        # good_wind_gen_2 = [wind_gen_all[i] for i in good_wind_inds_all] # Don't know why I had to do this...
-        # bin_starts = np.arange(0,np.max(good_wind_gen_2),interval)
-        # for bin_start in bin_starts:
-        #     inds = np.where((good_wind_gen_2>bin_start)&(good_wind_gen_2<=(bin_start+interval)))[0]
-        #     power_residuals = [wind_residuals[i] for i in inds]
-        #     avgs.append(np.mean(power_residuals))
-        #     stds.append(np.std(power_residuals))
-        # plt.plot(bin_starts+interval/2,avgs,'k-')
-        # plt.plot(bin_starts+interval/2,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
-        # plt.plot(bin_starts+interval/2,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
-        # plt.xlabel('Output level [kW]')
-        # plt.ylabel('Error (model - actual) [kW]')
-        # plt.subplot(2,2,3)
-        # # Month
-        # plt.grid('on')
-        # avgs = []
-        # stds = []
-        # months = pd.date_range(start='01/01/20',periods=12,freq='MS')
-        # num_months = np.arange(1,13)
-        # for month in num_months:
-        #     inds = np.where(good_wind_gen.index.month==month)[0]
-        #     month_residuals = [wind_residuals[i] for i in inds]
-        #     avgs.append(np.mean(month_residuals))
-        #     stds.append(np.std(month_residuals))
-        # plt.plot(num_months,avgs,'k-')
-        # plt.plot(num_months,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
-        # plt.plot(num_months,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
-        # plt.xlabel('Month')
-        # plt.ylabel('Error (model - actual) [kW]')
-        # plt.subplot(2,2,4)
-        # # Year
-        # plt.grid('on')
-        # avgs = []
-        # stds = []
-        # for year in years:
-        #     inds = np.where(good_wind_gen.index.year==year)[0]
-        #     year_residuals = [wind_residuals[i] for i in inds]
-        #     avgs.append(np.mean(year_residuals))
-        #     stds.append(np.std(year_residuals))
-        # plt.plot(years,avgs,'k-')
-        # plt.plot(years,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
-        # plt.plot(years,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
-        # plt.xlabel('Year')
-        # plt.ylabel('Error (model - actual) [kW]')
-        # plt.xticks(years)
-        # plt.show()
+        # Plot Wind residuals
+        wind_residuals = np.diff(np.vstack([wind_tun_all,wind_gen_all]),axis=0)[0][good_wind_inds_all]
+        plt.clf()
+        plt.subplot(2,3,1)
+        # Time of day
+        plt.grid('on')
+        avgs = []
+        stds = []
+        hours = pd.date_range(start='00:30:00',periods=24,freq='H')
+        num_hours = np.arange(0,24)
+        for hour in num_hours:
+            inds = np.where(good_wind_gen.index.hour==hour)[0]
+            hour_residuals = [wind_residuals[i] for i in inds]
+            avgs.append(np.mean(hour_residuals))
+            stds.append(np.std(hour_residuals))
+        plt.plot(num_hours,avgs,'k-')
+        plt.plot(num_hours,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
+        plt.plot(num_hours,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
+        plt.xlabel('Time of Day')
+        plt.ylabel('Error (model - actual) [kW]')
+        plt.subplot(2,3,2)
+        # Power level
+        plt.grid('on')
+        avgs = []
+        stds = []
+        interval = 100
+        good_wind_gen_2 = [wind_gen_all[i] for i in good_wind_inds_all] # Don't know why I had to do this...
+        bin_starts = np.arange(0,np.max(good_wind_gen_2),interval)
+        for bin_start in bin_starts:
+            inds = np.where((good_wind_gen_2>bin_start)&(good_wind_gen_2<=(bin_start+interval)))[0]
+            power_residuals = [wind_residuals[i] for i in inds]
+            avgs.append(np.mean(power_residuals))
+            stds.append(np.std(power_residuals))
+        avgs = np.divide(np.array(avgs),np.array(bin_starts)+interval/2)*100
+        stds = np.divide(np.array(stds),np.array(bin_starts)+interval/2)*100
+        plt.plot(bin_starts+interval/2,avgs,'k-')
+        plt.plot(bin_starts+interval/2,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
+        plt.plot(bin_starts+interval/2,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
+        plt.xlabel('Output level [kW]')
+        plt.ylabel('Error (model - actual) [% of modeled output]')
+        plt.subplot(2,3,3)
+        # Month
+        plt.grid('on')
+        avgs = []
+        stds = []
+        months = pd.date_range(start='01/01/20',periods=12,freq='MS')
+        num_months = np.arange(1,13)
+        for month in num_months:
+            inds = np.where(good_wind_gen.index.month==month)[0]
+            month_residuals = [wind_residuals[i] for i in inds]
+            avgs.append(np.mean(month_residuals))
+            stds.append(np.std(month_residuals))
+        plt.plot(num_months,avgs,'k-')
+        plt.plot(num_months,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
+        plt.plot(num_months,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
+        plt.xlabel('Month')
+        plt.ylabel('Error (model - actual) [kW]')
+        plt.subplot(2,3,4)
+        # Year
+        plt.grid('on')
+        avgs = []
+        stds = []
+        for year in years:
+            inds = np.where(good_wind_gen.index.year==year)[0]
+            year_residuals = [wind_residuals[i] for i in inds]
+            avgs.append(np.mean(year_residuals))
+            stds.append(np.std(year_residuals))
+        plt.plot(years,avgs,'k-')
+        plt.plot(years,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
+        plt.plot(years,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
+        plt.xlabel('Year')
+        plt.ylabel('Error (model - actual) [kW]')
+        plt.xticks(years)
+
+        plt.subplot(2,3,5)
+        # Wind Direction
+        plt.grid('on')
+        avgs = []
+        stds = []
+        dir_int = 10
+        dir_bins = np.arange(0,360,dir_int)
+        for dir_bin in dir_bins:
+            inds = np.where((good_wind_dir>=dir_bin)&(good_wind_dir<(dir_bin+dir_int)))[0]
+            dir_residuals = [wind_residuals[i] for i in inds]
+            avgs.append(np.mean(dir_residuals))
+            stds.append(np.std(dir_residuals))
+        plt.plot(dir_bins+dir_int/2,avgs,'k-')
+        plt.plot(dir_bins+dir_int/2,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
+        plt.plot(dir_bins+dir_int/2,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
+        plt.xlabel('Wind Direction [deg]')
+        plt.ylabel('Error (model - actual) [kW]')
+        # plt.xticks(dir_bins)
+        
+        plt.subplot(2,3,6)
+        # Yaw Mismatch
+        plt.grid('on')
+        avgs = []
+        stds = []
+        mismatch_int = 6
+        mis_bins = np.arange(-87,87,mismatch_int)
+        for mis_bin in mis_bins:
+            inds = np.where((good_wind_mismatch>=mis_bin)&(good_wind_mismatch<(mis_bin+mismatch_int)))[0]
+            mis_residuals = [wind_residuals[i] for i in inds]
+            avgs.append(np.mean(mis_residuals))
+            stds.append(np.std(mis_residuals))
+        plt.plot(mis_bins+mismatch_int/2,avgs,'k-')
+        plt.plot(mis_bins+mismatch_int/2,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
+        plt.plot(mis_bins+mismatch_int/2,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
+        plt.xlabel('Yaw Mismatch [deg]')
+        plt.ylabel('Error (model - actual) [kW]')
+        # plt.xticks(mis_bins)
+        plt.show()

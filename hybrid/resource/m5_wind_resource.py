@@ -160,11 +160,15 @@ def refactor_power_curve_m5_wind(power_curve, rotor_diameter, air_density=1.225,
     current_path = Path(__file__).parent.absolute()
     resource_path = current_path / '..' / '..' / 'examples' / 'resource_files'
     save_bins = pd.read_json(resource_path/(start_month+' to '+end_month+' M5 wind {:.0f} bins 1 hr 10 min'.format(bin_resolution)), convert_axes=False)
+    save_bins2 = pd.read_json(resource_path/(start_month+' to '+end_month+' M5 wind 4 bins 1 hr 10 min'), convert_axes=False)
     hour_bins = save_bins.index.values.astype(np.float)
+    hour_bins2 = save_bins2.index.values.astype(np.float)
     tenmin_bins = save_bins.index.values.astype(np.float)
+    tenmin_bins2 = save_bins2.index.values.astype(np.float)
     max_speed = np.mean(tenmin_bins[-2:])
     bin_mat = save_bins.values
-
+    bin_mat2 = save_bins2.values
+    
     # Load power curve
     curve_data = pd.read_csv(resource_path/power_curve)
     wind_speed = np.hstack(([0],curve_data['Wind Speed [m/s]'].values))
@@ -190,9 +194,30 @@ def refactor_power_curve_m5_wind(power_curve, rotor_diameter, air_density=1.225,
             hour_power.append(np.sum(np.multiply(frac_bin,interp_power)))
             valid_bins.append(hour_bins[bin_idx])
 
+    # Interpolate bin speeds
+    tenmin_bin_curve_idxs2 = []
+    tenmin_interp_fracs2 = []
+    for bin in tenmin_bins2:
+        tenmin_dists = wind_speed-bin
+        bin_curve_idx = np.argmax(tenmin_dists>0)
+        tenmin_bin_curve_idxs2.append(bin_curve_idx)
+        tenmin_interp_fracs2.append(tenmin_dists[bin_curve_idx]/(tenmin_dists[bin_curve_idx]-tenmin_dists[bin_curve_idx-1]))
+    interp_power2 = np.add(np.multiply(curve_power[np.subtract(tenmin_bin_curve_idxs2,1)],tenmin_interp_fracs2),\
+                        np.multiply(curve_power[tenmin_bin_curve_idxs2],np.subtract(1,tenmin_interp_fracs2)))
+
+    # Refactor the power curve to hourly based on the bins
+    hour_power2 = []
+    valid_bins2 = []
+    for bin_idx, bin in enumerate(bin_mat2[:-1]):
+        if np.sum(bin) > 0:
+            frac_bin2 = bin/np.sum(bin)
+            hour_power2.append(np.sum(np.multiply(frac_bin2,interp_power2)))
+            valid_bins2.append(hour_bins2[bin_idx])
+            
     # Plot original and refactored curves to check
     plt.plot(wind_speed,curve_power,'.-')
     plt.plot(valid_bins,hour_power,'.-')
+    plt.plot(valid_bins2,hour_power2,'.-')
     plt.show()
 
     # Make new powercurve file
