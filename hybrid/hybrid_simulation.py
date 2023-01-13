@@ -9,7 +9,7 @@ from collections import OrderedDict
 import numpy as np
 import pandas as pd
 import copy as copy
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, circmean
 import matplotlib.pyplot as plt
 import matplotlib.patches as patch
 import PySAM.GenericSystem as GenericSystem
@@ -1084,6 +1084,7 @@ class HybridSimulation:
     def get_yaw_mismatch(self, yaw_file, tenmin_wind_file, years):
 
         yaw_mat = np.loadtxt(yaw_file)
+        yaw_mat = np.where(yaw_mat>=0, yaw_mat, np.full(np.size(yaw_mat), np.nan))
         tenmin_wind_df = pd.read_json(tenmin_wind_file)
         tenmin_wind_df.index = tenmin_wind_df.index.shift(-7, freq='H')
         direction_label = 'Direction (sonic_74m)'
@@ -1110,11 +1111,13 @@ class HybridSimulation:
                 hour_df = year_df.loc[(year_df.index>hour)&(year_df.index<=hours[hour_idx+1])]
                 mismatches = hour_df.loc[:,direction_label]+180-hour_df.loc[:,yaw_label]
                 mismatches[mismatches>180] = mismatches[mismatches>180]-360
-                year_hour_mismatches[i,hour_idx] = np.mean(mismatches)
-                mean_hour = np.array([[np.mean(hour_df.loc[:,direction_label]),\
-                                        np.mean(hour_df.loc[:,yaw_label]),\
-                                        np.mean(mismatches),\
+                year_hour_mismatches[i,hour_idx] = circmean(mismatches, 180, -180)
+                mean_hour = np.array([[circmean(hour_df.loc[:,direction_label], 360),\
+                                        circmean(hour_df.loc[:,yaw_label], 360),\
+                                        circmean(mismatches, 180, -180),\
                                         np.mean(hour_df.loc[:,wind_label])]])
+                # if not np.isnan(np.mean(mismatches)):
+                #     print('sup')
                 hour_mat = np.vstack((hour_mat,mean_hour))
         hourly_df = pd.DataFrame(data=hour_mat, columns=['Wind Direction [deg]', yaw_label, 'Yaw Mismatch [deg]', 'Wind Speed [m/s]'])
         hourly_df.to_json(Path(str(yaw_file)[:-4]+' mismatch'))
@@ -1185,12 +1188,22 @@ class HybridSimulation:
             wind_gen = self.wind.generation_profile
 
             # Load actual generation data
-            pv_tun = np.loadtxt(tun_filepaths['pv'][i],delimiter=',')
-            wind_tun = np.loadtxt(tun_filepaths['wind'][i],delimiter=',')
-            pv_tun = [np.max([i,0]) for i in pv_tun]
-            wind_tun = [np.max([i,0]) for i in wind_tun]
-            pv_tun_all.extend(pv_tun)
-            wind_tun_all.extend(wind_tun)
+            # pv_tun_P = np.loadtxt(tun_filepaths['pv'][i],delimiter=',')
+            pv_tun = pd.read_csv(tun_filepaths['pv'][i])
+            wind_tun = pd.read_csv(tun_filepaths['wind'][i])
+            pv_tun_P = pv_tun['P [kW]'].values
+            pv_tun_Q = pv_tun['Q [kVA]'].values
+            wind_tun_P = wind_tun['P [kW]'].values
+            wind_tun_Q = wind_tun['Q [kVA]'].values
+            pv_tun_P = [np.max([i,0]) for i in pv_tun_P]
+            wind_tun_P = [np.max([i,0]) for i in wind_tun_P]
+            pv_tun_S = np.sqrt(np.add(np.square(pv_tun_P),np.square(pv_tun_Q)))
+            wind_tun_S = np.sqrt(np.add(np.square(wind_tun_P),np.square(wind_tun_Q)))
+            pv_tun_S = [np.max([i,0]) for i in pv_tun_S]
+            wind_tun_S = [np.max([i,0]) for i in wind_tun_S]
+            pv_tun_all.extend(pv_tun_S)
+            wind_tun_all.extend(wind_tun_S)
+
             if year % 4 == 0:
                 # Take out leap day
                 times = pd.date_range(start=str(year)+'-01-01 00:30:00',periods=8784,freq='H')
@@ -1213,13 +1226,13 @@ class HybridSimulation:
                 good_inds = (times>pv_start)&(times<pv_stop)
                 good_pv_inds_all.extend([k+i*8760 for k, x in enumerate(good_inds) if x])
                 good_pv_gen = pd.concat((good_pv_gen,pd.DataFrame([pv_gen[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
-                good_pv_tun = pd.concat((good_pv_tun,pd.DataFrame([pv_tun[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
+                good_pv_tun = pd.concat((good_pv_tun,pd.DataFrame([pv_tun_S[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
             for j, wind_start in enumerate(wind_starts_year):
                 wind_stop = wind_stops_year[j]
                 good_inds = (times>wind_start)&(times<wind_stop)
                 good_wind_inds_all.extend([k+i*8760 for k, x in enumerate(good_inds) if x])
                 good_wind_gen = pd.concat((good_wind_gen,pd.DataFrame([wind_gen[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
-                good_wind_tun = pd.concat((good_wind_tun,pd.DataFrame([wind_tun[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
+                good_wind_tun = pd.concat((good_wind_tun,pd.DataFrame([wind_tun_S[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
         
         # Generate new power curves (just making curve for wind now)
         good_wind_speed = [wind_speed_all[i] for i in good_wind_inds_all]
@@ -1275,6 +1288,8 @@ class HybridSimulation:
         plt.show()
         bin_speeds.append(20)
         bin_powers.append(bin_powers[-1])
+
+        # # Comment/uncomment to toggle re-calculation with data-fit power curve
         # self.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds = bin_speeds
         # self.wind._system_model.Turbine.wind_turbine_powercurve_powerout = bin_powers
 
@@ -1591,13 +1606,15 @@ class HybridSimulation:
         plt.grid('on')
         avgs = []
         stds = []
-        mismatch_int = 6
-        mis_bins = np.arange(-87,87,mismatch_int)
+        mismatch_int = 4
+        mis_bins = np.arange(-58,58,mismatch_int)
+        bin_cts = []
         for mis_bin in mis_bins:
             inds = np.where((good_wind_mismatch>=mis_bin)&(good_wind_mismatch<(mis_bin+mismatch_int)))[0]
             mis_residuals = [wind_residuals[i] for i in inds]
             avgs.append(np.mean(mis_residuals))
             stds.append(np.std(mis_residuals))
+            bin_cts.append(len(inds))
         plt.plot(mis_bins+mismatch_int/2,avgs,'k-')
         plt.plot(mis_bins+mismatch_int/2,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
         plt.plot(mis_bins+mismatch_int/2,[avgs[i] - std for i, std in enumerate(stds)],'k--',)

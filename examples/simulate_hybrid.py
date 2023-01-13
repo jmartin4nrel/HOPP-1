@@ -20,7 +20,7 @@ dc_degradation = 0
 wind_size_mw = 1.5
 hub_height = 80
 rotor_diameter = 77
-wind_power_curve = examples_dir / "resource_files" / "NREL_Reference_1.5MW_Turbine_Site_Level.csv"
+wind_power_curve = examples_dir / "resource_files" / "NREL_Reference_1.5MW_Turbine_Site_Level_Refactored_Hourly.csv"
 wind_shear_exp = 0.15
 wind_wake_model = 3 # constant wake loss, layout-independent
 
@@ -73,12 +73,12 @@ tuning_files = {'pv': examples_dir / "resource_files" / "FirstSolar_YYYY.csv",
                 'wind': examples_dir / "resource_files" / "GE1pt5MW_YYYY.csv",}
 resource_files = {'pv': examples_dir / "resource_files" / "solar_m2_YYYY.csv",
                 'wind': examples_dir / "resource_files" / "wind_m5_YYYY.srw",}
-good_period_file = examples_dir / "resource_files" / "GE_FirstSolar_Periods_Cleaned.csv"
+good_period_file = examples_dir / "resource_files" / "GE_FirstSolar_Periods_All_Wind.csv"
 
 years = [2019,2020,2021,2022]
 hybrid_plant.pv.dc_degradation = [0]*len(years)
 
-yaw_file = examples_dir / "resource_files" / "GE Turbine Yaw Dec 2019 to 2022.csv"
+yaw_file = examples_dir / "resource_files" / "GE Turbine Yaw Dec 2019 to 2022 gaps.csv"
 tenmin_wind_file = examples_dir / "resource_files" / "August 2012 to October 2022 M5 wind 10 min"
 # hybrid_plant.get_yaw_mismatch(yaw_file, tenmin_wind_file, years)
 
