@@ -21,7 +21,7 @@ dc_degradation = 0
 wind_size_mw = 1.5
 hub_height = 80
 rotor_diameter = 77
-wind_power_curve = examples_dir / "resource_files" / "GE1pt5MW_newcurve_1hr.csv"
+wind_power_curve = examples_dir / "resource_files" / "NREL_Reference_1.5MW_Turbine_Site_Level_Refactored_Hourly.csv"
 wind_shear_exp = 0.15
 wind_wake_model = 3 # constant wake loss, layout-independent
 
