@@ -7,7 +7,8 @@ from hybrid.hybrid_simulation import HybridSimulation
 from hybrid.log import hybrid_logger as logger
 from hybrid.keys import set_nrel_key_dot_env
 
-from hybrid.validation.validate_hybrid import tune_manual, get_yaw_mismatch, tune_data
+from hybrid.validation.validate_hybrid import tune_manual, tune_data
+import hybrid.validation.wind.iessGE15.ge15_wind_generation as wind_gen
 
 current_dir = Path(__file__).parent.absolute()
 
@@ -88,7 +89,8 @@ hybrid_plant.pv.dc_degradation = [0]*len(years)
 
 yaw_file = wind_dir / "GE Turbine Yaw Dec 2019 to 2022 gaps.csv"
 tenmin_wind_file = wind_dir / "August 2012 to October 2022 M5 wind 10 min"
-# hybrid_plant = get_yaw_mismatch(hybrid_plant, yaw_file, tenmin_wind_file, years)
+wind_gen.get_yaw_mismatch(yaw_file, tenmin_wind_file, years)
+wind_gen.process_status()
 use_dir = False
 
 status_file = wind_dir / "GE15_IEC_validity_hourly_2019_2022"
