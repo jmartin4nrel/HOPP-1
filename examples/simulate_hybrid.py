@@ -1,6 +1,5 @@
 import json
 from pathlib import Path
-import pandas as pd
 
 from hybrid.sites import SiteInfo, flatirons_site
 from hybrid.hybrid_simulation import HybridSimulation
@@ -12,84 +11,33 @@ examples_dir = Path(__file__).parent.absolute()
 # Set API key
 set_nrel_key_dot_env()
 
-# Set wind, solar, and interconnection system info
-solar_size_mw = 0.48
-array_type = 0 # Fixed-angle
-dc_degradation = 0
-
-wind_size_mw = 1.5
-hub_height = 80
-rotor_diameter = 77
-wind_power_curve = examples_dir / "resource_files" / "NREL_Reference_1.5MW_Turbine_Site_Level_Refactored_Hourly.csv"
-wind_shear_exp = 0.15
-wind_wake_model = 3 # constant wake loss, layout-independent
-
-interconnection_size_mw = 2
+# Set wind, solar, and interconnection capacities (in MW)
+solar_size_mw = 50
+wind_size_mw = 50
+interconnection_size_mw = 50
 
 technologies = {'pv': {
                     'system_capacity_kw': solar_size_mw * 1000
                 },
                 'wind': {
-                    'num_turbines': 1,
-                    'turbine_rating_kw': wind_size_mw * 1000,
-                    'hub_height': hub_height,
-                    'rotor_diameter': rotor_diameter
+                    'num_turbines': 10,
+                    'turbine_rating_kw': 2000
                 }}
 
 # Get resource
-flatirons_site['lat'] = 39.91
-flatirons_site['lon'] = -105.22
-flatirons_site['elev'] = 1835
-flatirons_site['year'] = 2020
+lat = flatirons_site['lat']
+lon = flatirons_site['lon']
 prices_file = examples_dir.parent / "resource_files" / "grid" / "pricing-data-2015-IronMtn-002_factors.csv"
-solar_file = examples_dir.parent / "resource_files" / "solar" / "39.7555_-105.2211_psmv3_60_2012.csv"
-wind_file = examples_dir.parent / "resource_files" / "wind" / "35.2018863_-101.945027_windtoolkit_2012_60min_100m.srw"
-site = SiteInfo(flatirons_site, grid_resource_file=prices_file, solar_resource_file=solar_file, wind_resource_file=wind_file)
+site = SiteInfo(flatirons_site, grid_resource_file=prices_file)
 
 # Create model
 hybrid_plant = HybridSimulation(technologies, site, interconnect_kw=interconnection_size_mw * 1000)
 
 hybrid_plant.pv.system_capacity_kw = solar_size_mw * 1000
 hybrid_plant.wind.system_capacity_by_num_turbines(wind_size_mw * 1000)
-hybrid_plant.pv.value('array_type',0)
 hybrid_plant.ppa_price = 0.1
-hybrid_plant.pv.dc_degradation = [0]
-
-# Enter turbine power curve
-curve_data = pd.read_csv(wind_power_curve)
-wind_speed = curve_data['Wind Speed [m/s]'].values.tolist() 
-curve_power = curve_data['Power [kW]']
-hybrid_plant.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds = wind_speed
-hybrid_plant.wind._system_model.Turbine.wind_turbine_powercurve_powerout = curve_power
-hybrid_plant.wind.wake_model = wind_wake_model
-hybrid_plant.wind.system_capacity_by_num_turbines(wind_size_mw * 1000)
-hybrid_plant.wind._system_model.Turbine.wind_resource_shear = wind_shear_exp
-
-# Tune the model to IESS data
-tuning_file = examples_dir / "resource_files" / "IESS 19 20 pv tune.csv"
-hybrid_plant.tune_manual(tuning_file)
-
-tuning_files = {'pv': examples_dir / "resource_files" / "FirstSolar_YYYY.csv",
-                'wind': examples_dir / "resource_files" / "GE1pt5MW_YYYY.csv",}
-resource_files = {'pv': examples_dir / "resource_files" / "solar_m2_YYYY.csv",
-                'wind': examples_dir / "resource_files" / "wind_m5_YYYY.srw",}
-
-good_period_file = examples_dir / "resource_files" / "GE_FirstSolar_Periods_All_Wind_Cleaned_Forward.csv"
-
-years = [2019,2020,2021,2022]
-hybrid_plant.pv.dc_degradation = [0]*len(years)
-
-yaw_file = examples_dir / "resource_files" / "GE Turbine Yaw Dec 2019 to 2022 gaps.csv"
-tenmin_wind_file = examples_dir / "resource_files" / "August 2012 to October 2022 M5 wind 10 min"
-# hybrid_plant.get_yaw_mismatch(yaw_file, tenmin_wind_file, years)
-use_dir = False
-
-status_file = examples_dir / "resource_files" / "GE15_IEC_validity_hourly_2019_2022"
-use_status = True
-
-hybrid_plant.tune_data(tuning_files, resource_files, good_period_file, yaw_file, status_file, years, use_status, use_dir)
-
-hybrid_plant.simulate(1)
+hybrid_plant.pv.dc_degradation = [0] * 25
+hybrid_plant.simulate(25)
 
 # Save the outputs
 annual_energies = hybrid_plant.annual_energies

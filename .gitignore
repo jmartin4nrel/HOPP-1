@@ -136,3 +136,10 @@ ENV/
 *.gz
 *.db-wal
 
+# Big data files that have to be manually downloaded from Grafana (for now) - contact Jonathan Martin
+hybrid/validation/wind/iessGE15/ge15status/*
+
+# Other big .json files passed between validation processes - saves time to save but don't want to push
+hybrid/validation/wind/iessGE15/*wind 10 min
+hybrid/validation/wind/iessGE15/*mismatch
+hybrid/validation/wind/iessGE15/M5 unformatted*
