@@ -77,7 +77,7 @@ scenarios = {'NGCC':'Conservative',
              'H2':  'Future'}
 
 min_plant_dist = 120 # km, minimum distance between NGCC plants in survey
-survey_rad = 100 # km radius of survey area around NGCC plant
+survey_rad = 120 # km radius of survey area around NGCC plant
 
 NGCC_out = 100 # MW, output of NGCC plant to scale results to
 NGCC_cap = 0.85 # capacity factor of NGCC plant to scale results to
@@ -293,10 +293,18 @@ for key, value in fullcap_H2O_Tgal_day.items():
 #endregion
 
 ## Import natural gas price scenario
-
+#TODO
 
 ## Import the NGCC plant locations and create list of survey locations
+#region
 
+# Add inner circle of 6 surrounding locations
+in_radius = survey_rad*.5
+
+out_circle_x_mult = [0,  .5,   3**.5/2,   1,   3**.5/2,   .5, 0, 
+                        -.5, -(3**.5/2), -1, -(3**.5/2), -.5, 0]
+
+#endregion
 
 ## Import ASPEN process model results to determine H2 requirements
 
