@@ -149,3 +149,5 @@ ENV/
 *.gz
 *.db-wal
 
+# Validation files from other new branch
+hybrid/validation/*
