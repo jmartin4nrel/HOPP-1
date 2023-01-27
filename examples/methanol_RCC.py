@@ -15,7 +15,11 @@ Uses ASPEN process model developed by Eric Tan <eric.tan@nrel.gov>
 #region
 
 import json
+import numpy as np
 from pathlib import Path
+from global_land_mask import globe
+import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
 
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter, column_index_from_string
@@ -44,6 +48,7 @@ def convert_dollar_year(dollars, original_year, new_year):
 sim_dollar_year = 2020
 sim_start_year = 2020
 sim_end_year = 2050
+sim_years = np.arange(sim_start_year,sim_end_year)
 
 plant_lifespan = 30 # years
 discount_rate = 0.07 # (= fixed charge rate)
@@ -54,10 +59,9 @@ NG_LHV_MJ_kg = 47.1 # Natural gas net calorific value, MJ/kg
 H2O_price_Tgal = 2.56 # $/Tgal TODO: make variable water price scenarios
 
 select_locations = False # Switch to True to only analyze locations listed below
-#             ID    On/offshore  Lat   Long
-locations = {'IA': [False, 43.094000, -93.292220],
-             'TX': [False, 32.337679, -97.734610],
-             'NJ': [True,  40.837500, -74.024400],
+locations = {'IA': {'on_land':[True ,], 'lat':[43.094000,], 'lon':[-93.292220,]},
+             'TX': {'on_land':[True ,], 'lat':[32.337679,], 'lon':[-97.734610,]},
+             'NJ': {'on_land':[False ,], 'lat':[39.600000,], 'lon':[-73.400000,]},
              }
 
 manual_LCOE = False # Switch to True to override HOPP-calculated LCOE
@@ -77,7 +81,8 @@ scenarios = {'NGCC':'Conservative',
              'H2':  'Future'}
 
 min_plant_dist = 120 # km, minimum distance between NGCC plants in survey
-survey_rad = 120 # km radius of survey area around NGCC plant
+land_rad = 60 # km radius of survey area around NGCC plant on land
+osw_rad = 20 # km radium of survey area around offshore wind location
 
 NGCC_out = 100 # MW, output of NGCC plant to scale results to
 NGCC_cap = 0.85 # capacity factor of NGCC plant to scale results to
@@ -107,6 +112,8 @@ pv_constants = {'array_type':2,
                 'azimuth':180,
                 'inv_eff':None,
                 'dc_ac_ratio':1.28} # ILR NOT OPTIMIZED - can HOPP do this?
+bos_ratio = {'LBW': 322/1462, 
+             'PV': 20/89}
 wind_constants =   {'wind_turbine_max_cp':0.55,
                     'avail_bop_loss':0,
                     'avail_grid_loss':0,
@@ -281,37 +288,233 @@ for tech in atb_tech:
 fullcap_MW = {'NGCC': 727, 'CCS': 646}
 fullcap_C_kg_hr = {'NGCC': 67890, 'CCS': 61090}
 fullcap_H2O_Tgal_day = {'NGCC': 2090, 'CCS': 3437}
-C_kg_MWh = {}
+CO2_kg_MWh = {}
 H2O_Tgal_MWh = {}
+
+# Scale NGCC plant with CCS
+NGCC_out = {'NGCC': NGCC_out,
+            'CCS': NGCC_out*fullcap_MW['CCS']/fullcap_MW['NGCC']}
 
 # Convert to values per MWh produced
 for key, value in fullcap_C_kg_hr.items():
-    C_kg_MWh[key] = value/fullcap_MW[key]
+    CO2_kg_MWh[key] = value*(C_MW+O_MW*2)/C_MW/fullcap_MW[key]
 for key, value in fullcap_H2O_Tgal_day.items():
     H2O_Tgal_MWh[key] = value/24/fullcap_MW[key]
 
 #endregion
 
-## Import natural gas price scenario
-#TODO
-
 ## Import the NGCC plant locations and create list of survey locations
 #region
 
-# Add inner circle of 6 surrounding locations
-in_radius = survey_rad*.5
+earth_rad = 6371 # Earth's radium in km, needed for lat/long calcs
 
-out_circle_x_mult = [0,  .5,   3**.5/2,   1,   3**.5/2,   .5, 0, 
-                        -.5, -(3**.5/2), -1, -(3**.5/2), -.5, 0]
+# Loop through locations (begin as list of 1 NGCC plant location)
+for id, loc in locations.items():
+    on_land = loc['on_land'][0]
+    survey_rad = land_rad if on_land else osw_rad
+    lat = loc['lat'][0]
+    lon = loc['lon'][0]
+    
+    # Add inner circle of 6 surrounding locations @ half of survey radius
+    in_circle_lat_delta = [3**.5/4, 0, -(3**.5/4), -(3**.5/4), 0,  3**.5/4]
+    for i, lat_delta in enumerate(in_circle_lat_delta):
+        lat_delta = survey_rad/earth_rad*lat_delta
+        lon_delta = ((survey_rad**2/4/earth_rad**2-lat_delta**2)/\
+                        (np.cos(lat/180*np.pi)**2))**.5*180/np.pi
+        lat_delta *= 180/np.pi
+        if i<3: lon_delta = -lon_delta 
+        loc['lat'].append(lat+lat_delta)
+        loc['lon'].append(lon+lon_delta)
+        loc['on_land'].append(globe.is_land(lat+lat_delta,lon+lon_delta))
+
+    # Add outer circle of 12 surrounding location @ full survey radius
+    out_circle_lat_delta = [ 1,   3**.5/2,   .5, 0, -.5, -(3**.5/2),
+                            -1, -(3**.5/2), -.5, 0,  .5,   3**.5/2]
+    for i, lat_delta in enumerate(out_circle_lat_delta):
+        lat_delta = survey_rad/earth_rad*lat_delta
+        lon_delta = ((survey_rad**2/earth_rad**2-lat_delta**2)/\
+                        (np.cos(lat/180*np.pi)**2))**.5*180/np.pi
+        lat_delta *= 180/np.pi
+        if i<6: lon_delta = -lon_delta 
+        loc['lat'].append(lat+lat_delta)
+        loc['lon'].append(lon+lon_delta)
+        loc['on_land'].append(globe.is_land(lat+lat_delta,lon+lon_delta))
 
 #endregion
 
-## Import ASPEN process model results to determine H2 requirements
+## Plot survey locations to check
+#region
 
+# Stolen from gis.stackexchange.com/questions/156035
+def merc_x(lon):
+  r_major=6378137.000
+  return r_major*(lon*np.pi/180)
+def merc_y(lat):
+  if lat>89.5:lat=89.5
+  if lat<-89.5:lat=-89.5
+  r_major=6378137.000
+  r_minor=6356752.3142
+  temp=r_minor/r_major
+  eccent=(1-temp**2)**.5
+  phi=(lat*np.pi/180)
+  sinphi=np.sin(phi)
+  con=eccent*sinphi
+  com=eccent/2
+  con=((1.0-con)/(1.0+con))**com
+  ts=np.tan((np.pi/2-phi)/2)/con
+  y=0-r_major*np.log(ts)
+  return y
+
+# Set up background image
+plt.clf
+bg_img = 'RCC search area new.png'
+img = plt.imread(resource_dir/bg_img)
+ax = plt.gca()
+min_x = merc_x(-100)
+max_x = merc_x(-67)
+min_y = merc_y(25)
+max_y = merc_y(46)
+ax.imshow(img, extent=[min_x, max_x, min_y, max_y])
+# Plot survey locations
+for id, loc in locations.items():
+    for n in range(len(loc['lat'])):
+        lat = loc['lat'][n]
+        lon = loc['lon'][n]
+        color = [1*loc['on_land'][n],0,0]
+        x = merc_x(lon)
+        y = merc_y(lat)
+        ax.plot(x,y,'.',color=color)
+plt.xlim([min_x,max_x])
+plt.ylim([min_y,max_y])
+plt.show()
+
+#endregion
+
+## TODO: Import NGCC plant stream table from NETL report
+
+## TODO: Import Wind/Solar/NGCC plant LCI tables from OpenLCA
+
+## TODO: Import natural gas price scenario
+
+## Fit curve to MeOH plant CAPEX data from IRENA report
+#region
+
+# IRENA report data <ISBN 978-92-9260-320-5>
+capacity_kt_y =  [7,    90,    30,   440,  16.3, 50,  1800,  100]
+capex_mil_kt_y = [3.19, 2.325, 1.15, 1.26, 0.98, 1.9, 0.235, 0.62]
+sources = ['Hank 2018', 'Mignard 2003', 'Clausen 2010', 'Perez-Fortes 2016',
+            'Rivera-Tonoco 2016',' Belloti 2019', 'Nyari 2020', 'Szima 2018']
+
+# Fit curve
+def exp_curve(x, a, b): return a*x**(-b)
+coeffs, _ = curve_fit(exp_curve, capacity_kt_y, capex_mil_kt_y)
+a_cap2capex_mil_kt_y = coeffs[0]
+b_cap2capex_mil_kt_y = coeffs[1]
+
+# # Plot to check
+# log_x = np.linspace(np.log(np.min(capacity_kt_y)),np.log(np.max(capacity_kt_y)),100)
+# plt.clf()
+# plt.plot(np.power(np.e,log_x),
+#         a_cap2capex_mil_kt_y*np.power(np.power(np.e,log_x),-b_cap2capex_mil_kt_y))
+# plt.plot(capacity_kt_y,capex_mil_kt_y,'.')
+# plt.xscale('log')
+# plt.show()
+
+#endregion
+
+## Import MeOH ASPEN process model results to determine H2 requirements
+# TODO: Replace static Nyari placeholder (doi:10.1016/j.jcou.2020.101166)
+#           with executable Tan model fed by NGCC plant stack stream
+# TODO: Euros-dollars function
+#region
+
+# Nyari FOM model - FCI = "Fixed capital investment"
+fci_capex_ratio = 1/1.47
+direct_labor_euro_person_year = 60000 
+direct_indirect_ratio = 0.3
+workers_kt_y = 56/1800
+o_and_m_fci_ratio = 0.015
+insurance_fci_ratio = 0.005
+tax_fci_ratio = 0.005
+
+# Nyari reactor performance
+mass_ratio_CO2_MeOH = 1.397 # kg CO2 in needed per kg of MeOH produced
+mass_ratio_H2_MeOH = 0.199 # kg H2 in needed per kg of MeOH produced
+conv_eff_CO2 = 0.9837 # % of CO2 in converted to MeOH (rest comes out stack)
+conv_eff_H2 = 1 # % of H2 in converted to MeOH
+MeOH_purity = 0.999 # purity of MeOH produced (rest is assumed H2O)
+cool_use_kWh_kg_MeOH = 0.81 # Cooling utility usage, kWh/kg MeOH produced
+elec_use_kWh_kg_MeOH = 0.175 # Electricity usage, kWh/kg MeOH produced
+CO2_emission = 0.023 # kg CO2 emitted directly per kg MeOH
+
+#endregion
 
 ## Import H2A model and assumptions from current and future scenarios
+#region
 
+# Set spreadsheet location info
+filenames = {'Current':'current-central-pem-electrolysis-2019-v3-2018.xlsm',
+            'Future':'future-central-pem-electrolysis-2019-v3-2018.xlsm'}
+sheet_name = 'Input_Sheet_Template'
+cell_loc = {'cap_factor':   'C25',
+            'cap_kg_day':   'C26',
+            'startup_year': 'C31',
+            'dollar_year':  'C32',
+            'elec_kWh_kgH2':'C68',
+            'total_capex_$':'C106',
+            'FOM_$_yr':     'E122',
+            'H2O_gal_kgH2': 'D135'}
+# Import values            
+H2A_values = {'Current':{},'Future':{}}
+for key, value_dict in H2A_values.items():
+    filename = filenames[key]
+    workbook = load_workbook(resource_dir/filename, read_only=True, data_only=True)
+    worksheet = workbook[sheet_name]
+    for key, cell in cell_loc.items():
+        cell_value = worksheet[cell].value
+        value_dict[key] = cell_value
+
+# Interpolate values for simulation years
+H2A_values_new = {'Current':{},'Future':{}} # Will contain lists of all simulation years
+for key in H2A_values['Current'].keys():
+    H2A_values_new['Current'][key] = []
+    H2A_values_new['Future'][key] = []
+current_year = H2A_values['Current']['startup_year']
+future_year = H2A_values['Future']['startup_year']
+gap = current_year
+for year in sim_years:
+    interp_frac = (year-current_year)/gap
+    interp_frac = min([interp_frac,1])
+    for key in H2A_values['Current'].keys():
+        current_value = H2A_values['Current'][key]
+        future_value = H2A_values['Future'][key]
+        new_value = interp_frac*(future_value-current_value)+current_value
+        H2A_values_new['Current'][key].append(current_value)
+        H2A_values_new['Future'][key].append(new_value)
+H2A_values = H2A_values_new
+
+#endregion
 
 ## Scale plant sizes accordingly
+#region
 
+# Scale MeOH plant
+MeOH_kt_yr = {'NGCC':0, 'CCS':0}
+for ng_type in MeOH_kt_yr.keys():
+    CO2_kt_yr = CO2_kg_MWh[ng_type]*NGCC_out[ng_type]*NGCC_cap*8760/1e6
+    MeOH_kt_yr[ng_type] = CO2_kt_yr*mass_ratio_CO2_MeOH
 
+# Scale H2 plant
+H2_kt_yr = {'NGCC':0, 'CCS':0}
+for ng_type in H2_kt_yr.keys():
+    H2_kt_yr[ng_type] = MeOH_kt_yr[ng_type]*mass_ratio_H2_MeOH
+H2_plant = {'NGCC':{'Current':{},'Future':{}},
+            'CCS': {'Current':{},'Future':{}}}
+for ng_type, scenario_dict in H2_plant.items():
+    for scenario, value_dict in scenario_dict.items():
+        to_be_continued = True
+ 
+# Scale hybrid plant
+       
+
+#endregion
