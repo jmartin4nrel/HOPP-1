@@ -45,7 +45,7 @@ def convert_dollar_year(dollars, original_year, new_year):
 ## ALL CHANGES HERE - SELECT SCENARIO COMBOS, MANUALLY OVERRIDE PRICING ASSUMPTIONS
 #region
 
-sim_dollar_year = 2020
+sim_basis_year = 2020
 sim_start_year = 2020
 sim_end_year = 2050
 sim_years = np.arange(sim_start_year,sim_end_year)
@@ -107,7 +107,7 @@ kJ_BTU = 1.05506 # kJ/BTU
 #region
 
 # Set constants not given in spreadsheet
-original_dollar_year = 2020
+basis_year = 2020
 pv_constants = {'array_type':2,
                 'azimuth':180,
                 'inv_eff':None,
@@ -274,8 +274,7 @@ for tech in atb_tech:
                 for i, cell in enumerate(cells):
                     value = cell.value
                     if param_dict is finance_atb:
-                        value = convert_dollar_year(value, original_dollar_year,
-                                                            sim_dollar_year)
+                        value = convert_dollar_year(value, basis_year, sim_basis_year)
                     values.append(value)
                 param[scenario] = values
 
@@ -402,6 +401,8 @@ plt.show()
 # IRENA report data <ISBN 978-92-9260-320-5>
 capacity_kt_y =  [7,    90,    30,   440,  16.3, 50,  1800,  100]
 capex_mil_kt_y = [3.19, 2.325, 1.15, 1.26, 0.98, 1.9, 0.235, 0.62]
+basis_year = 2020
+capex_mil_ky_y = [convert_dollar_year(i, basis_year, sim_basis_year) for i in capex_mil_kt_y]
 sources = ['Hank 2018', 'Mignard 2003', 'Clausen 2010', 'Perez-Fortes 2016',
             'Rivera-Tonoco 2016',' Belloti 2019', 'Nyari 2020', 'Szima 2018']
 
@@ -459,7 +460,7 @@ sheet_name = 'Input_Sheet_Template'
 cell_loc = {'cap_factor':   'C25',
             'cap_kg_day':   'C26',
             'startup_year': 'C31',
-            'dollar_year':  'C32',
+            'basis_year':  'C32',
             'elec_kWh_kgH2':'C68',
             'total_capex_$':'C106',
             'FOM_$_yr':     'E122',
@@ -472,6 +473,11 @@ for key, value_dict in H2A_values.items():
     worksheet = workbook[sheet_name]
     for key, cell in cell_loc.items():
         cell_value = worksheet[cell].value
+        # Correct for inflation
+        if key is 'basis_year':
+            basis_year = cell_value
+        if '$' in key:
+            cell_value = convert_dollar_year(cell_value, basis_year, sim_basis_year)
         value_dict[key] = cell_value
 
 # Interpolate values for simulation years
