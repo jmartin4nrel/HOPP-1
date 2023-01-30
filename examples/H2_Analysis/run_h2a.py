@@ -33,7 +33,7 @@ def run_h2a(electrical_generation_timeseries, kw_continuous, electrolyzer_size,
     elec_remainder_after_h2 = combined_pv_wind_curtailment_hopp
 
     # Run H2A model
-    H2A_Results = H2AModel.H2AModel(cap_factor, avg_daily_H2_production, hydrogen_annual_output, force_system_size=True,
+    H2A_Results = H2AModel.H2AModel(cap_factor, avg_daily_H2_production, force_system_size=True,
                                    forced_system_size=electrolyzer_size, force_electrolyzer_cost=True,
                                     forced_electrolyzer_cost_kw=forced_electrolyzer_cost_kw)
 

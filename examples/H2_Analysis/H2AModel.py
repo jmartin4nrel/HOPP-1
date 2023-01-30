@@ -2,12 +2,38 @@ import math
 import pandas as pd
 import numpy as np
 
+'''
+jmartin4nrel edits 1/30/23: Fixed to conform with "current-central-pem-electrolysis-version-nov20.xlsm"
+(The Excel macro sheet downloaded from the NREL H2A website: https://www.nrel.gov/hydrogen/h2a-production-models.html)
 
-def H2AModel(cap_factor, avg_daily_H2_production, hydrogen_annual_output, h2a_for_hopp=True, force_system_size=True,
+- Eliminated unused (but required) annual production argument (redundant with avg_daily_H2_production) - used to be 3rd argument
+- Fixed mix-up of "force_system_size" (boolean) with "forced_system_size" (number, was accidentally being used instead of boolean)
+- Changed the default of this boolean to False - default behavior matches spreadsheet
+- Before, first two arguments were being used to scale the BASELINE plant, and the "Scaling Factor" section was doing nothing.
+    Former references to the first two arguments have been replaced with constants to calculated baseline plant costs, and the
+    arguments are now used to calculate Scaling Factors that adjust the (constant) baseline plant costs
+
+Inputs: cap_factor: % capacity that the SCALED H2 plant will be run at
+        avg_daily_H2_production: average ACTUAL daily production (kg H2/day) that is needed from the scaled plant
+                                 (NOT the design capacity - divide by cap_factor to get design capacity)
+
+Now, running 
+    >>> H2AModel(0.97, 0.97*56500)
+will produce the same results as the spreadsheet available online, and will scale costs for a needed ACTUAL daily output
+Scaling of costs with different values for the 2nd argument will happen through exponential capex scaling, NOT modifying the model
+'''
+
+def H2AModel(cap_factor, avg_daily_H2_production, h2a_for_hopp=True, force_system_size=False,
              forced_system_size=50, force_electrolyzer_cost=False, forced_electrolyzer_cost_kw=200, useful_life = 30):
 
     # ---------------------------------------------------H2A PROCESS FLOW----------------------------------------------------------#
 
+
+    baseline_cap_factor = 0.97
+    baseline_daily_H2_production = 50000 # kg H2/day
+    '''
+    These WERE arguments, but are fixed in the model - the argument should be used to calculate plant SCALING FACTORS instead
+    '''
 
     current_density = 2  # A/cm^2
     voltage = 1.9  # V/cell
@@ -17,13 +43,14 @@ def H2AModel(cap_factor, avg_daily_H2_production, hydrogen_annual_output, h2a_fo
     cellperstack = 150  # cells
     degradation_rate = 1.5  # mV/1000 hrs
     stack_life = 7  # years
-    hours_per_stack_life = stack_life * 365 * 24 * cap_factor  # hrs/life
+    hours_per_stack_life = stack_life * 365 * 24 * baseline_cap_factor  # hrs/life
     degradation_rate_Vperlife = hours_per_stack_life * degradation_rate / 1000  # V/life
     stack_degradation_oversize = 0.13  # factor
-    peak_daily_production_rate = avg_daily_H2_production * (1 + stack_degradation_oversize)  # kgH2/day
+    peak_daily_production_rate = baseline_daily_H2_production * (1 + stack_degradation_oversize)  # kgH2/day
+    baseline_plant_output = peak_daily_production_rate # Corresponds with C27 on the original Excel sheet
 
     total_active_area = math.ceil(
-        (avg_daily_H2_production / 2.02 * 1000 / 24 / 3600) * 2 * 96485 / current_density / (100 ** 2))  # m^2
+        (baseline_daily_H2_production / 2.02 * 1000 / 24 / 3600) * 2 * 96485 / current_density / (100 ** 2))  # m^2
     total_active_area_degraded = math.ceil(
         (peak_daily_production_rate / 2.02 * 1000 / 24 / 3600) * 2 * 96485 / current_density / (100 ** 2))  # m^2
 
@@ -31,7 +58,7 @@ def H2AModel(cap_factor, avg_daily_H2_production, hydrogen_annual_output, h2a_fo
     BoP_electrical_usage = 5.1  # kWh/kgH2
     total_system_electrical_usage = 55.5  # kWh/kg H2
 
-    if forced_system_size:
+    if force_system_size:
         total_system_input = forced_system_size  # MW
         stack_input_power = (stack_electrical_usage/ total_system_electrical_usage) * forced_system_size  # MW
     else:
@@ -40,7 +67,7 @@ def H2AModel(cap_factor, avg_daily_H2_production, hydrogen_annual_output, h2a_fo
 
     process_water_flowrate = 3.78
 
-    system_unit_cost = 1.3 * 300/342 # $/cm^2
+    system_unit_cost = 1.3 #* 300/342 # $/cm^2
     stack_system_cost = system_unit_cost / (current_density * voltage) * 1000  # $/kW
     mechanical_BoP_unit_cost = 76  # kWhH2/day
     mechanical_BoP_cost = 76 * peak_daily_production_rate / stack_input_power / 1000  # $/kW
@@ -64,7 +91,6 @@ def H2AModel(cap_factor, avg_daily_H2_production, hydrogen_annual_output, h2a_fo
            'PCI': [556.8, 541.7, 567.5, 603.1, 607.5, 610]}  # plant cost index, Chemical Engineering Magazine
     CPI = pd.DataFrame(data=pci)
 
-    baseline_plant_design_capacity = avg_daily_H2_production
     basis_year_for_capital_cost = 2016
     current_year_for_capital_cost = 2016
     CEPCI_inflator = int((CEPCI.loc[CEPCI['Year'] == current_year_for_capital_cost, 'CEPCI'])) / int(
@@ -91,19 +117,20 @@ def H2AModel(cap_factor, avg_daily_H2_production, hydrogen_annual_output, h2a_fo
 
     # ------------------------------------------------PLANT SCALING-------------------------------------------------------------------#
 
-    scale_ratio = 1  # ratio of new design capacity to baseline design capacity (linear scaling)
-    scale_factor = 1  # rato of total scaled installed capital cost to total baseline installed capital cost (exponential scaling)
-    default_scaling_factor_exponent = 1  # discrepancy
+    new_plant_output = avg_daily_H2_production/cap_factor # kg H2/day
+    scale_ratio = new_plant_output/baseline_plant_output  # ratio of new design capacity to baseline design capacity (linear scaling)
+    default_scaling_factor_exponent = 0.6  # discrepancy
+    scale_factor = scale_ratio**default_scaling_factor_exponent  # rato of total scaled installed capital cost to total baseline installed capital cost (exponential scaling)
     lower_limit_for_scaling_capacity = 20000  # kgH2/day
     upper_limit_for_scaling_capacity = 200000  # kgH2/day
 
-    scaled_uninstalled_stack_capital_cost = baseline_uninstalled_stack_capital_cost ** default_scaling_factor_exponent
+    scaled_uninstalled_stack_capital_cost = baseline_uninstalled_stack_capital_cost * scale_factor
     scaled_installed_stack_capital_cost = scaled_uninstalled_stack_capital_cost * stack_installation_factor
 
-    scaled_uninstalled_mechanical_BoP_cost = baseline_uninstalled_mechanical_BoP_cost ** default_scaling_factor_exponent
+    scaled_uninstalled_mechanical_BoP_cost = baseline_uninstalled_mechanical_BoP_cost * scale_factor
     scaled_installed_mechanical_BoP_cost = scaled_uninstalled_mechanical_BoP_cost * mechanical_BoP_installation_factor
 
-    scaled_uninstalled_electrical_BoP_cost = baseline_uninstalled_electrical_BoP_cost ** default_scaling_factor_exponent
+    scaled_uninstalled_electrical_BoP_cost = baseline_uninstalled_electrical_BoP_cost * scale_factor
     scaled_installed_electrical_BoP_cost = scaled_uninstalled_electrical_BoP_cost * electrical_BoP_installation_factor
 
     scaled_total_installed_cost = scaled_installed_stack_capital_cost + scaled_installed_mechanical_BoP_cost + scaled_installed_electrical_BoP_cost
@@ -113,9 +140,9 @@ def H2AModel(cap_factor, avg_daily_H2_production, hydrogen_annual_output, h2a_fo
     # --------------------------TECHNICAL OPERATING PARAMETERS AND SPECIFICATIONS---------------------------#
 
     operating_capacity_factor = cap_factor
-    plant_design_capacity = peak_daily_production_rate  # kgH2/day
-    plant_daily_output = plant_design_capacity  # kg/day
-    plant_annual_output = hydrogen_annual_output  # kg/year
+    plant_design_capacity = avg_daily_H2_production/operating_capacity_factor  # kgH2/day
+    plant_daily_output = plant_design_capacity*operating_capacity_factor  # kg/day
+    plant_annual_output = plant_daily_output*365#hydrogen_annual_output  # kg/year
 
     # -----------------------------------FINANCIAL INPUT VALUES---------------------------------------------#
 
