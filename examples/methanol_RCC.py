@@ -29,6 +29,8 @@ from hybrid.hybrid_simulation import HybridSimulation
 from hybrid.log import hybrid_logger as logger
 from hybrid.keys import set_nrel_key_dot_env
 
+from examples.H2_Analysis.H2AModel_capex_opex_scenarios import H2AModel_costs
+
 #endregion
 
 ## Convert dollars to correct year
@@ -86,6 +88,10 @@ osw_rad = 20 # km radium of survey area around offshore wind location
 
 NGCC_out = 100 # MW, output of NGCC plant to scale results to
 NGCC_cap = 0.85 # capacity factor of NGCC plant to scale results to
+''' NGCC_out*NGCC_cap must be <170 MW for H2A model scaling to stay valid!
+    (H2 output needs to stay below 200,000 kg H2/day'''
+
+H2_cap = 0.97 # capacity factor of H2 plants to scale results to
 
 resource_dir = Path(__file__).parent.absolute()/'resource_files'/'methanol_RCC'
 
@@ -341,53 +347,53 @@ for id, loc in locations.items():
 
 #endregion
 
-## Plot survey locations to check
-#region
+# ## Plot survey locations to check
+# #region
 
-# Stolen from gis.stackexchange.com/questions/156035
-def merc_x(lon):
-  r_major=6378137.000
-  return r_major*(lon*np.pi/180)
-def merc_y(lat):
-  if lat>89.5:lat=89.5
-  if lat<-89.5:lat=-89.5
-  r_major=6378137.000
-  r_minor=6356752.3142
-  temp=r_minor/r_major
-  eccent=(1-temp**2)**.5
-  phi=(lat*np.pi/180)
-  sinphi=np.sin(phi)
-  con=eccent*sinphi
-  com=eccent/2
-  con=((1.0-con)/(1.0+con))**com
-  ts=np.tan((np.pi/2-phi)/2)/con
-  y=0-r_major*np.log(ts)
-  return y
+# # Stolen from gis.stackexchange.com/questions/156035
+# def merc_x(lon):
+#   r_major=6378137.000
+#   return r_major*(lon*np.pi/180)
+# def merc_y(lat):
+#   if lat>89.5:lat=89.5
+#   if lat<-89.5:lat=-89.5
+#   r_major=6378137.000
+#   r_minor=6356752.3142
+#   temp=r_minor/r_major
+#   eccent=(1-temp**2)**.5
+#   phi=(lat*np.pi/180)
+#   sinphi=np.sin(phi)
+#   con=eccent*sinphi
+#   com=eccent/2
+#   con=((1.0-con)/(1.0+con))**com
+#   ts=np.tan((np.pi/2-phi)/2)/con
+#   y=0-r_major*np.log(ts)
+#   return y
 
-# Set up background image
-plt.clf
-bg_img = 'RCC search area new.png'
-img = plt.imread(resource_dir/bg_img)
-ax = plt.gca()
-min_x = merc_x(-100)
-max_x = merc_x(-67)
-min_y = merc_y(25)
-max_y = merc_y(46)
-ax.imshow(img, extent=[min_x, max_x, min_y, max_y])
-# Plot survey locations
-for id, loc in locations.items():
-    for n in range(len(loc['lat'])):
-        lat = loc['lat'][n]
-        lon = loc['lon'][n]
-        color = [1*loc['on_land'][n],0,0]
-        x = merc_x(lon)
-        y = merc_y(lat)
-        ax.plot(x,y,'.',color=color)
-plt.xlim([min_x,max_x])
-plt.ylim([min_y,max_y])
-plt.show()
+# # Set up background image
+# plt.clf
+# bg_img = 'RCC search area new.png'
+# img = plt.imread(resource_dir/bg_img)
+# ax = plt.gca()
+# min_x = merc_x(-100)
+# max_x = merc_x(-67)
+# min_y = merc_y(25)
+# max_y = merc_y(46)
+# ax.imshow(img, extent=[min_x, max_x, min_y, max_y])
+# # Plot survey locations
+# for id, loc in locations.items():
+#     for n in range(len(loc['lat'])):
+#         lat = loc['lat'][n]
+#         lon = loc['lon'][n]
+#         color = [1*loc['on_land'][n],0,0]
+#         x = merc_x(lon)
+#         y = merc_y(lat)
+#         ax.plot(x,y,'.',color=color)
+# plt.xlim([min_x,max_x])
+# plt.ylim([min_y,max_y])
+# plt.show()
 
-#endregion
+# #endregion
 
 ## TODO: Import NGCC plant stream table from NETL report
 
@@ -450,58 +456,7 @@ CO2_emission = 0.023 # kg CO2 emitted directly per kg MeOH
 
 #endregion
 
-## Import H2A model and assumptions from current and future scenarios
-#region
-
-# Set spreadsheet location info
-filenames = {'Current':'current-central-pem-electrolysis-2019-v3-2018.xlsm',
-            'Future':'future-central-pem-electrolysis-2019-v3-2018.xlsm'}
-sheet_name = 'Input_Sheet_Template'
-cell_loc = {'cap_factor':   'C25',
-            'cap_kg_day':   'C26',
-            'startup_year': 'C31',
-            'basis_year':  'C32',
-            'elec_kWh_kgH2':'C68',
-            'total_capex_$':'C106',
-            'FOM_$_yr':     'E122',
-            'H2O_gal_kgH2': 'D135'}
-# Import values            
-H2A_values = {'Current':{},'Future':{}}
-for key, value_dict in H2A_values.items():
-    filename = filenames[key]
-    workbook = load_workbook(resource_dir/filename, read_only=True, data_only=True)
-    worksheet = workbook[sheet_name]
-    for key, cell in cell_loc.items():
-        cell_value = worksheet[cell].value
-        # Correct for inflation
-        if key is 'basis_year':
-            basis_year = cell_value
-        if '$' in key:
-            cell_value = convert_dollar_year(cell_value, basis_year, sim_basis_year)
-        value_dict[key] = cell_value
-
-# Interpolate values for simulation years
-H2A_values_new = {'Current':{},'Future':{}} # Will contain lists of all simulation years
-for key in H2A_values['Current'].keys():
-    H2A_values_new['Current'][key] = []
-    H2A_values_new['Future'][key] = []
-current_year = H2A_values['Current']['startup_year']
-future_year = H2A_values['Future']['startup_year']
-gap = current_year
-for year in sim_years:
-    interp_frac = (year-current_year)/gap
-    interp_frac = min([interp_frac,1])
-    for key in H2A_values['Current'].keys():
-        current_value = H2A_values['Current'][key]
-        future_value = H2A_values['Future'][key]
-        new_value = interp_frac*(future_value-current_value)+current_value
-        H2A_values_new['Current'][key].append(current_value)
-        H2A_values_new['Future'][key].append(new_value)
-H2A_values = H2A_values_new
-
-#endregion
-
-## Scale plant sizes accordingly
+## Scale plant sizes - MeOH plant to NGCC output, H2 plant to H2 needs
 #region
 
 # Scale MeOH plant
@@ -512,15 +467,35 @@ for ng_type in MeOH_kt_yr.keys():
 
 # Scale H2 plant
 H2_kt_yr = {'NGCC':0, 'CCS':0}
-for ng_type in H2_kt_yr.keys():
-    H2_kt_yr[ng_type] = MeOH_kt_yr[ng_type]*mass_ratio_H2_MeOH
 H2_plant = {'NGCC':{'Current':{},'Future':{}},
             'CCS': {'Current':{},'Future':{}}}
-for ng_type, scenario_dict in H2_plant.items():
-    for scenario, value_dict in scenario_dict.items():
-        to_be_continued = True
+for ng_type in H2_kt_yr.keys():
+    H2_kt_yr[ng_type] = MeOH_kt_yr[ng_type]*mass_ratio_H2_MeOH
+    for scenario in ['Current','Future']:
+        H2_plant[ng_type][scenario]['H2_kt_yr'] = H2_kt_yr[ng_type]
+        H2_plant[ng_type][scenario]['H2_kg_day'] = H2_kt_yr[ng_type]*1e6/365
  
-# Scale hybrid plant
-       
+#endregion
+
+## Import H2A model and assumptions from current and future scenarios
+#region
+
+for ng_type in H2_kt_yr.keys():
+    for scenario in ['Current','Future']:
+        H2_kg_day = H2_plant[ng_type][scenario]['H2_kg_day']
+        for year in sim_years:
+            H2A_out = H2AModel_costs(H2_cap,H2_kg_day,year,scenario)
+            H2_basis_year, H2_capex, H2_fixed_om, kgH2O_kgH2, kWh_kgH2 = H2A_out
+            H2_capex = convert_dollar_year(H2_capex, H2_basis_year, basis_year)
+            H2_fixed_om = convert_dollar_year(H2_fixed_om, H2_basis_year, basis_year)
+            if year == sim_years[0]:
+                H2_plant[ng_type][scenario]['OCC_$'] = []
+                H2_plant[ng_type][scenario]['OCC_$_yr'] = []
+                H2_plant[ng_type][scenario]['water_use_kg_kgH2'] = []
+                H2_plant[ng_type][scenario]['elec_use_kWh_kgH2'] = []
+            H2_plant[ng_type][scenario]['OCC_$'].append(H2_capex)
+            H2_plant[ng_type][scenario]['OCC_$_yr'].append(H2_fixed_om)
+            H2_plant[ng_type][scenario]['water_use_kg_kgH2'].append(kgH2O_kgH2)
+            H2_plant[ng_type][scenario]['elec_use_kWh_kgH2'].append(kWh_kgH2)
 
 #endregion
