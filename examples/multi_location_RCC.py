@@ -8,6 +8,7 @@ Simulates ~833 MW hybrid plants over a targeted region of the US for H2 electrol
 from email.base64mime import header_length
 import os
 import sys
+import copy
 import json
 import pandas as pd
 import numpy as np
@@ -19,6 +20,8 @@ from pathlib import Path
 from itertools import repeat
 import time
 rng = np.random.default_rng()
+
+import matplotlib.pyplot as plt
 
 from hybrid.keys import set_nrel_key_dot_env
 from hybrid.log import analysis_logger as logger
@@ -46,7 +49,7 @@ set_nrel_key_dot_env()
 
 
 def run_hopp_calc(Site, bos_details, solar_size_kW, wind_size_kW, elyzer_size_kW, technologies,
-                    interconnection_size_kW, load_resource_from_file, ppa_price):
+                    interconnection_size_kW, load_resource_from_file, ppa_price, elyzer_cap=0.97):
     """ run_hopp_calc Establishes sizing models, creates a wind or solar farm based on the desired sizes,
      and runs SAM model calculations for the specified inputs.
      save_outputs contains a dictionary of all results for the hopp calculation.
@@ -61,6 +64,7 @@ def run_hopp_calc(Site, bos_details, solar_size_kW, wind_size_kW, elyzer_size_kW
     :param load_resource_from_file: flag determining whether resource is loaded directly from file or through
      interpolation routine.
     :param ppa_price: PPA price in USD($)
+    :param elyzer_cap: electrolyzer operating capacity, fraction full capacity
     :return: collection of outputs from SAM and hybrid-specific calculations (includes e.g. AEP, IRR, LCOE),
      plus wind and solar filenames used
     (save_outputs)
@@ -75,17 +79,12 @@ def run_hopp_calc(Site, bos_details, solar_size_kW, wind_size_kW, elyzer_size_kW
     # print('Establishing site number {}'.format(Site['site_num']))
     
     # Set up technology and cost model info
-    turb_rating_kw = 7000
-    tower_height = 110
-    turbine_rating_mw = 7
-    rotor_diameter = 200
-    storage_size_mwh = 1
-    storage_size_mw = 1
-    storage_used = True
-    battery_can_grid_charge = False
-    run_reopt_flag = False
-    critical_load_factor = 1
-    storage_hours = storage_size_mwh/storage_size_mw
+    tower_height = technologies['wind']['hub_height']
+    turbine_rating_mw = technologies['wind']['turbine_rating_kw']/1000
+    rotor_diameter = technologies['wind']['rotor_diameter']
+    storage_size_mwh = 0
+    storage_size_mw = 0
+    storage_hours = 0
     wind_cost_kw = 671
     solar_cost_kw = 598
     storage_cost_kw = 97
@@ -97,7 +96,7 @@ def run_hopp_calc(Site, bos_details, solar_size_kW, wind_size_kW, elyzer_size_kW
                         range(0, 8760)]
 
     
-    site = SiteInfo(Site, hub_height=tower_height,
+    site = SiteInfo(Site, hub_height=technologies['wind']['hub_height'],
                     solar_resource_file=Site['resource_filename_solar'],
                     wind_resource_file=Site['resource_filename_wind'])
 
@@ -154,37 +153,63 @@ def run_hopp_calc(Site, bos_details, solar_size_kW, wind_size_kW, elyzer_size_kW
     solar_installed_cost = hybrid_plant.pv.total_installed_cost
     hybrid_installed_cost = hybrid_plant.grid.total_installed_cost
 
-    # Run Simple Dispatch Model
+    # # Run Simple Dispatch Model
 
-    bat_model = SimpleDispatch()
-    bat_model.Nt = len(energy_shortfall_hopp)
-    bat_model.curtailment = combined_pv_wind_curtailment_hopp
-    bat_model.shortfall = energy_shortfall_hopp
+    # bat_model = SimpleDispatch()
+    # bat_model.Nt = len(energy_shortfall_hopp)
+    # bat_model.curtailment = combined_pv_wind_curtailment_hopp
+    # bat_model.shortfall = energy_shortfall_hopp
 
-    bat_model.battery_storage = storage_size_mwh * 1000
-    bat_model.charge_rate = storage_size_mw * 1000
-    bat_model.discharge_rate = storage_size_mw * 1000
+    # bat_model.battery_storage = storage_size_mwh * 1000
+    # bat_model.charge_rate = storage_size_mw * 1000
+    # bat_model.discharge_rate = storage_size_mw * 1000
 
-    battery_used, excess_energy, battery_SOC = bat_model.run()
-    combined_pv_wind_storage_power_production_hopp = combined_pv_wind_power_production_hopp + battery_used
+    battery_used = [0] #, excess_energy , battery_SOC = bat_model.run()
+    combined_pv_wind_storage_power_production_hopp = list(combined_pv_wind_power_production_hopp) + battery_used
+    excess_energy = np.zeros(8760)
 
-    sell_price = 0.01
-    buy_price = 0.05
+    sell_price = 0.04
+    buy_price = 0.04
+
+    # plt.plot(np.arange(0,8760),combined_pv_wind_storage_power_production_hopp)
 
     if sell_price:
-        profit_from_selling_to_grid = np.sum(excess_energy)*sell_price
+        profit_from_selling_to_grid = 0.0
+        
+        for i in range(len(combined_pv_wind_storage_power_production_hopp)):
+            if combined_pv_wind_storage_power_production_hopp[i] > kw_continuous:
+                excess_energy[i] = (combined_pv_wind_storage_power_production_hopp[i]-kw_continuous)
+                profit_from_selling_to_grid += (combined_pv_wind_storage_power_production_hopp[i]-kw_continuous)*sell_price
+                combined_pv_wind_storage_power_production_hopp[i] = kw_continuous
     else:
         profit_from_selling_to_grid = 0.0
+
+    # plt.plot(np.arange(0,8760),combined_pv_wind_storage_power_production_hopp)
 
     if buy_price:
         cost_to_buy_from_grid = 0.0
 
+        # 'pour' grid electricity into shortfall until we have enough for electrolysis
+        purchase_needed = (kw_continuous*elyzer_cap-np.mean(combined_pv_wind_storage_power_production_hopp))*8760
+        shortfall = np.subtract(kw_continuous,combined_pv_wind_storage_power_production_hopp)
+        shortfall_inds = np.flip(np.argsort(shortfall))
+        diff_shortfall = -np.diff(shortfall[shortfall_inds])
+        shortfall_changes = np.squeeze(np.argwhere(diff_shortfall))
+        purchase = np.zeros(8760)
+        shortfall_change = 1
+        while np.sum(purchase) < purchase_needed and shortfall_change < len(shortfall_changes):
+            purchase[shortfall_inds[:(1+shortfall_changes[shortfall_change])]] += diff_shortfall[shortfall_changes[shortfall_change-1]]
+            shortfall_change += 1
+
         for i in range(len(combined_pv_wind_storage_power_production_hopp)):
-            if combined_pv_wind_storage_power_production_hopp[i] < kw_continuous:
-                cost_to_buy_from_grid += (kw_continuous-combined_pv_wind_storage_power_production_hopp[i])*buy_price
-                combined_pv_wind_storage_power_production_hopp[i] = kw_continuous
+            cost_to_buy_from_grid += purchase[i]*buy_price
+            combined_pv_wind_storage_power_production_hopp[i] += purchase[i]
+
     else:
         cost_to_buy_from_grid = 0.0
+
+    # plt.plot(np.arange(0,8760),combined_pv_wind_storage_power_production_hopp)
+    # plt.show()
 
     energy_to_electrolyzer = [x if x < kw_continuous else kw_continuous for x in combined_pv_wind_storage_power_production_hopp]
 
@@ -293,19 +318,20 @@ def run_hybrid_calc(year, site_num, scenario_descriptions, results_dir, load_res
         print('Timezone lookup failed for {}'.format(location))
 
     scenario_description = 'greenfield'
+    sim_tech = copy.deepcopy(technologies)
     if site_on_land == 'true':
         wind_size_kW = lbw_size_kW
         solar_size_kW = pv_size_kW
-        technologies['wind'] = technologies['lbw']
+        sim_tech['wind'] = technologies['lbw']
     else:
         wind_size_kW = osw_size_kW
         solar_size_kW = 0
-        technologies['wind'] = technologies['osw']
-    technologies.pop('lbw')
-    technologies.pop('osw')
+        sim_tech['wind'] = technologies['osw']
+    sim_tech.pop('lbw')
+    sim_tech.pop('osw')
     interconnection_size_kW = wind_size_kW + solar_size_kW
     hopp_outputs, resource_filename_wind, resource_filename_solar \
-        = run_hopp_calc(Site, bos_details, solar_size_kW, wind_size_kW, elyzer_size_kW, technologies,
+        = run_hopp_calc(Site, bos_details, solar_size_kW, wind_size_kW, elyzer_size_kW, sim_tech,
                     interconnection_size_kW, load_resource_from_file, ppa_price)
 
 
