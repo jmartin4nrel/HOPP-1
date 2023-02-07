@@ -15,6 +15,7 @@ Uses ASPEN process model developed by Eric Tan <eric.tan@nrel.gov>
 #region
 
 import json
+import copy
 import numpy as np
 from pathlib import Path
 from global_land_mask import globe
@@ -205,7 +206,10 @@ engin ={'NGCC':{'heat_rate_BTU_Wh':{'Advanced':72,
                                     'Conservative':83},
                 'dc_degradation':  {'Advanced':84,
                                     'Moderate':85,
-                                    'Conservative':86}},
+                                    'Conservative':86},
+                'capacity_factor': {'Advanced':87,
+                                    'Moderate':88,
+                                    'Conservative':89}},
         'LBW': {'hub_height':      {'Advanced':76,
                                     'Moderate':77,
                                     'Conservative':78},
@@ -214,16 +218,22 @@ engin ={'NGCC':{'heat_rate_BTU_Wh':{'Advanced':72,
                                     'Conservative':81},
                 'turbine_rating_kw':{'Advanced':82,
                                     'Moderate':83,
-                                    'Conservative':84}},
-        'OSW': {'hub_height':      {'Advanced':76,
-                                    'Moderate':77,
-                                    'Conservative':78},
-                'rotor_diameter':  {'Advanced':79,
-                                    'Moderate':80,
-                                    'Conservative':81},
-                'turbine_rating_kw':{'Advanced':82,
-                                    'Moderate':83,
-                                    'Conservative':84}}}
+                                    'Conservative':84},
+                'capacity_factor': {'Advanced':85,
+                                    'Moderate':86,
+                                    'Conservative':87}},
+        'OSW': {'hub_height':      {'Advanced':77,
+                                    'Moderate':78,
+                                    'Conservative':79},
+                'rotor_diameter':  {'Advanced':80,
+                                    'Moderate':81,
+                                    'Conservative':82},
+                'turbine_rating_kw':{'Advanced':83,
+                                    'Moderate':84,
+                                    'Conservative':85},
+                'capacity_factor': {'Advanced':86,
+                                    'Moderate':87,
+                                    'Conservative':88}}}
 # OCC: Overnight capital cost ($/kW), FOM: Fixed O&M ($/kW-yr), VOM: Variable O&M ($/MWh)
 finance =  {'NGCC':{'OCC_$_kW':    {'Advanced':105,
                                     'Moderate':106,
@@ -373,44 +383,44 @@ for plant in ['NGCC','CCS']:
 
 #endregion
 
-# ## Import the NGCC plant locations and create list of survey locations
-# #region
+## Import the NGCC plant locations and create list of survey locations
+#region
 
-# earth_rad = 6371 # Earth's radium in km, needed for lat/long calcs
+earth_rad = 6371 # Earth's radium in km, needed for lat/long calcs
 
-# # Loop through locations (begin as list of 1 NGCC plant location)
-# for id, loc in locations.items():
-#     on_land = loc['on_land'][0]
-#     survey_rad = land_rad if on_land else osw_rad
-#     lat = loc['lat'][0]
-#     lon = loc['lon'][0]
+# Loop through locations (begin as list of 1 NGCC plant location)
+for id, loc in locations.items():
+    on_land = loc['on_land'][0]
+    survey_rad = land_rad if on_land else osw_rad
+    lat = loc['lat'][0]
+    lon = loc['lon'][0]
     
-#     # Add inner circle of 6 surrounding locations @ half of survey radius
-#     in_circle_lat_delta = [3**.5/4, 0, -(3**.5/4), -(3**.5/4), 0,  3**.5/4]
-#     for i, lat_delta in enumerate(in_circle_lat_delta):
-#         lat_delta = survey_rad/earth_rad*lat_delta
-#         lon_delta = ((survey_rad**2/4/earth_rad**2-lat_delta**2)/\
-#                         (np.cos(lat/180*np.pi)**2))**.5*180/np.pi
-#         lat_delta *= 180/np.pi
-#         if i<3: lon_delta = -lon_delta 
-#         loc['lat'].append(lat+lat_delta)
-#         loc['lon'].append(lon+lon_delta)
-#         loc['on_land'].append(globe.is_land(lat+lat_delta,lon+lon_delta))
+    # Add inner circle of 6 surrounding locations @ half of survey radius
+    in_circle_lat_delta = [3**.5/4, 0, -(3**.5/4), -(3**.5/4), 0,  3**.5/4]
+    for i, lat_delta in enumerate(in_circle_lat_delta):
+        lat_delta = survey_rad/earth_rad*lat_delta
+        lon_delta = ((survey_rad**2/4/earth_rad**2-lat_delta**2)/\
+                        (np.cos(lat/180*np.pi)**2))**.5*180/np.pi
+        lat_delta *= 180/np.pi
+        if i<3: lon_delta = -lon_delta 
+        loc['lat'].append(lat+lat_delta)
+        loc['lon'].append(lon+lon_delta)
+        loc['on_land'].append(globe.is_land(lat+lat_delta,lon+lon_delta))
 
-#     # Add outer circle of 12 surrounding location @ full survey radius
-#     out_circle_lat_delta = [ 1,   3**.5/2,   .5, 0, -.5, -(3**.5/2),
-#                             -1, -(3**.5/2), -.5, 0,  .5,   3**.5/2]
-#     for i, lat_delta in enumerate(out_circle_lat_delta):
-#         lat_delta = survey_rad/earth_rad*lat_delta
-#         lon_delta = ((survey_rad**2/earth_rad**2-lat_delta**2)/\
-#                         (np.cos(lat/180*np.pi)**2))**.5*180/np.pi
-#         lat_delta *= 180/np.pi
-#         if i<6: lon_delta = -lon_delta 
-#         loc['lat'].append(lat+lat_delta)
-#         loc['lon'].append(lon+lon_delta)
-#         loc['on_land'].append(globe.is_land(lat+lat_delta,lon+lon_delta))
+    # Add outer circle of 12 surrounding location @ full survey radius
+    out_circle_lat_delta = [ 1,   3**.5/2,   .5, 0, -.5, -(3**.5/2),
+                            -1, -(3**.5/2), -.5, 0,  .5,   3**.5/2]
+    for i, lat_delta in enumerate(out_circle_lat_delta):
+        lat_delta = survey_rad/earth_rad*lat_delta
+        lon_delta = ((survey_rad**2/earth_rad**2-lat_delta**2)/\
+                        (np.cos(lat/180*np.pi)**2))**.5*180/np.pi
+        lat_delta *= 180/np.pi
+        if i<6: lon_delta = -lon_delta 
+        loc['lat'].append(lat+lat_delta)
+        loc['lon'].append(lon+lon_delta)
+        loc['on_land'].append(globe.is_land(lat+lat_delta,lon+lon_delta))
 
-# #endregion
+#endregion
 
 # # Plot survey locations to check
 # #region
@@ -649,6 +659,13 @@ with open(Path(resource_dir/'finance.json'),'w') as file:
     json.dump(finance, file)
 with open(Path(resource_dir/'scenario.json'),'w') as file:
     json.dump(scenario_info, file)
+with open(Path(resource_dir/'locations.json'),'w') as file:
+    out_locations = copy.deepcopy(locations)
+    for ID, loc in out_locations.items():
+        for i, value in enumerate(loc['on_land']):
+            value = str(value).lower()
+            loc['on_land'][i] = value
+    json.dump(out_locations, file)
 
 # %% Check imports and conversions
 

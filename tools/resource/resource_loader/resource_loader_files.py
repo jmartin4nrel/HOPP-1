@@ -74,7 +74,7 @@ def resource_loader_file(resource_dir, desired_lats, desired_lons, year="2012", 
     act_lat_wind = np.zeros(len(files_wind))
 
     # get size of the files
-    strFile = wind_dir / files_wind[0]
+    # strFile = wind_dir / files_wind[0]
 
     for i in range(0, len(files_wind)):
         strFile = wind_dir / files_wind[i]
