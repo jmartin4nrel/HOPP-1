@@ -1,7 +1,7 @@
 """
-multi_location_MeOH_H2.py
+multi_location_RCC.py
 
-Simulates ~833 MW hybrid plants over a targeted region of the US for H2 electrolysis
+Simulates hybrid plants over a targeted region of the US for H2 electrolysis
 (& eventual MeOH production w/NGCC plant captured CO2)
 """
 
@@ -32,281 +32,134 @@ from tools.analysis import create_cost_calculator
 from tools.resource import *
 from tools.resource.resource_loader import site_details_creator
 
-from examples.H2_Analysis.run_reopt import run_reopt
-from examples.H2_Analysis.hopp_for_h2 import hopp_for_h2
-from examples.H2_Analysis.run_h2a import run_h2a as run_h2a
-from examples.H2_Analysis.simple_dispatch import SimpleDispatch
-import examples.H2_Analysis.run_h2_PEM as run_h2_PEM
-
 import warnings
 warnings.filterwarnings("ignore")
-
-resource_dir = Path(__file__).parent.absolute()/'resource_files'/'methanol_RCC'
 
 pd.set_option("display.max_rows", None, "display.max_columns", None)
 
 set_nrel_key_dot_env()
 
 
-def run_hopp_calc(Site, bos_details, solar_size_kW, wind_size_kW, elyzer_size_kW, technologies,
-                    interconnection_size_kW, load_resource_from_file, ppa_price, elyzer_cap=0.97):
+def run_hopp_calc(site, sim_tech, technologies, on_land, lifetime=30):
     """ run_hopp_calc Establishes sizing models, creates a wind or solar farm based on the desired sizes,
      and runs SAM model calculations for the specified inputs.
      save_outputs contains a dictionary of all results for the hopp calculation.
 
-    :param Site: Hybrid plant site set up with location info
-    :param bos_details: contains bos details including type of analysis to conduct (cost/mw, json lookup, HybridBOSSE).
-    :param solar_size_kW: capacity in kW of solar component of plant.
-    :param wind_size_kW: capacity in kW of wind component of plant.
-    :param elyzer_size_kW: electrolyzer size in kW.
-    :param technologies: dict of solar/wind technology 
-    :param interconnection_size_kW: interconnection size in kW.
-    :param load_resource_from_file: flag determining whether resource is loaded directly from file or through
-     interpolation routine.
-    :param ppa_price: PPA price in USD($)
-    :param elyzer_cap: electrolyzer operating capacity, fraction full capacity
-    :return: collection of outputs from SAM and hybrid-specific calculations (includes e.g. AEP, IRR, LCOE),
+    :param site: Hybrid plant site set up with location info
+    :param sim_tech: dict of solar/wind technology for setting up HybridSimulation
+    :param technologies: dict of additional tech info
+    :param on_land: boolean, whether site is on land
+    :param lifetime: int, plant lifetime in years
+    :return: dict with LCOE and amount of electricity used for electrolysis, plus amount bought and sold,
      plus wind and solar filenames used
-    (save_outputs)
     """
-    # Get resource data
-    if load_resource_from_file:
-        pass
-    else:
-        Site['resource_filename_solar'] = ""  # Unsetting resource filename to force API download of wind resource
-        Site['resource_filename_wind'] = ""  # Unsetting resource filename to force API download of solar resource
-
-    # print('Establishing site number {}'.format(Site['site_num']))
-    
-    # Set up technology and cost model info
-    tower_height = technologies['wind']['hub_height']
-    turbine_rating_mw = technologies['wind']['turbine_rating_kw']/1000
-    rotor_diameter = technologies['wind']['rotor_diameter']
-    storage_size_mwh = 0
-    storage_size_mw = 0
-    storage_hours = 0
-    wind_cost_kw = 671
-    solar_cost_kw = 598
-    storage_cost_kw = 97
-    storage_cost_kwh = 104
-    electrolyzer_cost_kw = 100
-    custom_powercurve = True
-    kw_continuous = elyzer_size_kW
-    load = [kw_continuous for x in
-                        range(0, 8760)]
-
-    
-    site = SiteInfo(Site, hub_height=technologies['wind']['hub_height'],
-                    solar_resource_file=Site['resource_filename_solar'],
-                    wind_resource_file=Site['resource_filename_wind'])
-
-    # Set up scenario
-    scenario = dict()
-    scenario['Scenario Number'] = 0
-    scenario['Scenario Name'] = '2030 Advanced'
-    scenario['Site Name'] = 'Name'
-    scenario['Electrolyzer Size MW'] = elyzer_size_kW/1000
-    scenario['Wind Size MW'] = wind_size_kW/1000
-    scenario['Solar Size MW'] = solar_size_kW/1000
-    scenario['Storage Size MW'] = storage_size_mw
-    scenario['Storage Size MWh'] = storage_size_mwh
-    scenario['Lat'] = Site['lat']
-    scenario['Long'] = Site['lon']
-    scenario['ATB Year'] = 2030
-    scenario['Powercurve File'] = 'powercurve_2020_atb_advanced'
-    scenario['PTC Available'] = 'yes'
-    scenario['ITC Available'] = 'no'
-    scenario['Debt Equity'] = 60
-    scenario['Discount Rate'] = 0.07
-    scenario['Turbine Rating'] = turbine_rating_mw
-    scenario['Tower Height'] = tower_height
-    scenario['Rotor Diameter'] = rotor_diameter
-    scenario['Wind Cost KW'] = wind_cost_kw
-    scenario['Solar Cost KW'] = solar_cost_kw
-    scenario['Storage Cost KW'] = storage_cost_kw
-    scenario['Storage Cost KWh'] = storage_cost_kwh
-    scenario['Electrolyzer Cost KW'] = electrolyzer_cost_kw
-    scenario['Buy From Grid ($/kWh)'] = False
-    scenario['Sell To Grid ($/kWh)'] = False
-    scenario['Useful Life'] = 30
-    useful_life = scenario['Useful Life']
-    
-
-    # # Dummy ReOPT run to setup needed input for Parangat model
-    # dummy_wind_size_mw, dummy_solar_size_mw, dummy_storage_size_mw,\
-    # dummy_storage_size_mwh, dummy_storage_hours, reopt_results, REoptResultsDF = run_reopt(site, scenario, load,
-    #                                             elyzer_size_kW,
-    #                                             critical_load_factor, useful_life,
-    #               battery_can_grid_charge, storage_used, run_reopt_flag)
-
-    # Create model
-    hybrid_plant, combined_pv_wind_power_production_hopp, combined_pv_wind_curtailment_hopp,\
-    energy_shortfall_hopp, annual_energies, wind_plus_solar_npv, npvs, lcoe =  \
-        hopp_for_h2(site, scenario, technologies,
-                    wind_size_kW/1000, solar_size_kW/1000, storage_size_mw, storage_size_mwh, storage_hours,
-        wind_cost_kw, solar_cost_kw, storage_cost_kw, storage_cost_kwh,
-        kw_continuous, load,
-        custom_powercurve,
-        elyzer_size_kW/1000, grid_connected_hopp=True)
-
-    wind_installed_cost = hybrid_plant.wind.total_installed_cost
-    solar_installed_cost = hybrid_plant.pv.total_installed_cost
-    hybrid_installed_cost = hybrid_plant.grid.total_installed_cost
-
-    # # Run Simple Dispatch Model
-
-    # bat_model = SimpleDispatch()
-    # bat_model.Nt = len(energy_shortfall_hopp)
-    # bat_model.curtailment = combined_pv_wind_curtailment_hopp
-    # bat_model.shortfall = energy_shortfall_hopp
-
-    # bat_model.battery_storage = storage_size_mwh * 1000
-    # bat_model.charge_rate = storage_size_mw * 1000
-    # bat_model.discharge_rate = storage_size_mw * 1000
-
-    battery_used = [0] #, excess_energy , battery_SOC = bat_model.run()
-    combined_pv_wind_storage_power_production_hopp = list(combined_pv_wind_power_production_hopp) + battery_used
-    excess_energy = np.zeros(8760)
-
-    sell_price = 0.04
-    buy_price = 0.04
-
-    # plt.plot(np.arange(0,8760),combined_pv_wind_storage_power_production_hopp)
-
-    if sell_price:
-        profit_from_selling_to_grid = 0.0
         
-        for i in range(len(combined_pv_wind_storage_power_production_hopp)):
-            if combined_pv_wind_storage_power_production_hopp[i] > kw_continuous:
-                excess_energy[i] = (combined_pv_wind_storage_power_production_hopp[i]-kw_continuous)
-                profit_from_selling_to_grid += (combined_pv_wind_storage_power_production_hopp[i]-kw_continuous)*sell_price
-                combined_pv_wind_storage_power_production_hopp[i] = kw_continuous
+    # Get interconnection size and pricing
+    iconn_kw = technologies['interconnection']['capacity_kw']
+    ppa_price_kwh = technologies['interconnection']['ppa_price_kwh']
+    
+    # Determine interconnection size based on whether on land or offshore
+    if on_land == 'true':
+        iconn_size_kw = iconn_kw[1]
     else:
-        profit_from_selling_to_grid = 0.0
+        iconn_size_kw = iconn_kw[0]
 
-    # plt.plot(np.arange(0,8760),combined_pv_wind_storage_power_production_hopp)
+    # Get electrolysis needs
+    elyzer_size_kw = technologies['pem']['capacity_kw']
+    elyzer_cf = technologies['pem']['capacity_factor']
 
-    if buy_price:
-        cost_to_buy_from_grid = 0.0
+    # Set up plant
+    hybrid_plant = HybridSimulation(sim_tech, site, iconn_size_kw)
+    # TODO: modify financials from HOPP defaults
+    
+    # Simulate lifetime
+    hybrid_plant.simulate(lifetime)
+    gen_kw = list(hybrid_plant.generation_profile.hybrid[0:8760])
+    lcoe = hybrid_plant.lcoe_real.hybrid
 
-        # 'pour' grid electricity into shortfall until we have enough for electrolysis
-        purchase_needed = (kw_continuous*elyzer_cap-np.mean(combined_pv_wind_storage_power_production_hopp))*8760
-        shortfall = np.subtract(kw_continuous,combined_pv_wind_storage_power_production_hopp)
-        shortfall_inds = np.flip(np.argsort(shortfall))
-        diff_shortfall = -np.diff(shortfall[shortfall_inds])
-        shortfall_changes = np.squeeze(np.argwhere(diff_shortfall))
-        purchase = np.zeros(8760)
-        shortfall_change = 1
-        while np.sum(purchase) < purchase_needed and shortfall_change < len(shortfall_changes):
-            purchase[shortfall_inds[:(1+shortfall_changes[shortfall_change])]] += diff_shortfall[shortfall_changes[shortfall_change-1]]
-            shortfall_change += 1
+    # TODO: set individual sell and buy prices
+    sell_price = ppa_price_kwh
+    buy_price = ppa_price_kwh
 
-        for i in range(len(combined_pv_wind_storage_power_production_hopp)):
-            cost_to_buy_from_grid += purchase[i]*buy_price
-            combined_pv_wind_storage_power_production_hopp[i] += purchase[i]
+    # plt.plot(np.arange(0,8760),gen_kw,label='Initial hybrid plant output')
 
-    else:
-        cost_to_buy_from_grid = 0.0
+    # Find excess generation above electrolyzer capcity and sell to grid
+    profit_from_selling_to_grid = 0.0
+    excess_energy = [0]*8760    
+    for i in range(len(gen_kw)):
+        if gen_kw[i] > elyzer_size_kw:
+            excess_energy[i] = (gen_kw[i]-elyzer_size_kw)
+            profit_from_selling_to_grid += (gen_kw[i]-elyzer_size_kw)*sell_price
+            gen_kw[i] = elyzer_size_kw
+    
+    # plt.plot(np.arange(0,8760),gen_kw,label='After selling excess to grid')
 
-    # plt.plot(np.arange(0,8760),combined_pv_wind_storage_power_production_hopp)
+    # Buy grid electricity to meet electrolyzer capacity factor
+    cost_to_buy_from_grid = 0.0
+    purchase_needed = (elyzer_size_kw*elyzer_cf-np.mean(gen_kw))*8760
+    shortfall = np.subtract(elyzer_size_kw,gen_kw)
+    shortfall_inds = np.flip(np.argsort(shortfall))
+    diff_shortfall = -np.diff(shortfall[shortfall_inds])
+    shortfall_changes = np.squeeze(np.argwhere(diff_shortfall))
+    purchase = np.zeros(8760)
+    shortfall_change = 1
+    while np.sum(purchase) < purchase_needed and shortfall_change < len(shortfall_changes):
+        purchase[shortfall_inds[:(1+shortfall_changes[shortfall_change])]] += diff_shortfall[shortfall_changes[shortfall_change-1]]
+        shortfall_change += 1
+    for i in range(len(gen_kw)):
+        cost_to_buy_from_grid += purchase[i]*buy_price
+        gen_kw[i] += purchase[i]
+    
+    # plt.plot(np.arange(0,8760),gen_kw,label='After buying from grid for H2')
+    # plt.xlabel('[hr]')
+    # plt.ylabel('[kW]')
+    # plt.legend()
     # plt.show()
-
-    energy_to_electrolyzer = [x if x < kw_continuous else kw_continuous for x in combined_pv_wind_storage_power_production_hopp]
-
-    # Run the Python H2A model
-                
-    # electrical_generation_timeseries = combined_pv_wind_storage_power_production_hopp
-    electrical_generation_timeseries = np.zeros_like(energy_to_electrolyzer)
-    electrical_generation_timeseries[:] = energy_to_electrolyzer[:]
-
-    # Parangat model
-    adjusted_installed_cost = hybrid_plant.grid._financial_model.Outputs.adjusted_installed_cost
-    #NB: adjusted_installed_cost does NOT include the electrolyzer cost
-    
-    # net_capital_costs = reopt_results['outputs']['Scenario']['Site'] \
-    #                     ['Financial']['net_capital_costs']
-    net_capital_costs = 2e8 # Guesstimate so we don't have to run ReOPT
-
-    # intalled costs:
-    # hybrid_plant.grid._financial_model.costs
-
-    # system_rating = electrolyzer_size
-    forced_electrolyzer_cost = electrolyzer_cost_kw
-    system_rating = wind_size_kW + solar_size_kW
-    H2_Results, H2A_Results = run_h2_PEM.run_h2_PEM(electrical_generation_timeseries,elyzer_size_kW*1000,
-                    kw_continuous,forced_electrolyzer_cost,lcoe,adjusted_installed_cost,useful_life,
-                    net_capital_costs)
-
-    # # TEMPORARY CORRECTION FOR PEM EFFICIENCY.
-    # # # Convert H2 production from ~72.55kWh eff to 55.5kWh/kg
-    # H2_Results['hydrogen_annual_output'] = H2_Results['hydrogen_annual_output'] * 72.55/55.5
-    
-    # Intermediate financial calculation
-    total_elec_production = np.sum(electrical_generation_timeseries) #REMOVE
-    total_hopp_installed_cost = hybrid_plant.grid._financial_model.SystemCosts.total_installed_cost
-    total_electrolyzer_cost = H2A_Results['scaled_total_installed_cost']
-    total_system_installed_cost = total_hopp_installed_cost + total_electrolyzer_cost
-    annual_operating_cost_hopp = (wind_size_kW * 42) + (solar_size_kW * 13)
-    annual_operating_cost_h2 = H2A_Results['Fixed O&M'] * H2_Results['hydrogen_annual_output']
-    total_annual_operating_costs = annual_operating_cost_hopp + annual_operating_cost_h2 + cost_to_buy_from_grid - profit_from_selling_to_grid
-    
-    h_lcoe = lcoe_calc((H2_Results['hydrogen_annual_output']), total_system_installed_cost,
-            total_annual_operating_costs, 0.07, useful_life)
 
     # Save outputs
     outputs = dict()
-    outputs['LCOH [$/kg]'] = h_lcoe
-    outputs['H2 Production [tonne/day]'] = H2_Results['hydrogen_annual_output']/1000/365
-    outputs['Total Generation [MWe]'] = np.sum(hybrid_plant.grid.generation_profile[0:8759])/1000/8760
-    outputs['Sold to Grid [MWe]'] = np.sum(excess_energy)/1000/8760
+    outputs['LCOE [$/kWh]'] = lcoe
+    outputs['kW to H2 electrolysis'] = np.sum(gen_kw)/8760
+    outputs['kW bought from grid'] = np.sum(purchase)/8760
+    outputs['kW sold to grid'] = np.sum(excess_energy)/8760
     
     return outputs, site.wind_resource.filename, site.solar_resource.filename
 
 
-def run_hybrid_calc(year, site_num, scenario_descriptions, results_dir, load_resource_from_file, resource_filename_wind, resource_filename_solar,
-                    site_lat, site_lon, site_on_land, osw_size_kW, lbw_size_kW, pv_size_kW, elyzer_size_kW,
-                    bos_details, ppa_price, solar_tracking_mode, technologies, correct_wind_speed_for_height):
+def run_hybrid_calc(year, site_num, res_fn_wind, res_fn_solar, lat, lon, on_land, technologies, results_dir):
+    
     """
     run_hybrid_calc loads the specified resource for each site, and runs wind, solar, hybrid and solar addition
     scenarios by calling run_hopp_calc for each scenario. Returns a DataFrame of all results for the supplied site
     :param year: year for which analysis is conducted
     :param site_num: number representing the site studied. Generally 1 to num sites to be studied.
-    :param scenario_descriptions: description of scenario type, e.g. wind only, solar only, hybrid.
-    :param results_dir: path to results directory.
-    :param load_resource_from_file: flag determining whether resource is loaded from file directly or other routine.
-    :param resource_filename_wind: filename of wind resource file.
-    :param resource_filename_solar: filename of solar resource file.
-    :param site_lat: site latitude (degrees).
-    :param site_lon: site longitude (degrees).
-    :param site_on_land: whether side is on land
-    :param osw_size: capacity in kW of offshore wind component of plant.
-    :param lbw_size: capacity in kW of land-based wind component of plant.
-    :param pv_size: capacity in kW of pv component of plant.
-    :param elyzer_size: capacity in kW of electrolyzer component of plant.
-    :param bos_details: contains bos details including type of analysis to conduct (cost/mw,
-     json lookup, HybridBOSSE).
-    :param ppa_price: PPA price in USD($).
-    :param solar_tracking_mode: solar tracking mode (e.g. fixed, single-axis, two-axis).
+    :param res_fn_wind: filename of wind resource file.
+    :param res_fn_solar: filename of solar resource file.
+    :param lat: site latitude (degrees).
+    :param lon: site longitude (degrees).
+    :param on_land: boolean, whether site is on land
     :param technologies: dict of technologies setup info to send to hybrid simulation setup.
-    :param correct_wind_speed_for_height: (boolean) flag determining whether wind speed is extrapolated
-     to hub height.
+    :param results_dir: path to results directory.
     :return: save_outputs_resource_loop_dataframe <pandas dataframe> dataframe of all site outputs from hopp runs
     """
     
-    # Wait to de-synchronize api requests
-    wait = 10+rng.integers(10)
-    time.sleep(wait)
+    # Make reduced version of technologies dict that has just what HOPP uses to setup technologies dict
+    sim_tech = copy.deepcopy(technologies)
+    if on_land == 'true':
+        sim_tech['wind'] = technologies['lbw']
+    else:
+        sim_tech['wind'] = technologies['osw']
+    sim_tech.pop('lbw')
+    sim_tech.pop('osw')
 
-    # Set up hopp_outputs dictionary
-    hopp_outputs = dict()
 
-    # Site details
+    # Establish site location
     Site = sample_site  # sample_site has been loaded from flatirons_site to provide sample site boundary information
-    Site['lat'] = site_lat
-    Site['lon'] = site_lon
+    Site['lat'] = lat
+    Site['lon'] = lon
     Site['site_num'] = site_num
-    Site['resource_filename_solar'] = resource_filename_solar
-    Site['resource_filename_wind'] = resource_filename_wind
+    Site['resource_filename_solar'] = res_fn_solar
+    Site['resource_filename_wind'] = res_fn_wind
     Site['year'] = year
 
     # Get the Timezone offset value based on the lat/lon of the site
@@ -316,57 +169,41 @@ def run_hybrid_calc(year, site_num, scenario_descriptions, results_dir, load_res
         Site['tz'] = (tz_val - 1)
     except:
         print('Timezone lookup failed for {}'.format(location))
+    
+    # Wait to de-synchronize api requests on multi-threaded analysis #TODO: get multiple api keys so this is not necessary
+    wait = 10+rng.integers(10)
+    time.sleep(wait)
+    
+    # Create site, downloading resource files if needed
+    Site = SiteInfo(Site, hub_height=sim_tech['wind']['hub_height'],
+                    solar_resource_file=Site['resource_filename_solar'],
+                    wind_resource_file=Site['resource_filename_wind'])
 
-    scenario_description = 'greenfield'
-    sim_tech = copy.deepcopy(technologies)
-    if site_on_land == 'true':
-        wind_size_kW = lbw_size_kW
-        solar_size_kW = pv_size_kW
-        sim_tech['wind'] = technologies['lbw']
-    else:
-        wind_size_kW = osw_size_kW
-        solar_size_kW = 0
-        sim_tech['wind'] = technologies['osw']
-    sim_tech.pop('lbw')
-    sim_tech.pop('osw')
-    interconnection_size_kW = wind_size_kW + solar_size_kW
-    hopp_outputs, resource_filename_wind, resource_filename_solar \
-        = run_hopp_calc(Site, bos_details, solar_size_kW, wind_size_kW, elyzer_size_kW, sim_tech,
-                    interconnection_size_kW, load_resource_from_file, ppa_price)
-
-
+    # Run HOPP calculation
+    hopp_outputs, res_fn_wind, res_fn_solar = run_hopp_calc(Site, sim_tech, technologies, on_land)
     print('Finished site number {}'.format(site_num))
 
-    results_filename = results_dir+'_LCOH\{}_{}.txt'.format(site_lat,site_lon)
-    np.savetxt(results_filename,[hopp_outputs['LCOH [$/kg]']])
-    results_filename = results_dir+'_MTPD\{}_{}.txt'.format(site_lat,site_lon)
-    np.savetxt(results_filename,[hopp_outputs['H2 Production [tonne/day]']])
-    results_filename = results_dir+'_MWin\{}_{}.txt'.format(site_lat,site_lon)
-    np.savetxt(results_filename,[hopp_outputs['Total Generation [MWe]']])
-    results_filename = results_dir+'_MWout\{}_{}.txt'.format(site_lat,site_lon)
-    np.savetxt(results_filename,[hopp_outputs['Sold to Grid [MWe]']])
+    # Write resulst to text files #TODO make big .json
+    results_filepath = results_dir/'LCOE'/'{}_{}.txt'.format(lat,lon)
+    np.savetxt(results_filepath,[hopp_outputs['LCOE [$/kWh]']])
+    results_filepath = results_dir/'kWH2'/'{}_{}.txt'.format(lat,lon)
+    np.savetxt(results_filepath,[hopp_outputs['kW to H2 electrolysis']])
+    results_filepath = results_dir/'kWbuy'/'{}_{}.txt'.format(lat,lon)
+    np.savetxt(results_filepath,[hopp_outputs['kW bought from grid']])
+    results_filepath = results_dir/'kWsell'/'{}_{}.txt'.format(lat,lon)
+    np.savetxt(results_filepath,[hopp_outputs['kW sold to grid']])
 
 
-def run_all_hybrid_calcs(site_details, scenario_descriptions, results_dir, load_resource_from_file, osw_size_kW, lbw_size_kW, pv_size_kW,
-                            elyzer_size_kW, bos_details, ppa_price, solar_tracking_mode, technologies, correct_wind_speed_for_height):
+def run_all_hybrid_calcs(site_details, technologies, results_dir, other_attrs):
 
     """
     Performs a multi-threaded run of run_hybrid_calc for the given input parameters.
     Returns a dataframe result for all sites
     :param site_details: DataFrame containing site details for all sites to be analyzed,
     including site_nums, lat, long, wind resource filename and solar resource filename.
-    :param scenario_description: Project scenario - e.g. 'Wind Only', 'Solar Only', 'Hybrid - Wind & Solar'.
-    :param results_dir: path to results directory
-    :param load_resource_from_file: (boolean) flag which determines whether
-    :param osw_size_kW: capacity in kW of offshore wind plant.
-    :param lbw_size_kW: capacity in kW of land-based wind plant.
-    :param pv_size_kW: capacity in kW of pv solar plant.
-    :param elyzer_size_kW: size in kW of electrolyzer.
-    :param bos_details: contains bos details including type of analysis to conduct (cost/mw, json lookup, HybridBOSSE).
-    :param ppa_price: ppa price in $(USD)
-    :param solar_tracking_mode: solar tracking mode
     :param technologies: dict of technologies setup info to send to hybrid simulation setup.
-    :param correct_wind_speed_for_height: (boolean) flag determining whether wind speed is extrapolated to hub height.
+    :param results_dir: path to results directory
+    :param other_attrs: other attributes of the system, such as financials
     :return: DataFrame of results for run_hybrid_calc at all sites (save_all_runs)
     """
     # Establish output DataFrame
@@ -376,71 +213,48 @@ def run_all_hybrid_calcs(site_details, scenario_descriptions, results_dir, load_
     LCOEs = []
 
     # Combine all arguments to pass to run_hybrid_calc
-    all_args = zip(site_details['year'], site_details['site_nums'], repeat(scenario_descriptions), repeat(results_dir),
-                   repeat(load_resource_from_file),
+    all_args = zip(site_details['year'], site_details['site_nums'],
                    site_details['wind_filenames'], site_details['solar_filenames'],
                    site_details['lat'], site_details['lon'], site_details['on_land'],
-                   repeat(osw_size_kW), repeat(lbw_size_kW), repeat(pv_size_kW), repeat(elyzer_size_kW),
-                   repeat(bos_details), repeat(ppa_price),
-                   repeat(solar_tracking_mode), repeat(technologies),
-                   repeat(correct_wind_speed_for_height))
+                   repeat(technologies), repeat(results_dir))
 
-    # # Run a multi-threaded analysis
-    # with multiprocessing.Pool(10) as p:
-    #     p.starmap(run_hybrid_calc, all_args)
+    # Run a multi-threaded analysis
+    with multiprocessing.Pool(10) as p:
+        p.starmap(run_hybrid_calc, all_args)
 
-    # Run a single-threaded analysis
-    for all_arg in all_args:
-        run_hybrid_calc(*all_arg)
+    # # Run a single-threaded analysis
+    # for all_arg in all_args:
+    #     run_hybrid_calc(*all_arg)
 
 
 if __name__ == '__main__':
 
     # Set paths
-    results_dir = os.path.join(resource_dir, 'results')
+    current_dir = Path(__file__).parent.absolute()
+    resource_dir = current_dir/'..'/'resource_files'
+    results_dir = current_dir/'resource_files'/'methanol_RCC'/'HOPP_results'
     if not os.path.exists(results_dir):
         os.mkdir(results_dir)
 
-    # Establish Project Scenarios and Parameter Ranges:
-    bos_details = dict()
-    bos_details['BOSSource'] = 'BOSLookup'  # Cost/MW, BOSLookup, HybridBOSSE, HybridBOSSE_manual
-    bos_details['BOSFile'] = 'UPDATED_BOS_Summary_Results.json'
-    bos_details['BOSScenario'] = 'TBD in analysis'  # Will be set to Wind Only, Solar Only,
-    # Variable Ratio Wind and Solar Greenfield, or Solar Addition
-    bos_details['BOSScenarioDescription'] = ''  # Blank or 'Overbuild'
-    bos_details['Modify Costs'] = True
-    bos_details['wind_capex_reduction'] = 0
-    bos_details['solar_capex_reduction'] = 0
-    bos_details['wind_bos_reduction'] = 0
-    bos_details['solar_bos_reduction'] = 0
-    bos_details['wind_capex_reduction_hybrid'] = 0
-    bos_details['solar_capex_reduction_hybrid'] = 0
-    bos_details['wind_bos_reduction_hybrid'] = 0
-    bos_details['solar_bos_reduction_hybrid'] = 0
-
     load_resource_from_file = True
-    solar_from_file = True
-    wind_from_file = True
-    on_land_only = False
-    in_usa_only = False  # Only use one of (in_usa / on_land) flags
 
     # Load dump files from data import
-    with open(Path(resource_dir/'engin.json'),'r') as file:
+    with open(Path(results_dir/'..'/'engin.json'),'r') as file:
         engin = json.load(file)
-    with open(Path(resource_dir/'finance.json'),'r') as file:
+    with open(Path(results_dir/'..'/'finance.json'),'r') as file:
         finance = json.load(file)
-    with open(Path(resource_dir/'scenario.json'),'r') as file:
+    with open(Path(results_dir/'..'/'scenario.json'),'r') as file:
         scenario_info = json.load(file)
         plant_scenarios = scenario_info['plant_scenarios']
         atb_scenarios = scenario_info['atb_scenarios']
         H2A_scenarios = scenario_info['H2A_scenarios']
         MeOH_scenarios = scenario_info['MeOH_scenarios']
-    with open(Path(resource_dir/'locations.json'),'r') as file:
+    with open(Path(results_dir/'..'/'locations.json'),'r') as file:
         locations = json.load(file)
 
     # Set Analysis Location and Details
     year = 2013
-    wind_pcts = [10,20,30,40,50,60,70,80,90]
+    wind_pcts = [50,60,70,80,90]
     lon_lat_name_list = locations.keys()
 
     for lon_lat_name in lon_lat_name_list:
@@ -471,14 +285,14 @@ if __name__ == '__main__':
 
         # Constants needed by HOPP
         solar_tracking_mode = '1-axis'
-        ppa_price = 0.00
+        ppa_price_kwh = 0.04 #TODO setup variable ppa
         correct_wind_speed_for_height = True
         
         # Get H2 elyzer size #TODO: Add year lookup
         H2A_scenario = plant_scenarios['H2']
-        elyzer_input_kW = engin['H2']['elec_in_kW'][H2A_scenario][-1]
-        electrolyzer_cap = 0.97
-        elyzer_size_kW = elyzer_input_kW/electrolyzer_cap
+        elyzer_input_kw = engin['H2']['elec_in_kw'][H2A_scenario][-1]
+        elyzer_cf = 0.97 #TODO: variable electrolyzer capacity
+        elyzer_size_kw = elyzer_input_kw/elyzer_cf
 
         # Estimate wind/solar needed based on capacity factor #TODO: Add year lookup
         pv_scenario = plant_scenarios['PV']
@@ -488,56 +302,66 @@ if __name__ == '__main__':
         osw_scenario = plant_scenarios['OSW']
         osw_cap = engin['OSW']['capacity_factor'][osw_scenario][-1]
 
+        # TODO: Don't waste time going through whole loop for OSW!
         for i, wind_pct in enumerate(wind_pcts):
 
-            osw_input_kW = elyzer_input_kW
-            lbw_input_kW = elyzer_input_kW*wind_pct/100
-            pv_input_kW = elyzer_input_kW*(100-wind_pct)/100
+            osw_input_kw = elyzer_input_kw
+            lbw_input_kw = elyzer_input_kw*wind_pct/100
+            pv_input_kw= elyzer_input_kw*(100-wind_pct)/100
             
-            osw_size_kW = osw_input_kW/osw_cap
-            lbw_size_kW = lbw_input_kW/lbw_cap
-            pv_size_kW = pv_input_kW/pv_cap
+            osw_size_kw = osw_input_kw/osw_cap
+            lbw_size_kw = lbw_input_kw/lbw_cap
+            pv_size_kw = pv_input_kw/pv_cap
+
+            iconn_kw = [osw_size_kw,pv_size_kw+lbw_size_kw]
 
             lbw_turb_rating_kw = engin['LBW']['turbine_rating_kw'][lbw_scenario][-1]
             lbw_hub_height = engin['LBW']['hub_height'][lbw_scenario][-1]
-            lbw_rotor_diameter = engin['LBW']['hub_height'][lbw_scenario][-1]
+            lbw_rotor_diameter = engin['LBW']['rotor_diameter'][lbw_scenario][-1]
 
             osw_turb_rating_kw = engin['OSW']['turbine_rating_kw'][osw_scenario][-1]
             osw_hub_height = engin['OSW']['hub_height'][osw_scenario][-1]
-            osw_rotor_diameter = engin['OSW']['hub_height'][osw_scenario][-1]
+            osw_rotor_diameter = engin['OSW']['rotor_diameter'][osw_scenario][-1]
 
             technologies = {'pv': {
-                                'system_capacity_kw': pv_size_kW
+                                'system_capacity_kw': pv_size_kw
                             },
                             'lbw': {
-                                'num_turbines': round(lbw_size_kW/lbw_turb_rating_kw),
+                                'num_turbines': round(lbw_size_kw/lbw_turb_rating_kw),
                                 'turbine_rating_kw': lbw_turb_rating_kw,
                                 'hub_height': lbw_hub_height,
                                 'rotor_diameter': lbw_rotor_diameter
                             },
                             'osw': {
-                                'num_turbines': round(osw_size_kW/osw_turb_rating_kw),
+                                'num_turbines': round(osw_size_kw/osw_turb_rating_kw),
                                 'turbine_rating_kw': osw_turb_rating_kw,
                                 'hub_height': osw_hub_height,
                                 'rotor_diameter': osw_rotor_diameter
+                            },
+                            'pem': {
+                                'capacity_kw': elyzer_size_kw,
+                                'capacity_factor': elyzer_cf,
+                            },
+                            'interconnection': {
+                                'capacity_kw': iconn_kw,
+                                'ppa_price_kwh': ppa_price_kwh
                             }
                             }
 
-            attrs_to_set = {}
+            other_attrs = {} # TODO :Add other inputs such as pricing
 
             # Save results from all locations to folder
-            if not os.path.exists(results_dir+'_LCOH'):
-                os.mkdir(results_dir+'_LCOH')
-            if not os.path.exists(results_dir+'_MTPD'):
-                os.mkdir(results_dir+'_MTPD')
-            if not os.path.exists(results_dir+'_MWin'):
-                os.mkdir(results_dir+'_MWin')
-            if not os.path.exists(results_dir+'_MWout'):
-                os.mkdir(results_dir+'_MWout')
+            if not os.path.exists(results_dir/'LCOE'):
+                os.mkdir(results_dir/'LCOE')
+            if not os.path.exists(results_dir/'kWH2'):
+                os.mkdir(results_dir/'kWH2')
+            if not os.path.exists(results_dir/'kWbuy'):
+                os.mkdir(results_dir/'kWbuy')
+            if not os.path.exists(results_dir/'kWsell'):
+                os.mkdir(results_dir/'kWsell')
 
             # Run hybrid calculation for all sites
             # save_all_runs = 
-            run_all_hybrid_calcs(site_details, "greenfield", results_dir, load_resource_from_file, osw_size_kW, lbw_size_kW, pv_size_kW,
-                                    elyzer_size_kW, bos_details, ppa_price, solar_tracking_mode, technologies, correct_wind_speed_for_height)
+            run_all_hybrid_calcs(site_details, technologies, results_dir, other_attrs)
         
             # print(save_all_runs)
