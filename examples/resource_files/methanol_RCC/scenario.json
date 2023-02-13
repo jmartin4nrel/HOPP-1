@@ -1,0 +1,1 @@
+{"plant_scenarios": {"NGCC": "Conservative", "CCS": "Conservative", "PV": "Advanced", "LBW": "Advanced", "OSW": "Advanced", "H2": "Future", "MeOH": "Baseline CO2 Capture"}, "atb_scenarios": ["Advanced", "Moderate", "Conservative"], "H2A_scenarios": ["Current", "Future"], "MeOH_scenarios": ["Baseline CO2 Capture"]}
