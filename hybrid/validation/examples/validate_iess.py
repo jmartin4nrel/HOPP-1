@@ -89,8 +89,8 @@ hybrid_plant.pv.dc_degradation = [0]*len(years)
 
 yaw_file = wind_dir / "GE Turbine Yaw Dec 2019 to 2022 gaps.csv"
 tenmin_wind_file = wind_dir / "August 2012 to October 2022 M5 wind 10 min"
-wind_gen.get_yaw_mismatch(yaw_file, tenmin_wind_file, years)
-wind_gen.process_status()
+# wind_gen.get_yaw_mismatch(yaw_file, tenmin_wind_file, years)
+# wind_gen.process_status()
 use_dir = False
 
 status_file = wind_dir / "GE15_IEC_validity_hourly_2019_2022"
