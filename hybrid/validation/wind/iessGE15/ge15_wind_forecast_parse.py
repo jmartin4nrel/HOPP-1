@@ -2,11 +2,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy.stats import circmean
+import copy
 
 import matplotlib.pyplot as plt
 
 def process_wind_forecast(forecast_files:dict, forecast_hours_ahead:dict, forecast_hours_offset:dict,
-                            forecast_year:int, resource_fp, resource_years:list):
+                            forecast_year:int, resource_fp, resource_years:list, plot_corr=False):
 
     # Set up forecasts as dict of dataframes
     max_hours_ahead = 0
@@ -60,37 +61,48 @@ def process_wind_forecast(forecast_files:dict, forecast_hours_ahead:dict, foreca
     for key, forecast in forecast_dict.items():
         forecast.iloc[:,-1] = resource_dict[key]['Avg.']
 
-    # Plot correlation between sustained wind, gusts, and actual wind speed
-    resource_speed = resource_dict['speed_m_s'][forecast_year].values
-    forecast_speed = forecast_dict['speed_m_s'][1].values
-    forecast_gusts = forecast_dict['gusts_m_s'][1].values
-    forecast_idxs = np.where(forecast_speed>0)[0]
-    no_gusts = np.where((forecast_speed>0) & (forecast_gusts<forecast_speed))[0]
-    forecast_gusts[no_gusts] = forecast_speed[no_gusts]
-    plt.errorbar(resource_speed[forecast_idxs],
-                    forecast_speed[forecast_idxs],
-                    fmt='.',
-                    yerr=(np.vstack((np.zeros(len(forecast_idxs)),
-                            np.subtract(forecast_gusts[forecast_idxs],
-                                        forecast_speed[forecast_idxs])))))
-    plt.xlabel('Actual wind speed [m/s]')
-    plt.ylabel('Hour-ahead forecast wind speed [m/s] - sustained + gust')
-    plt.ylim([0,25])
-    plt.show()
-
-    # Plot to check
-    plot_n = 0
-    plt.clf()
+    # Use forecast year resource data as real-time data (0 hours advance)
     for key, forecast in forecast_dict.items():
-        plot_n += 1
-        plt.subplot(5,1,plot_n)
-        actual = resource_dict[key][forecast_year]
-        plt.plot(year_hours,actual,label='Actual Data')
-        for hours_ahead in [1,2,4,8,24,72,-1]:
-            plt.plot(year_hours,forecast.iloc[:,hours_ahead],label='Forecast {:} hours ahead'.format(hours_ahead))
-    plt.legend()
-    hourly = np.mean(np.reshape(forecast_dict['speed_m_s'].iloc[:,hours_ahead].values,(24,365)),axis=1)
-    plt.plot(year_hours[0:24],hourly)
-    plt.show()
+        forecast.loc[:,0] = resource_dict[key][forecast_year]
 
-    return forecast_df
+    # Fill in nans
+    for key, forecast in forecast_dict.items():
+        col = forecast.shape[1]-1
+        not_nan = np.where(np.invert(np.isnan(forecast.loc[:,col].astype(float))))[0]
+        while col > 1:
+            col -= 1
+            prev_not_nan = copy.deepcopy(not_nan)
+            fill_values = np.full(forecast.shape[0],np.nan)
+            fill_values[prev_not_nan] = forecast.iloc[prev_not_nan,col+1]
+            not_nan = np.where(np.invert(np.isnan(forecast.loc[:,col].astype(float))))[0]
+            fill_values[not_nan] = forecast.iloc[not_nan,col]
+            forecast.loc[:,col] = fill_values
+
+    if plot_corr:
+        # Plot correlation between sustained wind, gusts, and actual wind speed
+        resource_speed = resource_dict['speed_m_s'][forecast_year].values
+        forecast_speed = forecast_dict['speed_m_s'][1].values
+        forecast_gusts = forecast_dict['gusts_m_s'][1].values
+        forecast_idxs = np.where(forecast_speed>0)[0]
+        no_gusts = np.where((forecast_speed>0) & (forecast_gusts<forecast_speed))[0]
+        forecast_gusts[no_gusts] = forecast_speed[no_gusts]
+        plt.errorbar(resource_speed[forecast_idxs],
+                        forecast_speed[forecast_idxs],
+                        fmt='.',
+                        yerr=(np.vstack((np.zeros(len(forecast_idxs)),
+                                np.subtract(forecast_gusts[forecast_idxs],
+                                            forecast_speed[forecast_idxs])))))
+        plt.xlabel('Actual wind speed [m/s]')
+        plt.ylabel('Hour-ahead forecast wind speed [m/s] - sustained + gust')
+        plt.ylim([0,25])
+        plt.show()
+
+        # Plot correlation between forecast direction and actual direction
+        resource_dir = resource_dict['dir_deg'][forecast_year].values
+        forecast_dir = forecast_dict['dir_deg'][1].values
+        plt.plot(resource_dir[forecast_idxs], forecast_dir[forecast_idxs],'.')
+        plt.xlabel('Actual dir [deg]')
+        plt.ylabel('Hour-ahead forecast direction [deg]')
+        plt.show()
+
+    return forecast_dict

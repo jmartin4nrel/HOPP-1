@@ -2,11 +2,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy.stats import circmean
+import copy
 
 import matplotlib.pyplot as plt
 
 def process_solar_forecast(forecast_files:dict, forecast_hours_ahead:dict, forecast_hours_offset:dict,
-                            forecast_year:int, resource_fp, resource_years:list):
+                            forecast_year:int, resource_fp, resource_years:list, plot_corr=False):
 
     # Set up forecasts as dict of dataframes
     max_hours_ahead = 0
@@ -56,17 +57,35 @@ def process_solar_forecast(forecast_files:dict, forecast_hours_ahead:dict, forec
     for key, forecast in forecast_dict.items():
         forecast.iloc[:,-1] = resource_dict[key]['Avg.']
 
-    # Plot to check
-    plot_n = 0
-    plt.clf()
+    # Use forecast year resource data as real-time data (0 hours advance)
     for key, forecast in forecast_dict.items():
-        plot_n += 1
-        plt.subplot(4,1,plot_n)
-        actual = resource_dict[key][forecast_year]
-        plt.plot(year_hours,actual,label='Actual Data')
-        for hours_ahead in [0,1,2,4,8,24,72,169]:
-            plt.plot(year_hours,forecast.loc[:,hours_ahead],label='Forecast {:} hours ahead'.format(hours_ahead))
-    plt.legend()
-    plt.show()
-    
-    return forecast_df
+        forecast.loc[:,0] = resource_dict[key][forecast_year]
+
+    # Fill in nans
+    for key, forecast in forecast_dict.items():
+        col = forecast.shape[1]-1
+        while col > 1:
+            not_nan = np.where(np.invert(np.isnan(forecast.iloc[:,col].astype(float))))[0]
+            prev_not_nan = copy.deepcopy(not_nan)
+            col -= 1
+            fill_values = np.full(forecast.shape[0],np.nan)
+            fill_values[prev_not_nan] = forecast.iloc[prev_not_nan,col+1]
+            not_nan = np.where(np.invert(np.isnan(forecast.iloc[:,col].astype(float))))[0]
+            fill_values[not_nan] = forecast.iloc[not_nan,col]
+            forecast.iloc[:,col] = fill_values
+
+    if plot_corr:
+        # Plot correlation between forecast and actual wind speed
+        plot_n = 0
+        for key, forecast in forecast_dict.items():
+            plot_n += 1
+            plt.subplot(1,3,plot_n)
+            resource_W_m2 = resource_dict[key][forecast_year].values
+            forecast_W_m2 = forecast[1].values
+            forecast_idxs = np.where(forecast_W_m2>0)[0]
+            plt.plot(resource_W_m2[forecast_idxs], forecast_W_m2[forecast_idxs],'.')
+            plt.xlabel('Actual irradiance [W/m^2]')
+            plt.ylabel('Hour-ahead forecast irradiance [W/m^2]')
+        plt.show()
+
+    return forecast_dict

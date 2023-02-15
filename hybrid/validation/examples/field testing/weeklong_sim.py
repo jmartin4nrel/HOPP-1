@@ -7,6 +7,7 @@ Emulates sending a power demand signal from HOPP to IESS controller over a week
 from pathlib import Path
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from hybrid.validation.wind.iessGE15.ge15_wind_forecast_parse import process_wind_forecast
 from hybrid.validation.solar.iessFirstSolar.firstSolar_forecast_parse import process_solar_forecast
@@ -61,5 +62,35 @@ solar_res_fp = solar_res_dir/'solar_m2_YYYY.csv'
 # Set years and setup forecast
 forecast_year = 2022
 resource_years = [2019,2020,2021,2022]
-wind_df = process_wind_forecast(wind_fp,wind_hours_ahead,wind_hours_offset,forecast_year,wind_res_fp,resource_years)
-solar_df = process_solar_forecast(solar_fp,solar_hours_ahead,solar_hours_offset,forecast_year,solar_res_fp,resource_years)
+wind_dict = process_wind_forecast(wind_fp,wind_hours_ahead,wind_hours_offset,forecast_year,wind_res_fp,resource_years)
+solar_dict = process_solar_forecast(solar_fp,solar_hours_ahead,solar_hours_offset,forecast_year,solar_res_fp,resource_years)
+
+
+year_hours = pd.date_range(str(forecast_year)+'-01-01', periods=8760, freq='H')
+    
+# Plot wind forecast to check
+plt.subplot(2,1,1)
+actual_speed = wind_dict['speed_m_s'][0]
+forecast_speed = wind_dict['speed_m_s'][1]
+forecast_gusts = wind_dict['gusts_m_s'][1]
+plt.plot(year_hours,actual_speed,label='Actual Wind Speed, Met Tower')
+plt.plot(year_hours,forecast_speed,label='Forecast Sustained Winds')
+plt.plot(year_hours,forecast_gusts,label='Forecast Gusts')
+plt.xlim(pd.DatetimeIndex((sim_start,sim_end)))
+plt.legend()
+
+# Plot solar forecast to check
+plot_n = 3
+for key, forecast in solar_dict.items():
+    plot_n += 1
+    plt.subplot(2,3,plot_n)
+    actual_speed = forecast[0]
+    forecast_speed = forecast[1]
+    forecast_gusts = forecast[24]
+    plt.plot(year_hours,actual_speed,label='Actual Irradiance, Met Tower')
+    plt.plot(year_hours,forecast_speed,label='Forecast Irradiance, 1 hour ahead')
+    plt.plot(year_hours,forecast_gusts,label='Forecast Irradiance, 24 hours ahead')
+    plt.legend()
+    plt.title(key)
+    plt.xlim(pd.DatetimeIndex((sim_start,sim_end)))
+plt.show()
