@@ -169,7 +169,6 @@ print(revs)
 
 file = 'figures/'
 tag = 'simple2_'
-#plot_battery_dispatch_error(hybrid_plant, plot_filename=file+tag+'battery_dispatch_error.png')
 '''
 for d in range(0, 360, 5):
     plot_battery_output(hybrid_plant, start_day=d, plot_filename=file+tag+'day'+str(d)+'_battery_gen.png')
@@ -179,3 +178,18 @@ plot_battery_dispatch_error(hybrid_plant)
 plot_battery_output(hybrid_plant)
 plot_generation_profile(hybrid_plant)
 #plot_battery_dispatch_error(hybrid_plant, plot_filename=tag+'battery_dispatch_error.png')
+
+#TODO: Save yearlong battery output from resource files, read it back in instead of re-doing
+
+#TODO: Set load profile (flat 300 kW for now)
+
+sim_times = pd.date_range(sim_start, sim_end, freq='H')
+for time in sim_times:
+
+    not_yet = 'implemented'
+
+    #TODO: Feed forecast as resource files, as it would appear in each hour
+
+    #TODO: Run battery dispatch optimization, only for coming week (treat past dispatch as fixed)
+
+#TODO: Compare forecasted plant output with acutual output after each data
