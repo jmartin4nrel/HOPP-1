@@ -1,7 +1,7 @@
 power_source,name,value
 pv,azimuth,180
 pv,tilt,25
-pv,dc_ac_ratio,1.149
+pv,dc_ac_ratio,1
 pv,losses,0
 wind,avail_bop_loss,0
 wind,avail_grid_loss,0

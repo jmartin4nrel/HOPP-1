@@ -16,7 +16,7 @@ current_dir = Path(__file__).parent.absolute()
 set_nrel_key_dot_env()
 
 # Set wind, solar, and interconnection system info
-solar_size_mw = 0.48
+solar_size_mw = 0.43
 array_type = 0 # Fixed-angle
 dc_degradation = 0
 
@@ -73,7 +73,7 @@ hybrid_plant.wind._system_model.Turbine.wind_resource_shear = wind_shear_exp
 
 # Tune the model to IESS data
 validation_dir = current_dir / ".."
-tuning_file = validation_dir / "results" / "IESS 19 20 pv tune.csv"
+tuning_file = validation_dir / "results" / "IESS defaults.csv"
 hybrid_plant = tune_manual(hybrid_plant, tuning_file)
 
 solar_dir = current_dir / ".." / "solar" / "iessFirstSolar"
@@ -82,7 +82,7 @@ tuning_files = {'pv': solar_dir / "FirstSolar_YYYY.csv",
 resource_files = {'pv': resource_dir / "solar" / "solar_m2_YYYY.csv",
                 'wind': resource_dir / "wind" / "wind_m5_YYYY.srw",}
 
-good_period_file = validation_dir / "hybrid" / "iessGEFS" / "GE_FirstSolar_Periods_All_Wind.csv"
+good_period_file = validation_dir / "hybrid" / "iessGEFS" / "GE_FirstSolar_Periods_Recleaning_Weeklong.csv"
 
 years = [2019,2020,2021,2022] #
 hybrid_plant.pv.dc_degradation = [0]*len(years)
@@ -95,7 +95,8 @@ status_file = wind_dir / wind_gen.process_status(years, overwrite=False)
 use_dir = True
 use_status = True
 
-hybrid_plant = tune_data(hybrid_plant, tuning_files, resource_files, good_period_file, yaw_file, status_file, years, use_status, use_dir)
+hybrid_plant, overshoots = tune_data(hybrid_plant, tuning_files, resource_files, good_period_file,
+                                        yaw_file, status_file, years, use_status, use_dir, resim_and_plot=True)
 
 hybrid_plant.simulate(1)
 

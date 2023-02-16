@@ -109,6 +109,6 @@ def get_yaw_mismatch(yaw_file, tenmin_wind_file, years, overwrite=False):
                 hour_mat = np.vstack((hour_mat,mean_hour))
         hourly_df = pd.DataFrame(data=hour_mat, columns=['Wind Direction [deg]', yaw_label, 'Yaw Mismatch [deg]', 'Wind Speed [m/s]'])
         hourly_df.to_json(current_dir/filename)
-        hourly_df.to_csv(current_dir/filename+'.csv')
+        hourly_df.to_csv(current_dir/(filename+'.csv'))
     
     return current_dir/yaw_file, current_dir/tenmin_wind_file

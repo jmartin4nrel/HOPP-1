@@ -9,10 +9,14 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from hybrid.sites import SiteInfo, flatirons_site
 from hybrid.validation.wind.iessGE15.ge15_wind_forecast_parse import process_wind_forecast
 from hybrid.validation.solar.iessFirstSolar.firstSolar_forecast_parse import process_solar_forecast
+from hybrid.validation.examples.tune_iess import tune_iess
+from hybrid.hybrid_simulation import HybridSimulation
+from hybrid.dispatch.plot_tools import plot_battery_output, plot_battery_dispatch_error, plot_generation_profile
 
-# Pick week to simulate
+# Pick time period to simulate
 sim_start = '07/28/22'
 sim_end = '08/14/22'
 
@@ -95,3 +99,83 @@ for key, forecast in solar_dict.items():
     plt.xlim(pd.DatetimeIndex((sim_start,sim_end)))
 plt.show()
 
+# Set up and tune hybrid
+period_file = "GE_FirstSolar_Periods_Recleaning_Weeklong.csv"
+hybrid_plant, overshoots = tune_iess(period_file)
+
+# Add battery to plant
+solar_size_mw = 0.43
+array_type = 0 # Fixed-angle
+dc_degradation = 0
+
+wind_size_mw = 1.5
+hub_height = 80
+rotor_diameter = 77
+wind_dir = current_dir / ".." / "wind" / "iessGE15"
+wind_power_curve = wind_dir/ "NREL_Reference_1.5MW_Turbine_Site_Level_Refactored_Hourly.csv"
+wind_shear_exp = 0.15
+wind_wake_model = 3 # constant wake loss, layout-independent
+
+batt_time_h = 1
+batt_cap_mw = 1
+
+interconnection_size_mw = 2
+
+technologies = {'pv': {
+                    'system_capacity_kw': solar_size_mw * 1000
+                },
+                'wind': {
+                    'num_turbines': 1,
+                    'turbine_rating_kw': wind_size_mw * 1000,
+                    'hub_height': hub_height,
+                    'rotor_diameter': rotor_diameter
+                },
+                'battery': {
+                    'system_capacity_kwh': batt_cap_mw * batt_time_h * 1000,
+                    'system_capacity_kw': batt_cap_mw * 1000
+                }}
+
+# Get resource
+flatirons_site['lat'] = 39.91
+flatirons_site['lon'] = -105.22
+flatirons_site['elev'] = 1835
+flatirons_site['year'] = 2020
+base_dir = current_dir/ ".." / ".." / ".." / ".."
+resource_dir = base_dir/ "resource_files"
+prices_file = resource_dir/ "grid" / "pricing-data-2015-IronMtn-002_factors.csv"
+solar_file = resource_dir/ "solar" / 'solar_m2_2022.csv'
+wind_file = resource_dir/ "wind" / 'wind_m5_2022.srw'
+site = SiteInfo(flatirons_site, grid_resource_file=prices_file, solar_resource_file=solar_file, wind_resource_file=wind_file)
+
+hybrid_plant = HybridSimulation(technologies, site, interconnect_kw=interconnection_size_mw * 1000)
+
+# prices_file are unitless dispatch factors, so add $/kwh here
+hybrid_plant.ppa_price = 0.04
+
+# Get whole year simulated with resource files, as starting point
+hybrid_plant.simulate(project_life=1)
+
+print("output after losses over gross output",
+      hybrid_plant.wind.value("annual_energy") / hybrid_plant.wind.value("annual_gross_energy"))
+
+# Save the outputs
+annual_energies = hybrid_plant.annual_energies
+npvs = hybrid_plant.net_present_values
+revs = hybrid_plant.total_revenues
+print(annual_energies)
+print(npvs)
+print(revs)
+
+
+file = 'figures/'
+tag = 'simple2_'
+#plot_battery_dispatch_error(hybrid_plant, plot_filename=file+tag+'battery_dispatch_error.png')
+'''
+for d in range(0, 360, 5):
+    plot_battery_output(hybrid_plant, start_day=d, plot_filename=file+tag+'day'+str(d)+'_battery_gen.png')
+    plot_generation_profile(hybrid_plant, start_day=d, plot_filename=file+tag+'day'+str(d)+'_system_gen.png')
+'''
+plot_battery_dispatch_error(hybrid_plant)
+plot_battery_output(hybrid_plant)
+plot_generation_profile(hybrid_plant)
+#plot_battery_dispatch_error(hybrid_plant, plot_filename=tag+'battery_dispatch_error.png')
