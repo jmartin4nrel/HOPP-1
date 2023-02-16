@@ -13,6 +13,7 @@ from hybrid.sites import SiteInfo, flatirons_site
 from hybrid.validation.wind.iessGE15.ge15_wind_forecast_parse import process_wind_forecast
 from hybrid.validation.solar.iessFirstSolar.firstSolar_forecast_parse import process_solar_forecast
 from hybrid.validation.examples.tune_iess import tune_iess
+from hybrid.validation.validate_hybrid import tune_manual
 from hybrid.hybrid_simulation import HybridSimulation
 from hybrid.dispatch.plot_tools import plot_battery_output, plot_battery_dispatch_error, plot_generation_profile
 from hybrid.resource import (
@@ -152,6 +153,11 @@ wind_file = resource_dir/ "wind" / 'wind_m5_2022.srw'
 site = SiteInfo(flatirons_site, grid_resource_file=prices_file, solar_resource_file=solar_file, wind_resource_file=wind_file)
 
 hybrid_plant = HybridSimulation(technologies, site, interconnect_kw=interconnection_size_mw * 1000)
+
+# Set tuning coefficients (flat losses for now)
+hybrid_plant = tune_manual(hybrid_plant,'IESS defaults.csv')
+getattr(hybrid_plant,'pv').value('losses',overshoots['pv'])
+getattr(hybrid_plant,'wind').value('turb_specific_loss',overshoots['wind'])
 
 # prices_file are unitless dispatch factors, so add $/kwh here
 hybrid_plant.ppa_price = 0.04

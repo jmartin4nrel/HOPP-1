@@ -73,7 +73,7 @@ hybrid_plant.wind._system_model.Turbine.wind_resource_shear = wind_shear_exp
 
 # Tune the model to IESS data
 validation_dir = current_dir / ".."
-tuning_file = validation_dir / "results" / "IESS defaults.csv"
+tuning_file = validation_dir / "results" / "IESS tune 2_16_23.csv"
 hybrid_plant = tune_manual(hybrid_plant, tuning_file)
 
 solar_dir = current_dir / ".." / "solar" / "iessFirstSolar"
@@ -82,9 +82,9 @@ tuning_files = {'pv': solar_dir / "FirstSolar_YYYY.csv",
 resource_files = {'pv': resource_dir / "solar" / "solar_m2_YYYY.csv",
                 'wind': resource_dir / "wind" / "wind_m5_YYYY.srw",}
 
-good_period_file = validation_dir / "hybrid" / "iessGEFS" / "GE_FirstSolar_Periods_Recleaning_Weeklong.csv"
+good_period_file = validation_dir / "hybrid" / "iessGEFS" / "GE_FirstSolar_Periods_Weeklong.csv"
 
-years = [2019,2020,2021,2022] #
+years = [2022] #2019,2020,2021,
 hybrid_plant.pv.dc_degradation = [0]*len(years)
 
 yaw_file = "GE Turbine Yaw Dec 2019 to 2022 gaps.csv"

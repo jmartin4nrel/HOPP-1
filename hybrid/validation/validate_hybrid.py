@@ -179,8 +179,8 @@ def tune_data(hybrid, tuning_files: dict, resource_files: dict, good_period_file
     
     
     # Calculate percent mismatch between modeling and actual data
-    pct_pv_mismatch = (1-np.sum(good_pv_tun.values)/np.sum(good_pv_gen.values)*(100-old_pv_loss)/100)*100
-    pct_wind_mismatch = (1-np.sum(good_wind_tun.values)/np.sum(good_wind_gen.values)*(100-old_wind_loss)/100)*100
+    pct_pv_mismatch = (1-np.sum(good_pv_tun.values)/np.sum(good_pv_gen.values))*100
+    pct_wind_mismatch = (1-np.sum(good_wind_tun.values)/np.sum(good_wind_gen.values))*100
     overshoots = {'pv': pct_pv_mismatch, 'wind': pct_wind_mismatch}
 
     if resim_and_plot:
