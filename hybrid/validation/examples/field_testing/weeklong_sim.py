@@ -15,7 +15,11 @@ from hybrid.validation.solar.iessFirstSolar.firstSolar_forecast_parse import pro
 from hybrid.validation.examples.tune_iess import tune_iess
 from hybrid.hybrid_simulation import HybridSimulation
 from hybrid.dispatch.plot_tools import plot_battery_output, plot_battery_dispatch_error, plot_generation_profile
-
+from hybrid.resource import (
+    SolarResource,
+    WindResource
+    )
+    
 # Pick time period to simulate
 sim_start = '07/28/22'
 sim_end = '08/14/22'
@@ -186,9 +190,18 @@ plot_generation_profile(hybrid_plant)
 sim_times = pd.date_range(sim_start, sim_end, freq='H')
 for time in sim_times:
 
-    not_yet = 'implemented'
-
     #TODO: Feed forecast as resource files, as it would appear in each hour
+
+    # Previously figured out how to change resource file without setting up HybridSimulation all over again:
+    solar_fp = Path('not_implemented')
+    wind_fp = Path('not_implemented')
+    NewSolarRes = SolarResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,filepath=solar_fp)
+    NewWindRes = WindResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,hub_height,filepath=wind_fp)
+    # Have to change pressure to sea level!
+    for j in range(len(NewWindRes.data['data'])):
+        NewWindRes.data['data'][j][1] = 1
+    hybrid_plant.pv._system_model.SolarResource.solar_resource_data = NewSolarRes.data
+    hybrid_plant.wind._system_model.Resource.wind_resource_data = NewWindRes.data
 
     #TODO: Run battery dispatch optimization, only for coming week (treat past dispatch as fixed)
 
