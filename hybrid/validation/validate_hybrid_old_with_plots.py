@@ -104,9 +104,6 @@ def tune_data(hybrid, tuning_files: dict, resource_files: dict, good_period_file
         # Simulate generation for this specific year
         NewSolarRes = SolarResource(hybrid.site.lat,hybrid.site.lon,year,filepath=res_filepaths['pv'][i])
         NewWindRes = WindResource(hybrid.site.lat,hybrid.site.lon,year,hub_ht,filepath=res_filepaths['wind'][i])
-        # Have to change pressure to sea level!
-        for j in range(len(NewWindRes.data['data'])):
-            NewWindRes.data['data'][j][1] = 1
         wind_speed_all.extend([i[3] for i in NewWindRes.data['data']])
         hybrid.pv._system_model.SolarResource.solar_resource_data = NewSolarRes.data
         hybrid.wind._system_model.Resource.wind_resource_data = NewWindRes.data
@@ -165,31 +162,45 @@ def tune_data(hybrid, tuning_files: dict, resource_files: dict, good_period_file
             if use_status:
                 status_year = status_df.iloc[i*8760:(i+1)*8760]
                 status = status_year.loc[:,0].values
-                # status = np.hstack((status[1:],status[0]))
+                status = np.hstack((status[1:],status[0]))
                 good_inds = good_inds&status
             good_wind_inds_all.extend([k+i*8760 for k, x in enumerate(good_inds) if x])
             good_wind_gen = pd.concat((good_wind_gen,pd.DataFrame([wind_gen[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
             good_wind_tun = pd.concat((good_wind_tun,pd.DataFrame([wind_tun_P[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
     
-    
-    # Generate power curves
+    # Generate new power curves (just making curve for wind now)
     good_wind_speed = [wind_speed_all[i] for i in good_wind_inds_all]
     
+    max_mismatch = 15
     good_wind_dir = np.array([yaw_df.loc[:,dir_label].values[i] for i in good_wind_inds_all])
+    # angle_wind_dir_inds = np.where((good_wind_dir<max_angle)&(good_wind_dir>min_angle))[0]
     good_wind_mismatch = np.array([yaw_df.loc[:,mismatch_label].values[i] for i in good_wind_inds_all])
+    # angle_wind_mismatch_inds = np.where((good_wind_dir<max_angle)&(good_wind_dir>min_angle)&\
+    #                                     (good_wind_mismatch>-max_mismatch)&(good_wind_mismatch<max_mismatch))[0]
+    good_wind_status = np.array([status_df.iloc[:,0].values[i] for i in good_wind_inds_all])
+    # wind_status_inds = np.where(good_wind_status)[0]
+    # wind_status_angle_inds = np.where(good_wind_status&(good_wind_dir<max_angle)&(good_wind_dir>min_angle))[0]
 
-    good_poa = [poa_all[i] for i in good_pv_inds_all]
-    plt.subplot(1,2,1)
-    plt.grid('on')
-    plt.plot(good_poa,good_pv_tun.values,'.')
-    plt.xlabel('Plane of array irradiance [W/m^2], 1 hour avg.')
-    plt.ylabel('Active power [kW], 1 hour avg.')
-    plt.subplot(1,2,2)
+    # good_poa = [poa_all[i] for i in good_pv_inds_all]
+    # plt.subplot(1,2,1)
+    # plt.grid('on')
+    # plt.plot(good_poa,good_pv_tun.values,'.')
+    # plt.xlabel('Plane of array irradiance [W/m^2], 1 hour avg.')
+    # plt.ylabel('Active power [kW], 1 hour avg.')
+    # plt.subplot(1,2,2)
     plt.grid('on')
     plt.plot(wind_speed_all,wind_tun_all,'.',label='All measured data points',markersize=4)
     plt.plot([wind_speed_all[i] for i in np.where(status_df.iloc[:-1,0].values)[0]],
                 [wind_tun_all[i] for i in np.where(status_df.iloc[:-1,0].values)[0]],'.',label='Filtered data using status',markersize=4)
     plt.plot(good_wind_speed,good_wind_tun.values,'.',label='Filtered data using status & cleaning',markersize=4)
+    # plt.plot(np.array(good_wind_speed)[angle_wind_dir_inds],good_wind_tun.values[angle_wind_dir_inds],\
+    #             '.',label='Measured data points with wind between {} and {} deg'.format(min_angle,max_angle))
+    # plt.plot(np.array(good_wind_speed)[angle_wind_mismatch_inds],good_wind_tun.values[angle_wind_mismatch_inds],\
+    #             '.',label='Measured data points with wind between {} and {} deg and less than {} deg yaw mismatch'.format(min_angle,max_angle,max_mismatch))
+    # plt.plot(np.array(good_wind_speed)[wind_status_inds],good_wind_tun.values[wind_status_inds],\
+    #             '.',label='Data points where status code was valid during whole hour')
+    # plt.plot(np.array(good_wind_speed)[wind_status_angle_inds],good_wind_tun.values[wind_status_angle_inds],\
+    #             '.',label='Data points with good status and direction')
     plt.xlabel('Wind speed [m/s], 1 hour avg.')
     plt.ylabel('Active power [kW], 1 hour avg.')
     bin_starts = np.arange(0,20,.5)
@@ -205,24 +216,20 @@ def tune_data(hybrid, tuning_files: dict, resource_files: dict, good_period_file
         bin_inds = np.where((good_wind_speed>bin_start)&(good_wind_speed<=bin_end))[0]
         bin_speeds.append(np.mean([good_wind_speed[i] for i in bin_inds]))
         bin_powers.append(np.mean(good_wind_tun.values[bin_inds]))
-    plt.plot(bin_speeds,bin_powers,'-',label='New measured power curve',linewidth=2)
-    plt.plot(hybrid.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds,\
-            hybrid.wind._system_model.Turbine.wind_turbine_powercurve_powerout,\
-            '-',label='Refactored power curve',linewidth=2)
+    # plt.plot(bin_speeds,bin_powers,'-',label='New measured power curve',linewidth=2)
+    # plt.plot(hybrid.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds,\
+    #         hybrid.wind._system_model.Turbine.wind_turbine_powercurve_powerout,\
+    #         '-',label='Refactored power curve',linewidth=2)
     cd = Path(__file__).parent.absolute()
     wind_power_curve = cd / 'wind' / "iessGE15" / "NREL_Reference_1.5MW_Turbine_Site_Level.csv"
     curve_data = pd.read_csv(wind_power_curve)
     wind_speed = curve_data['Wind Speed [m/s]'].values.tolist() 
     curve_power = curve_data['Power [kW]']
-    plt.plot(wind_speed,curve_power,'-',label='Original power curve',linewidth=2)
+    # plt.plot(wind_speed,curve_power,'-',label='Original power curve',linewidth=2)
     plt.legend()
     plt.show()
     bin_speeds.append(20)
     bin_powers.append(bin_powers[-1])
-
-    # Calculate percent mismatch between modeling and actual data
-    pct_pv_mismatch = (1-np.sum(good_pv_tun.values)/np.sum(good_pv_gen.values)*(100-old_pv_loss)/100)*100
-    pct_wind_mismatch = (1-np.sum(good_wind_tun.values)/np.sum(good_wind_gen.values)*(100-old_wind_loss)/100)*100
 
     plt.subplot(1,2,1)
     plt.grid('on')
@@ -230,38 +237,36 @@ def tune_data(hybrid, tuning_files: dict, resource_files: dict, good_period_file
     plt.xlabel('Actual power [kW], 1 hour avg.')
     plt.ylabel('Modeled power [kW], 1 hour avg.')
     plt.plot([0,np.max(good_pv_gen.values)],[0,np.max(good_pv_gen.values)])
-    plt.plot([0,np.max(good_pv_gen.values)],[0,np.max(good_pv_gen.values)*100/(100-pct_pv_mismatch)],
-                '--',label='PV model over-prediction: {:.2f}%'.format(pct_pv_mismatch))
-    plt.legend()
     plt.subplot(1,2,2)
     plt.grid('on')
     plt.plot(good_wind_tun.values,good_wind_gen.values,'.')
     plt.xlabel('Actual power [kW], 1 hour avg.')
     plt.ylabel('Modeled power [kW], 1 hour avg.')
     plt.plot([0,np.max(good_wind_gen.values)],[0,np.max(good_wind_gen.values)])
-    plt.plot([0,np.max(good_wind_gen.values)],[0,np.max(good_wind_gen.values)*100/(100-pct_wind_mismatch)],
-                '--',label='Wind model over-prediction: {:.2f}%'.format(pct_wind_mismatch))
-    plt.legend()
     plt.show()
 
-    # Re-simulate with new loss coefficients
-    # tilt = copy.deepcopy(hybrid.pv._system_model.SystemDesign.tilt)
-    # azim = copy.deepcopy(hybrid.pv._system_model.SystemDesign.azimuth)
-    # tilt_adds = [0,-2.5]#np.linspace(-5,0,11)
-    # azim_adds = [0,-3]#np.linspace(-8,2,11)
-    # pv_gen_all_lols = []
-    # good_pv_gen_lols = []
-    # for k in range(len(tilt_adds)):
-    #     pv_gen_all_lols.append([])
-    #     good_pv_gen_lols.append([])
-    #     for _ in range(len(azim_adds)):
-    #         pv_gen_all_lols[k].append([])
-    #         good_pv_gen_lols[k].append(pd.DataFrame())
-    pv_gen_all = []
+    # # Comment/uncomment to toggle re-calculation with data-fit power curve
+    # hybrid.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds = bin_speeds
+    # hybrid.wind._system_model.Turbine.wind_turbine_powercurve_powerout = bin_powers
+
+    # # Save new generation curve
+    # wind_curve_df = pd.DataFrame(data=np.column_stack([bin_speeds,bin_powers]),columns=['Wind Speed [m/s]','Power [kW]'])
+    # wind_curve_df.to_csv(Path(str(tuning_files['wind'])[:-8]+'newcurve.csv'))
+
+    # Re-simulate with new wind curve and solar angles
+    tilt = copy.deepcopy(hybrid.pv._system_model.SystemDesign.tilt)
+    azim = copy.deepcopy(hybrid.pv._system_model.SystemDesign.azimuth)
+    tilt_adds = [0,-2.5]#np.linspace(-5,0,11)
+    azim_adds = [0,-3]#np.linspace(-8,2,11)
+    pv_gen_all_lols = []
+    good_pv_gen_lols = []
+    for k in range(len(tilt_adds)):
+        pv_gen_all_lols.append([])
+        good_pv_gen_lols.append([])
+        for _ in range(len(azim_adds)):
+            pv_gen_all_lols[k].append([])
+            good_pv_gen_lols[k].append(pd.DataFrame())
     wind_gen_all = []
-    good_pv_gen = pd.DataFrame()
-    good_pv_tun = pd.DataFrame()
-    good_pv_inds_all = []
     good_wind_gen = pd.DataFrame()
     good_wind_tun = pd.DataFrame()
     good_wind_inds_all = []
@@ -300,18 +305,20 @@ def tune_data(hybrid, tuning_files: dict, resource_files: dict, good_period_file
         hybrid.pv._system_model.SolarResource.solar_resource_data = NewSolarRes.data
         hybrid.wind._system_model.Resource.wind_resource_data = NewWindRes.data
 
-        hybrid.simulate_power(1)
+        for k, tilt_add in enumerate(tilt_adds):
+            getattr(hybrid,'pv').value('tilt',tilt+tilt_add)
+            for l, azim_add in enumerate(azim_adds):
+                getattr(hybrid,'pv').value('azimuth',azim+azim_add)
+                # good_pv_gen = pd.DataFrame()
+                hybrid.simulate_power(1)
 
-        pv_gen = hybrid.pv.generation_profile
-        pv_gen_all.extend(pv_gen)
-        for j, pv_start in enumerate(pv_starts_year):
-            pv_stop = pv_stops_year[j]
-            good_inds = (times>pv_start)&(times<pv_stop)&(np.invert(np.isnan(pv_tun_P)))
-            good_pv_inds_all.extend([k+i*8760 for k, x in enumerate(good_inds) if x])
-            good_pv_gen = pd.concat((good_pv_gen,
-                pd.DataFrame([pv_gen[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
-            good_pv_tun = pd.concat((good_wind_tun,
-                pd.DataFrame([pv_tun_P[i] for i in np.where(good_inds)[0]],index=times[good_inds])))            
+                pv_gen = hybrid.pv.generation_profile
+                pv_gen_all_lols[k][l].extend(pv_gen)
+                for j, pv_start in enumerate(pv_starts_year):
+                    pv_stop = pv_stops_year[j]
+                    good_inds = (times>pv_start)&(times<pv_stop)&(np.invert(np.isnan(pv_tun_P)))
+                    good_pv_gen_lols[k][l] = pd.concat((good_pv_gen_lols[k][l],
+                        pd.DataFrame([pv_gen[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
 
 
         wind_gen = hybrid.wind.generation_profile
@@ -326,7 +333,7 @@ def tune_data(hybrid, tuning_files: dict, resource_files: dict, good_period_file
             if use_status:
                 status_year = status_df.iloc[i*8760:(i+1)*8760]
                 status = status_year.loc[:,0].values
-                # status = np.hstack((status[1:],status[0]))
+                status = np.hstack((status[1:],status[0]))
                 good_inds = good_inds&status
             good_wind_inds_all.extend([k+i*8760 for k, x in enumerate(good_inds) if x])
             good_wind_gen = pd.concat((good_wind_gen,pd.DataFrame([wind_gen[i] for i in np.where(good_inds)[0]],index=times[good_inds])))
@@ -335,14 +342,22 @@ def tune_data(hybrid, tuning_files: dict, resource_files: dict, good_period_file
     times_all = pd.DatetimeIndex(times_all)
 
     good_wind_dir = np.array([yaw_df.loc[:,dir_label].values[i] for i in good_wind_inds_all])
+    angle_wind_dir_inds = np.where((good_wind_dir<max_angle)&(good_wind_dir>min_angle))[0]
     good_wind_mismatch = np.array([yaw_df.loc[:,mismatch_label].values[i] for i in good_wind_inds_all])
-    
+    angle_wind_mismatch_inds = np.where((good_wind_dir<max_angle)&(good_wind_dir>min_angle)&\
+                                        (good_wind_mismatch>-max_mismatch)&(good_wind_mismatch<max_mismatch))[0]
+    good_wind_status = np.array([status_df.iloc[:,0].values[i] for i in good_wind_inds_all])
+    wind_status_inds = np.where(good_wind_status)[0]
+    wind_status_angle_inds = np.where(good_wind_status&(good_wind_dir<max_angle)&(good_wind_dir>min_angle))[0]
+
     ax1 = plt.subplot(2,1,1)
     plt.grid('on')
-    plt.plot(times_all,pv_gen_all,label='HOPP Modeled Generation')
+    # for k, tilt_add in enumerate(tilt_adds):
+    #     for l, azim_add in enumerate(azim_adds):
+    #         plt.plot(times_all,pv_gen_all_lols[k][l],label='HOPP Modeled Output, Tilt {}, Azimuth {}'.format(tilt+tilt_add,azim+azim_add))
+    plt.plot(times_all,pv_gen_all_lols[0][0],label='HOPP Modeled Generation')
     plt.plot(times_all,pv_tun_all,label='Actual Generation')
     plt.ylim([0,600])
-    # plt.xlim(pd.DatetimeIndex(('2022-07-28','2022-08-14')))
     Ylim = ax1.get_ylim()
     for i, pv_start in enumerate(pv_starts):
         pv_stop = pv_stops[i]
@@ -351,7 +366,7 @@ def tune_data(hybrid, tuning_files: dict, resource_files: dict, good_period_file
         else:
             label = None
         good_period = patch.Rectangle([pv_start,Ylim[0]],pv_stop-pv_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5,label=label)
-        # ax1.add_patch(good_period)
+        ax1.add_patch(good_period)
     ax1.set_ylim(Ylim)
     plt.title('First Solar Array')
     plt.ylabel('Active Power [kW]')
@@ -362,7 +377,8 @@ def tune_data(hybrid, tuning_files: dict, resource_files: dict, good_period_file
     plt.grid('on')
     # plt.plot(times_all,wind_gen_all,label='HOPP Modeled Output')
     # plt.plot(times_all,wind_tun_all,label='ARIES Data')
-    plt.ylim([0,1600])
+    # plt.plot(times_all,status_df.values[:-1]*1000)
+    # plt.ylim([0,1600])
     consec_groups = np.split(good_wind_inds_all, np.where(np.diff(good_wind_inds_all) != 1)[0]+1)
     for group in consec_groups:
         plt.plot(times_all[group],[wind_gen_all[i] for i in group],color=[1,0,0])
@@ -380,7 +396,6 @@ def tune_data(hybrid, tuning_files: dict, resource_files: dict, good_period_file
         good_period = patch.Rectangle([wind_start,Ylim[0]],wind_stop-wind_start,Ylim[1]-Ylim[0],color=[0,1,0],alpha=.5,label=label)
         # ax2.add_patch(good_period)
     ax2.set_ylim(Ylim)
-    # plt.xlim(pd.DatetimeIndex(('2022-07-28','2022-08-14')))
     plt.title('GE Turbine')
     plt.ylabel('Active Power [kW]')
     # plt.xlabel('Time')
@@ -388,24 +403,47 @@ def tune_data(hybrid, tuning_files: dict, resource_files: dict, good_period_file
     plt.show()
 
     # Plot PV residuals
-    pv_residuals = np.diff(np.vstack([pv_tun_all,pv_gen_all]),axis=0)[0][good_pv_inds_all]
-    
+    pv_residual_lols = []
+    pv_RMSE = np.empty((len(tilt_adds),len(azim_adds)))
+    for k, tilt_add in enumerate(tilt_adds):
+        pv_residual_lols.append([])
+        for l, azim_add in enumerate(azim_adds):
+            total_scaling_factor = np.sum([pv_tun_all[i] for i in good_pv_inds_all])/np.sum([pv_gen_all_lols[k][l][i] for i in good_pv_inds_all])
+            pv_gen_all_lols[k][l] = [i*total_scaling_factor for i in pv_gen_all_lols[k][l]]
+            pv_residual_lols[k].append(np.diff(np.vstack([pv_tun_all,pv_gen_all_lols[k][l]]),axis=0)[0][good_pv_inds_all])
+            pv_RMSE[k,l] = np.sqrt(np.mean(np.square(pv_residual_lols[k][l])))
+    plt.clf()
+    X, Y = np.meshgrid(np.add(np.array(tilt_adds),tilt),np.add(np.array(azim_adds),azim))
+    plt.contourf(Y,X,pv_RMSE) # Why reversed?
+    plt.colorbar(label='RMSE')
+    plt.ylabel('Tilt [deg]')
+    plt.xlabel('Azimuth [deg]')
+    plt.show()
     plt.subplot(2,2,1)
     # Time of day
     plt.grid('on')
-    avgs = []
-    stds = []
+    avg_lols = []
+    std_lols = []
     hours = pd.date_range(start='00:30:00',periods=24,freq='H')
     num_hours = np.arange(0,24)
-    for hour in num_hours:
-        inds = np.where(good_pv_gen.index.hour==hour)[0]
-        hour_residuals = [pv_residuals[i] for i in inds]
-        avgs.append(np.mean(hour_residuals))
-        stds.append(np.std(hour_residuals))
-    plt.plot(num_hours,avgs,'k-')
-    plt.plot(num_hours,[avgs[i] + std for i, std in enumerate(stds)],'k--',)
-    plt.plot(num_hours,[avgs[i] - std for i, std in enumerate(stds)],'k--',)
-    plt.legend()
+    hour_residual_lols = []
+    for k, tilt_add in enumerate(tilt_adds):
+        avg_lols.append([])
+        std_lols.append([])
+        hour_residual_lols.append([])
+        for l, azim_add in enumerate(azim_adds):
+            avg_lols[k].append([])
+            std_lols[k].append([])
+            hour_residual_lols[k].append([])
+            for hour in num_hours:
+                inds = np.where(good_pv_gen_lols[k][l].index.hour==hour)[0]
+                hour_residual_lols[k][l] = [pv_residual_lols[k][l][i] for i in inds]
+                avg_lols[k][l].append(np.mean(hour_residual_lols[k][l]))
+                std_lols[k][l].append(np.std(hour_residual_lols[k][l]))
+            plt.plot(num_hours,avg_lols[k][l],'-',label='Tilt {}, Azimuth {}'.format(tilt+tilt_add,azim+azim_add))
+            # plt.plot(num_hours,[avg_lols[k][l][i] + std for i, std in enumerate(std_lols[k][l])],'--',)
+            # plt.plot(num_hours,[avg_lols[k][l][i] - std for i, std in enumerate(std_lols[k][l])],'--',)
+            plt.legend()
     plt.xlabel('Time of Day')
     plt.ylabel('Error (model - actual) [kW]')
     plt.subplot(2,2,2)
@@ -417,7 +455,7 @@ def tune_data(hybrid, tuning_files: dict, resource_files: dict, good_period_file
     bin_starts = np.arange(0,np.max(good_pv_gen.values),interval)
     for bin_start in bin_starts:
         inds = np.where((good_pv_gen.values>bin_start)&(good_pv_gen.values<=(bin_start+interval)))[0]
-        power_residuals = [pv_residuals[i] for i in inds]
+        power_residuals = [pv_residual_lols[0][0][i] for i in inds]
         avgs.append(np.mean(power_residuals))
         stds.append(np.std(power_residuals))
     avgs = np.divide(np.array(avgs),np.array(bin_starts)+interval/2)*100
@@ -436,7 +474,7 @@ def tune_data(hybrid, tuning_files: dict, resource_files: dict, good_period_file
     num_months = np.arange(1,13)
     for month in num_months:
         inds = np.where(good_pv_gen.index.month==month)[0]
-        month_residuals = [pv_residuals[i] for i in inds]
+        month_residuals = [pv_residual_lols[0][0][i] for i in inds]
         avgs.append(np.mean(month_residuals))
         stds.append(np.std(month_residuals))
     plt.plot(num_months,avgs,'k-')
@@ -451,7 +489,7 @@ def tune_data(hybrid, tuning_files: dict, resource_files: dict, good_period_file
     stds = []
     for year in years:
         inds = np.where(good_pv_gen.index.year==year)[0]
-        year_residuals = [pv_residuals[i] for i in inds]
+        year_residuals = [pv_residual_lols[0][0][i] for i in inds]
         avgs.append(np.mean(year_residuals))
         stds.append(np.std(year_residuals))
     plt.plot(years,avgs,'k-')

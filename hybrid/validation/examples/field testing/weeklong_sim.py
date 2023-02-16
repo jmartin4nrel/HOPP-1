@@ -94,3 +94,4 @@ for key, forecast in solar_dict.items():
     plt.title(key)
     plt.xlim(pd.DatetimeIndex((sim_start,sim_end)))
 plt.show()
+

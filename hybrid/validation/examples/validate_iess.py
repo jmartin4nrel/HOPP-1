@@ -82,18 +82,17 @@ tuning_files = {'pv': solar_dir / "FirstSolar_YYYY.csv",
 resource_files = {'pv': resource_dir / "solar" / "solar_m2_YYYY.csv",
                 'wind': resource_dir / "wind" / "wind_m5_YYYY.srw",}
 
-good_period_file = validation_dir / "hybrid" / "iessGEFS" / "GE_FirstSolar_Periods_All_Wind_Cleaned_Forward.csv"
+good_period_file = validation_dir / "hybrid" / "iessGEFS" / "GE_FirstSolar_Periods_All_Wind.csv"
 
-years = [2019,2020,2021,2022]
+years = [2019,2020,2021,2022] #
 hybrid_plant.pv.dc_degradation = [0]*len(years)
 
-yaw_file = wind_dir / "GE Turbine Yaw Dec 2019 to 2022 gaps.csv"
-tenmin_wind_file = wind_dir / "August 2012 to October 2022 M5 wind 10 min"
-# wind_gen.get_yaw_mismatch(yaw_file, tenmin_wind_file, years)
-# wind_gen.process_status()
-use_dir = False
+yaw_file = "GE Turbine Yaw Dec 2019 to 2022 gaps.csv"
+tenmin_wind_file = "August 2012 to October 2022 M5 wind 10 min"
+yaw_file, tenmin_wind_file = wind_gen.get_yaw_mismatch(yaw_file, tenmin_wind_file, years)
+status_file = wind_dir / wind_gen.process_status(years, overwrite=False)
 
-status_file = wind_dir / "GE15_IEC_validity_hourly_2019_2022"
+use_dir = True
 use_status = True
 
 hybrid_plant = tune_data(hybrid_plant, tuning_files, resource_files, good_period_file, yaw_file, status_file, years, use_status, use_dir)
