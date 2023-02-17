@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import circmean
 import copy
+import csv
 
 import matplotlib.pyplot as plt
 
@@ -57,11 +58,7 @@ def process_solar_forecast(forecast_files:dict, forecast_hours_ahead:dict, forec
     for key, forecast in forecast_dict.items():
         forecast.iloc[:,-1] = resource_dict[key]['Avg.']
 
-    # Use forecast year resource data as real-time data (0 hours advance)
-    for key, forecast in forecast_dict.items():
-        forecast.loc[:,0] = resource_dict[key][forecast_year]
-
-    # Fill in nans
+    # Fill in nans and negatives
     for key, forecast in forecast_dict.items():
         col = forecast.shape[1]-1
         while col > 1:
@@ -73,6 +70,8 @@ def process_solar_forecast(forecast_files:dict, forecast_hours_ahead:dict, forec
             not_nan = np.where(np.invert(np.isnan(forecast.iloc[:,col].astype(float))))[0]
             fill_values[not_nan] = forecast.iloc[not_nan,col]
             forecast.iloc[:,col] = fill_values
+            negatives = np.where(forecast.iloc[:,col].values<0)[0]
+            forecast.iloc[negatives,col] = 0
 
     if plot_corr:
         # Plot correlation between forecast and actual wind speed
@@ -88,4 +87,44 @@ def process_solar_forecast(forecast_files:dict, forecast_hours_ahead:dict, forec
             plt.ylabel('Hour-ahead forecast irradiance [W/m^2]')
         plt.show()
 
+    # Use forecast year resource data as real-time data (0 hours advance)
+    for key, forecast in forecast_dict.items():
+        forecast.loc[:,0] = resource_dict[key][forecast_year]
+
     return forecast_dict
+
+
+def save_solar_forecast_SAM(forecast_dict, time, orig_fp):
+
+    with open(orig_fp) as fin:
+        reader = csv.reader(fin)
+        n_header_lines = 3
+        lines = []
+        for line in range(8760+n_header_lines):
+            lines.append(reader.__next__())
+
+    new_fp = Path(str(orig_fp)[:-4]+
+                  '_{:02d}'.format(time.month)+
+                  '_{:02d}'.format(time.day)+
+                  '_{:02d}'.format(time.hour)+
+                  '.csv')
+
+    cols = ['GHI_W_m2','DHI_W_m2','DNI_W_m2']
+    n_index_cols = 5
+    current_idx = forecast_dict[cols[0]].index.to_list().index(time)
+    
+    for key, forecast in forecast_dict.items():
+        if key in cols:
+            col_idx = cols.index(key)
+            for forecast_row in range(current_idx,8760):
+                forecast_col = min(forecast.shape[1]-1,forecast_row-current_idx)
+                forecast_val = forecast.iloc[forecast_row,forecast_col]
+                if key == 'pres_mbar':
+                    forecast_val /= 1000
+                lines[forecast_row+n_header_lines][col_idx+n_index_cols] = forecast_val
+
+    with open(new_fp, 'w', newline='') as fout:
+        writer = csv.writer(fout)
+        writer.writerows(lines)
+
+    return new_fp

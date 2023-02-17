@@ -12,7 +12,7 @@ import os
 
 from hybrid.sites import SiteInfo, flatirons_site
 from hybrid.validation.wind.iessGE15.ge15_wind_forecast_parse import process_wind_forecast, save_wind_forecast_SAM
-from hybrid.validation.solar.iessFirstSolar.firstSolar_forecast_parse import process_solar_forecast
+from hybrid.validation.solar.iessFirstSolar.firstSolar_forecast_parse import process_solar_forecast, save_solar_forecast_SAM
 from hybrid.validation.examples.tune_iess import tune_iess
 from hybrid.validation.validate_hybrid import tune_manual
 from hybrid.hybrid_simulation import HybridSimulation
@@ -31,9 +31,9 @@ current_dir = Path(__file__).parent.absolute()
 validation_dir = current_dir/'..'/'..'
 wind_dir = validation_dir/'wind'/'iessGE15'
 solar_dir = validation_dir/'solar'/'iessFirstSolar'
-wind_files =   {'speed_m_s':'Wind Speed-data-as-seriestocolumns-2023-02-13 20_22_45.csv',
-                'gusts_m_s':'Gusts-data-as-seriestocolumns-2023-02-14 15_18_13.csv',
-                'dir_deg':  'Wind Direction-data-as-seriestocolumns-2023-02-13 20_24_43.csv',
+wind_files =   {'speed_m_s':'Wind Speed-data-as-seriestocolumns-2023-02-17 09_57_04.csv',
+                'gusts_m_s':'Gusts-data-as-seriestocolumns-2023-02-17 09_56_01.csv',
+                'dir_deg':  'Wind Direction-data-as-seriestocolumns-2023-02-17 09_51_27.csv',
                 'temp_C':   'Temperature-data-as-seriestocolumns-2023-02-13 16_23_32.csv',
                 'pres_mbar':'Pressure-data-as-seriestocolumns-2023-02-13 16_19_59.csv'}
 solar_files =  {'GHI_W_m2': 'GHI-data-as-seriestocolumns-2023-02-13 16_05_04.csv',
@@ -66,14 +66,15 @@ solar_hours_offset={'GHI_W_m2': np.concatenate((np.arange(0,192,24),np.arange(0,
 base_dir = validation_dir/'..'/'..'
 wind_res_dir = base_dir/'resource_files'/'wind'
 solar_res_dir = base_dir/'resource_files'/'solar'
+# status_fp = validation_dir/'wind'/'iessGE15'/'GE15_IEC_validity_hourly_2019_2022'
 wind_res_fp = wind_res_dir/'wind_m5_YYYY.srw'
 solar_res_fp = solar_res_dir/'solar_m2_YYYY.csv'
 
 # Set years and setup forecast
 forecast_year = 2022
 resource_years = [2019,2020,2021,2022]
-wind_dict = process_wind_forecast(wind_fp,wind_hours_ahead,wind_hours_offset,forecast_year,wind_res_fp,resource_years)
-solar_dict = process_solar_forecast(solar_fp,solar_hours_ahead,solar_hours_offset,forecast_year,solar_res_fp,resource_years)
+wind_dict = process_wind_forecast(wind_fp,wind_hours_ahead,wind_hours_offset,forecast_year,wind_res_fp,resource_years,plot_corr=True)
+solar_dict = process_solar_forecast(solar_fp,solar_hours_ahead,solar_hours_offset,forecast_year,solar_res_fp,resource_years,plot_corr=True)
 
 
 year_hours = pd.date_range(str(forecast_year)+'-01-01', periods=8760, freq='H')
@@ -81,28 +82,27 @@ year_hours = pd.date_range(str(forecast_year)+'-01-01', periods=8760, freq='H')
 # Plot wind forecast to check
 plt.subplot(2,1,1)
 actual_speed = wind_dict['speed_m_s'][0]
-forecast_speed = wind_dict['speed_m_s'][1]
-forecast_gusts = wind_dict['gusts_m_s'][1]
-plt.plot(year_hours,actual_speed,label='Actual Wind Speed, Met Tower')
-plt.plot(year_hours,forecast_speed,label='Forecast Sustained Winds')
-plt.plot(year_hours,forecast_gusts,label='Forecast Gusts')
+forecast_1hour = wind_dict['speed_m_s'][1]
+forecast_1day = wind_dict['speed_m_s'][24]
+plt.plot(year_hours,actual_speed,label='Actual Wind Speed, M5 Met Tower')
+plt.plot(year_hours,forecast_1hour,label='Forecast Wind Speed, 1 hour ahead')
+plt.plot(year_hours,forecast_1day,label='Forecast Wind Speed, 24 hours ahead')
+plt.title('GE Wind Speed [m/s]')
 plt.xlim(pd.DatetimeIndex((sim_start,sim_end)))
 plt.legend()
 
 # Plot solar forecast to check
-plot_n = 3
-for key, forecast in solar_dict.items():
-    plot_n += 1
-    plt.subplot(2,3,plot_n)
-    actual_speed = forecast[0]
-    forecast_speed = forecast[1]
-    forecast_gusts = forecast[24]
-    plt.plot(year_hours,actual_speed,label='Actual Irradiance, Met Tower')
-    plt.plot(year_hours,forecast_speed,label='Forecast Irradiance, 1 hour ahead')
-    plt.plot(year_hours,forecast_gusts,label='Forecast Irradiance, 24 hours ahead')
-    plt.legend()
-    plt.title(key)
-    plt.xlim(pd.DatetimeIndex((sim_start,sim_end)))
+plt.subplot(2,1,2)
+forecast = solar_dict['GHI_W_m2']
+actual_speed = forecast[0]
+forecast_1hour = forecast[1]
+forecast_1day = forecast[24]
+plt.plot(year_hours,actual_speed,label='Actual GHI, M2 Met Tower')
+plt.plot(year_hours,forecast_1hour,label='Forecast GHI, 1 hour ahead')
+plt.plot(year_hours,forecast_1day,label='Forecast GHI, 24 hours ahead')
+plt.legend()
+plt.title('First Solar GHI [W/m^2]')
+plt.xlim(pd.DatetimeIndex((sim_start,sim_end)))
 plt.show()
 
 # Get resource
@@ -115,10 +115,17 @@ resource_dir = base_dir/ "resource_files"
 prices_file = resource_dir/ "grid" / "pricing-data-2015-IronMtn-002_factors.csv"
 solar_file = resource_dir/ "solar" / 'solar_m2_2022.csv'
 wind_file = resource_dir/ "wind" / 'wind_m5_2022.srw'
-site = SiteInfo(flatirons_site, grid_resource_file=prices_file, solar_resource_file=solar_file, wind_resource_file=wind_file)
 
-# Save wind forecast - #TODO - correlate sustained winds and gusts to measured wind speed at turbine! 
+#Set load profile (flat 300 kW for now)
+load_schedule = [0.3]*8760
+
+site = SiteInfo(flatirons_site, grid_resource_file=prices_file,
+                solar_resource_file=solar_file, wind_resource_file=wind_file,
+                desired_schedule=load_schedule)
+
+# Save forecasts
 sim_times = pd.date_range(sim_start, sim_end, freq='H')
+save_solar_forecast_SAM(solar_dict, sim_times[0], solar_file)
 save_wind_forecast_SAM(wind_dict, sim_times[0], wind_file)
 
 # Set up and tune hybrid
@@ -157,34 +164,36 @@ technologies = {'pv': {
                     'system_capacity_kw': batt_cap_mw * 1000
                 }}
 
-
-hybrid_plant = HybridSimulation(technologies, site, interconnect_kw=interconnection_size_mw * 1000)
+# Set up hybrid with dispatch solver options
+solver = 'simple'
+grid_charge_bool = False
+dispatch_opt_dict = {'battery_dispatch':solver,'grid_charging':grid_charge_bool}
+hybrid_plant = HybridSimulation(technologies, site, interconnect_kw=interconnection_size_mw * 1000, 
+                                dispatch_options=dispatch_opt_dict)
 
 # Set tuning coefficients (flat losses for now)
-hybrid_plant = tune_manual(hybrid_plant,base_dir/'hybrid'/'validation'/'results'/'IESS defaults.csv')
+hybrid_plant = tune_manual(hybrid_plant,base_dir/'hybrid'/'validation'/'results'/'IESS tune 2_16_23.csv')
 getattr(hybrid_plant,'pv').value('losses',overshoots['pv'])
 getattr(hybrid_plant,'wind').value('turb_specific_loss',overshoots['wind'])
 
 # prices_file are unitless dispatch factors, so add $/kwh here
 hybrid_plant.ppa_price = 0.04
 
-#Set load profile (flat 300 kW for now)
-hybrid_plant.site.desired_schedule = [0.3]*8760
-
 # Get whole year simulated with resource files, as starting point
 # (load from file if already simulated - change name if changes made above to make new simulation)
-hybrid_dir = validation_dir/'hybrid'
-orig_fn = 'orig_outputs_0_3'
-if orig_fn not in os.listdir(hybrid_dir):
+results_dir = validation_dir/'results'/'weeklong_sim'
+run_id = 'run003'
+orig_fn = 'orig_outputs_'+run_id
+if orig_fn not in os.listdir(results_dir):
     hybrid_plant.simulate(project_life=1)
     orig_df = pd.DataFrame(index=year_hours,columns=['PV [kW]','Wind [kW]','BESS P [kW]','BESS SOC [%]'])
     orig_df['PV [kW]'] = hybrid_plant.pv.generation_profile
     orig_df['Wind [kW]'] = hybrid_plant.wind.generation_profile
     orig_df['BESS P [kW]'] = hybrid_plant.battery.Outputs.P
     orig_df['BESS SOC [%]'] = hybrid_plant.battery.Outputs.SOC
-    orig_df.to_json(hybrid_dir/orig_fn)
+    orig_df.to_json(results_dir/orig_fn)
 else:
-    orig_df = pd.read_json(hybrid_dir/orig_fn, convert_axes=True)
+    orig_df = pd.read_json(results_dir/orig_fn, convert_axes=True)
 
 # Get total plant generation into list
 total_gen = []
@@ -194,26 +203,91 @@ batt_gen = orig_df['BESS P [kW]'].values
 for i in range(orig_df.shape[0]):
     total_gen.append(pv_gen[i]+wind_gen[i]+batt_gen[i])
 
+# Loop through sim times
 for i, time in enumerate(sim_times):
 
     #Change load to actual hybrid plant generation before current time
     hybrid_plant.site.desired_schedule[:i] = total_gen[:i]
 
     # Adjust forecast
-    new_solar_fp = Path('not_implemented')
-    new_wind_fp = save_wind_forecast_SAM(wind_dict, sim_times[0], wind_file)
+    new_solar_fp = save_solar_forecast_SAM(solar_dict, time, solar_file)
+    new_wind_fp = save_wind_forecast_SAM(wind_dict, time, wind_file)
 
     # Previously figured out how to change resource file without setting up HybridSimulation all over again:
-    # NewSolarRes = SolarResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,filepath=new_solar_fp)
+    NewSolarRes = SolarResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,filepath=new_solar_fp)
     NewWindRes = WindResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,hub_height,filepath=new_wind_fp)
     # Have to change pressure to sea level!
     for j in range(len(NewWindRes.data['data'])):
         NewWindRes.data['data'][j][1] = 1
-    # hybrid_plant.pv._system_model.SolarResource.solar_resource_data = NewSolarRes.data
+    hybrid_plant.pv._system_model.SolarResource.solar_resource_data = NewSolarRes.data
     hybrid_plant.wind._system_model.Resource.wind_resource_data = NewWindRes.data
 
+    # Generate filename for this timestep
+    time_fn = run_id+\
+                '_{:02d}'.format(time.month)+\
+                '_{:02d}'.format(time.day)+\
+                '_{:02d}'.format(time.hour)
+    
     #TODO: tell batt dispatch optimizer not to optimizer whole year, just coming week
-    #TODO: clean NaNs out of forecast before this will execute!
-    hybrid_plant.simulate(project_life=1)
+    if time_fn not in os.listdir(results_dir):
+        hybrid_plant.simulate(project_life=1)
+        time_df = pd.DataFrame(index=year_hours,columns=['PV [kW]','Wind [kW]','BESS P [kW]','BESS SOC [%]'])
+        time_df['PV [kW]'] = hybrid_plant.pv.generation_profile
+        time_df['Wind [kW]'] = hybrid_plant.wind.generation_profile
+        time_df['BESS P [kW]'] = hybrid_plant.battery.Outputs.P
+        time_df['BESS SOC [%]'] = hybrid_plant.battery.Outputs.SOC
+        time_df.to_json(results_dir/time_fn)
+    else:
+        time_df = pd.read_json(results_dir/time_fn, convert_axes=True)
 
-#TODO: Compare forecasted plant output with acutual output after each data
+    #TODO: Compare forecasted plant output with acutual output after each data point
+    j = list(year_hours).index(time)
+    xmin = time-pd.Timedelta(3,unit='D')
+    xmax = time+pd.Timedelta(7,unit='D')
+    plt.clf()
+    plt.subplot(5,1,1)
+    plt.plot(year_hours[:j],time_df['PV [kW]'].iloc[:j],
+            color=[0,0,0],label=['Past generation'])
+    plt.plot(year_hours[j:],time_df['PV [kW]'].iloc[j:],
+            color=[0,0,1],label=['Upcoming generation, forecast'])  
+    plt.plot(year_hours[j:],pv_gen[j:],
+            color=[.5,.5,1],alpha=.5,label=['Upcoming generation, actual'])
+    plt.ylabel('PV [kW]')
+    plt.xlim([xmin,xmax])
+    plt.subplot(5,1,2)
+    plt.plot(year_hours[:j],time_df['Wind [kW]'].iloc[:j],
+            color=[0,0,0],label=['Past generation'])
+    plt.plot(year_hours[j:],time_df['Wind [kW]'].iloc[j:],
+            color=[0,0,1],label=['Upcoming generation, forecast'])  
+    plt.plot(year_hours[j:],wind_gen[j:],
+            color=[.5,.5,1],alpha=.5,label=['Upcoming generation, actual'])
+    plt.ylabel('Wind [kW]')
+    plt.xlim([xmin,xmax])
+    plt.subplot(5,1,3)
+    plt.plot(year_hours[:j],time_df['BESS P [kW]'].iloc[:j],
+            color=[0,0,0],label=['Past generation/charge'])
+    plt.plot(year_hours[j:],time_df['BESS P [kW]'].iloc[j:],
+            color=[0,0,1],label=['Upcoming generation/charge, planned'])  
+    plt.ylabel('BESS P [kW]')
+    plt.xlim([xmin,xmax])
+    plt.subplot(5,1,4)
+    plt.plot(year_hours[:j],time_df['BESS SOC [%]'].iloc[:j],
+            color=[0,0,0],label=['Past SOC'])
+    plt.plot(year_hours[j:],time_df['BESS SOC [%]'].iloc[j:],
+            color=[0,0,1],label=['Upcoming SOC, planned'])  
+    plt.ylabel('BESS SOC [%]')
+    plt.xlim([xmin,xmax])
+    plt.subplot(5,1,5)
+    plt.plot(year_hours[:j],np.add(time_df['PV [kW]'].iloc[:j],
+                                    time_df['Wind [kW]'].iloc[:j],
+                                    time_df['BESS P [kW]'].iloc[:j]),
+            color=[0,0,0],label=['Past generation'])
+    plt.plot(year_hours[j:],np.add(time_df['PV [kW]'].iloc[j:],
+                                    time_df['Wind [kW]'].iloc[j:],
+                                    time_df['BESS P [kW]'].iloc[j:]),
+            color=[.5,.5,1],alpha=.5,label=['Upcoming generation, forecast'])  
+    plt.ylabel('Plant [kW]')
+    plt.xlim([xmin,xmax])
+    plt.show()
+
+    plt.pause(1)

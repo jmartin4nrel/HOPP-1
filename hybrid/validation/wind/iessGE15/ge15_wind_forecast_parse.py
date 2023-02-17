@@ -62,40 +62,39 @@ def process_wind_forecast(forecast_files:dict, forecast_hours_ahead:dict, foreca
     for key, forecast in forecast_dict.items():
         forecast.iloc[:,-1] = resource_dict[key]['Avg.']
 
-    # Use forecast year resource data as real-time data (0 hours advance)
-    for key, forecast in forecast_dict.items():
-        forecast.loc[:,0] = resource_dict[key][forecast_year]
-
-    # Fill in nans
-    for key, forecast in forecast_dict.items():
-        col = forecast.shape[1]-1
-        not_nan = np.where(np.invert(np.isnan(forecast.loc[:,col].astype(float))))[0]
-        while col > 1:
-            col -= 1
-            prev_not_nan = copy.deepcopy(not_nan)
-            fill_values = np.full(forecast.shape[0],np.nan)
-            fill_values[prev_not_nan] = forecast.iloc[prev_not_nan,col+1]
-            not_nan = np.where(np.invert(np.isnan(forecast.loc[:,col].astype(float))))[0]
-            fill_values[not_nan] = forecast.iloc[not_nan,col]
-            forecast.loc[:,col] = fill_values
-
+    resource_speed = resource_dict['speed_m_s'][forecast_year].values
+    resource_dir = resource_dict['dir_deg'][forecast_year].values
+    forecast_speed = forecast_dict['speed_m_s'][1].values
+    forecast_gusts = forecast_dict['gusts_m_s'][1].values
+    # Down-select to where there is positive speed, good direction , good status
+    forecast_idxs = forecast_speed>0
+    resource_idxs = resource_speed>0
+    min_dir = 243
+    max_dir = 310
+    dir_idxs = (resource_dir>min_dir) & (resource_dir<max_dir)
+    good_idxs = np.where(forecast_idxs & resource_idxs & dir_idxs)[0]
+    
+    # If no gust data, say gusts are equal to sustained winds
+    col = forecast.shape[1]
+    while col > 1:
+        col -= 1
+        forecast_speed = forecast_dict['speed_m_s'][col].values
+        forecast_gusts = forecast_dict['gusts_m_s'][col].values
+        no_gusts = np.where((forecast_speed>0) & np.isnan(forecast_gusts.astype(float)))[0]
+        forecast_gusts[no_gusts] = forecast_speed[no_gusts]
+    
     if plot_corr:
         # Plot correlation between sustained wind, gusts, and actual wind speed
-        resource_speed = resource_dict['speed_m_s'][forecast_year].values
-        forecast_speed = forecast_dict['speed_m_s'][1].values
-        forecast_gusts = forecast_dict['gusts_m_s'][1].values
-        forecast_idxs = np.where(forecast_speed>0)[0]
-        no_gusts = np.where((forecast_speed>0) & (forecast_gusts<forecast_speed))[0]
-        forecast_gusts[no_gusts] = forecast_speed[no_gusts]
-        plt.errorbar(resource_speed[forecast_idxs],
-                        forecast_speed[forecast_idxs],
+        plt.clf()
+        plt.errorbar(resource_speed[good_idxs],
+                        forecast_speed[good_idxs],
                         fmt='.',
-                        yerr=(np.vstack((np.zeros(len(forecast_idxs)),
-                                np.subtract(forecast_gusts[forecast_idxs],
-                                            forecast_speed[forecast_idxs])))))
+                        yerr=(np.vstack((np.zeros(len(good_idxs)),
+                                np.subtract(forecast_gusts[good_idxs],
+                                            forecast_speed[good_idxs])))))
         plt.xlabel('Actual wind speed [m/s]')
         plt.ylabel('Hour-ahead forecast wind speed [m/s] - sustained + gust')
-        plt.ylim([0,25])
+        plt.ylim([0,np.max(forecast_gusts[good_idxs])])
         plt.show()
 
         # Plot correlation between forecast direction and actual direction
@@ -104,6 +103,64 @@ def process_wind_forecast(forecast_files:dict, forecast_hours_ahead:dict, foreca
         plt.plot(resource_dir[forecast_idxs], forecast_dir[forecast_idxs],'.')
         plt.xlabel('Actual dir [deg]')
         plt.ylabel('Hour-ahead forecast direction [deg]')
+        plt.show()
+    
+    # Develop correlation between sustained wind/gust forecast and actual wind speed
+    # Sustained winds m/s = S, Gusts m/s = G, acutal wind speed m/s = W
+    # A matrix: [S^2, S*G, G^2, S, G, ones], b vector: [W]
+    S = forecast_speed[good_idxs]
+    G = forecast_gusts[good_idxs]
+    W = resource_speed[good_idxs]
+    A_cols = [np.square(S),np.multiply(S,G),np.square(G),S,G,np.ones(len(S))]
+    b = W
+    A = np.hstack([np.transpose(np.array([i])) for i in A_cols])
+    A_means = np.mean(A, axis=0)
+    A_n = np.divide(A,A_means)
+    b_mean = np.mean(b)
+    b_n = np.divide(b,b_mean)
+    results = np.linalg.lstsq(A_n.astype(float),b_n.astype(float))
+    x = results[0]
+
+    # Correct forecast with correlation 
+    for col in range(forecast.shape[1]-1):
+        rows = np.where(np.invert(np.isnan(forecast_dict['speed_m_s'][col].values.astype(float))))[0]
+        S = forecast_dict['speed_m_s'].iloc[rows,col].values
+        G = forecast_dict['gusts_m_s'].iloc[rows,col].values
+        A_cols = [np.square(S),np.multiply(S,G),np.square(G),S,G,np.ones(len(S))]
+        A = np.hstack([np.transpose(np.array([i])) for i in A_cols])
+        A_n = np.divide(A,A_means)
+        b_n = np.sum(np.multiply(A_n,x),axis=1)
+        W = np.multiply(b_n,b_mean)
+        forecast_dict['speed_m_s'].iloc[rows,col] = W
+
+    # Fill in nans
+    for key, forecast in forecast_dict.items():
+        col = forecast.shape[1]-1
+        while col > 1:
+            not_nan = np.where(np.invert(np.isnan(forecast.iloc[:,col].astype(float))))[0]
+            prev_not_nan = copy.deepcopy(not_nan)
+            col -= 1
+            fill_values = np.full(forecast.shape[0],np.nan)
+            fill_values[prev_not_nan] = forecast.iloc[prev_not_nan,col+1]
+            not_nan = np.where(np.invert(np.isnan(forecast.iloc[:,col].astype(float))))[0]
+            fill_values[not_nan] = forecast.iloc[not_nan,col]
+            forecast.iloc[:,col] = fill_values
+            
+    # Use forecast year resource data as real-time data (0 hours advance)
+    for key, forecast in forecast_dict.items():
+        forecast.loc[:,0] = resource_dict[key][forecast_year]
+
+    if plot_corr:
+        # Check corrected correlation
+        forecast_speed = forecast_dict['speed_m_s'][1].values
+        plt.clf()
+        plt.plot(resource_speed[good_idxs],
+                    forecast_speed[good_idxs],
+                    '.')
+        plt.plot([0,max(resource_speed[good_idxs])],
+                    [0,max(resource_speed[good_idxs])])
+        plt.xlabel('Actual wind speed [m/s]')
+        plt.ylabel('Hour-ahead forecast wind speed [m/s] - CORRELATED')
         plt.show()
 
     return forecast_dict

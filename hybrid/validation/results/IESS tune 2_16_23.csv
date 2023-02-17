@@ -3,6 +3,7 @@ pv,azimuth,180
 pv,tilt,25
 pv,dc_ac_ratio,1
 pv,losses,2.964369166
+pv,array_type,0
 wind,avail_bop_loss,0
 wind,avail_grid_loss,0
 wind,avail_turb_loss,0

@@ -82,9 +82,9 @@ tuning_files = {'pv': solar_dir / "FirstSolar_YYYY.csv",
 resource_files = {'pv': resource_dir / "solar" / "solar_m2_YYYY.csv",
                 'wind': resource_dir / "wind" / "wind_m5_YYYY.srw",}
 
-good_period_file = validation_dir / "hybrid" / "iessGEFS" / "GE_FirstSolar_Periods_Weeklong.csv"
+good_period_file = validation_dir / "hybrid" / "iessGEFS" / "GE_FirstSolar_Periods_Recleaning.csv"
 
-years = [2022] #2019,2020,2021,
+years = [2019,2020,2021,2022] #
 hybrid_plant.pv.dc_degradation = [0]*len(years)
 
 yaw_file = "GE Turbine Yaw Dec 2019 to 2022 gaps.csv"
