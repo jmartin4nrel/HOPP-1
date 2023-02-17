@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import circmean
 import copy
+import csv
 
 import matplotlib.pyplot as plt
 
@@ -106,3 +107,38 @@ def process_wind_forecast(forecast_files:dict, forecast_hours_ahead:dict, foreca
         plt.show()
 
     return forecast_dict
+
+
+def save_wind_forecast_SAM(forecast_dict, time, orig_fp):
+
+    with open(orig_fp) as fin:
+        reader = csv.reader(fin)
+        n_header_lines = 5
+        lines = []
+        for line in range(8760+n_header_lines):
+            lines.append(reader.__next__())
+
+    new_fp = Path(str(orig_fp)[:-4]+
+                  '_{:02d}'.format(time.month)+
+                  '_{:02d}'.format(time.day)+
+                  '_{:02d}'.format(time.hour)+
+                  '.srw')
+
+    cols = ['temp_C','pres_mbar','dir_deg','speed_m_s']
+    current_idx = forecast_dict[cols[0]].index.to_list().index(time)
+    
+    for key, forecast in forecast_dict.items():
+        if key in cols:
+            col_idx = cols.index(key)
+            for forecast_row in range(current_idx,8760):
+                forecast_col = min(forecast.shape[1]-1,forecast_row-current_idx)
+                forecast_val = forecast.iloc[forecast_row,forecast_col]
+                if key == 'pres_mbar':
+                    forecast_val /= 1000
+                lines[forecast_row+n_header_lines][col_idx] = forecast_val
+
+    with open(new_fp, 'w', newline='') as fout:
+        writer = csv.writer(fout)
+        writer.writerows(lines)
+
+    return new_fp

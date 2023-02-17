@@ -8,9 +8,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
 from hybrid.sites import SiteInfo, flatirons_site
-from hybrid.validation.wind.iessGE15.ge15_wind_forecast_parse import process_wind_forecast
+from hybrid.validation.wind.iessGE15.ge15_wind_forecast_parse import process_wind_forecast, save_wind_forecast_SAM
 from hybrid.validation.solar.iessFirstSolar.firstSolar_forecast_parse import process_solar_forecast
 from hybrid.validation.examples.tune_iess import tune_iess
 from hybrid.validation.validate_hybrid import tune_manual
@@ -104,6 +105,22 @@ for key, forecast in solar_dict.items():
     plt.xlim(pd.DatetimeIndex((sim_start,sim_end)))
 plt.show()
 
+# Get resource
+flatirons_site['lat'] = 39.91
+flatirons_site['lon'] = -105.22
+flatirons_site['elev'] = 1835
+flatirons_site['year'] = 2020
+base_dir = current_dir/ ".." / ".." / ".." / ".."
+resource_dir = base_dir/ "resource_files"
+prices_file = resource_dir/ "grid" / "pricing-data-2015-IronMtn-002_factors.csv"
+solar_file = resource_dir/ "solar" / 'solar_m2_2022.csv'
+wind_file = resource_dir/ "wind" / 'wind_m5_2022.srw'
+site = SiteInfo(flatirons_site, grid_resource_file=prices_file, solar_resource_file=solar_file, wind_resource_file=wind_file)
+
+# Save wind forecast - #TODO - correlate sustained winds and gusts to measured wind speed at turbine! 
+sim_times = pd.date_range(sim_start, sim_end, freq='H')
+save_wind_forecast_SAM(wind_dict, sim_times[0], wind_file)
+
 # Set up and tune hybrid
 period_file = "GE_FirstSolar_Periods_Recleaning_Weeklong.csv"
 hybrid_plant, overshoots = tune_iess(period_file)
@@ -140,75 +157,63 @@ technologies = {'pv': {
                     'system_capacity_kw': batt_cap_mw * 1000
                 }}
 
-# Get resource
-flatirons_site['lat'] = 39.91
-flatirons_site['lon'] = -105.22
-flatirons_site['elev'] = 1835
-flatirons_site['year'] = 2020
-base_dir = current_dir/ ".." / ".." / ".." / ".."
-resource_dir = base_dir/ "resource_files"
-prices_file = resource_dir/ "grid" / "pricing-data-2015-IronMtn-002_factors.csv"
-solar_file = resource_dir/ "solar" / 'solar_m2_2022.csv'
-wind_file = resource_dir/ "wind" / 'wind_m5_2022.srw'
-site = SiteInfo(flatirons_site, grid_resource_file=prices_file, solar_resource_file=solar_file, wind_resource_file=wind_file)
 
 hybrid_plant = HybridSimulation(technologies, site, interconnect_kw=interconnection_size_mw * 1000)
 
 # Set tuning coefficients (flat losses for now)
-hybrid_plant = tune_manual(hybrid_plant,'IESS defaults.csv')
+hybrid_plant = tune_manual(hybrid_plant,base_dir/'hybrid'/'validation'/'results'/'IESS defaults.csv')
 getattr(hybrid_plant,'pv').value('losses',overshoots['pv'])
 getattr(hybrid_plant,'wind').value('turb_specific_loss',overshoots['wind'])
 
 # prices_file are unitless dispatch factors, so add $/kwh here
 hybrid_plant.ppa_price = 0.04
 
+#Set load profile (flat 300 kW for now)
+hybrid_plant.site.desired_schedule = [0.3]*8760
+
 # Get whole year simulated with resource files, as starting point
-hybrid_plant.simulate(project_life=1)
+# (load from file if already simulated - change name if changes made above to make new simulation)
+hybrid_dir = validation_dir/'hybrid'
+orig_fn = 'orig_outputs_0_3'
+if orig_fn not in os.listdir(hybrid_dir):
+    hybrid_plant.simulate(project_life=1)
+    orig_df = pd.DataFrame(index=year_hours,columns=['PV [kW]','Wind [kW]','BESS P [kW]','BESS SOC [%]'])
+    orig_df['PV [kW]'] = hybrid_plant.pv.generation_profile
+    orig_df['Wind [kW]'] = hybrid_plant.wind.generation_profile
+    orig_df['BESS P [kW]'] = hybrid_plant.battery.Outputs.P
+    orig_df['BESS SOC [%]'] = hybrid_plant.battery.Outputs.SOC
+    orig_df.to_json(hybrid_dir/orig_fn)
+else:
+    orig_df = pd.read_json(hybrid_dir/orig_fn, convert_axes=True)
 
-print("output after losses over gross output",
-      hybrid_plant.wind.value("annual_energy") / hybrid_plant.wind.value("annual_gross_energy"))
+# Get total plant generation into list
+total_gen = []
+pv_gen = orig_df['PV [kW]'].values
+wind_gen = orig_df['Wind [kW]'].values
+batt_gen = orig_df['BESS P [kW]'].values
+for i in range(orig_df.shape[0]):
+    total_gen.append(pv_gen[i]+wind_gen[i]+batt_gen[i])
 
-# Save the outputs
-annual_energies = hybrid_plant.annual_energies
-npvs = hybrid_plant.net_present_values
-revs = hybrid_plant.total_revenues
-print(annual_energies)
-print(npvs)
-print(revs)
+for i, time in enumerate(sim_times):
 
+    #Change load to actual hybrid plant generation before current time
+    hybrid_plant.site.desired_schedule[:i] = total_gen[:i]
 
-file = 'figures/'
-tag = 'simple2_'
-'''
-for d in range(0, 360, 5):
-    plot_battery_output(hybrid_plant, start_day=d, plot_filename=file+tag+'day'+str(d)+'_battery_gen.png')
-    plot_generation_profile(hybrid_plant, start_day=d, plot_filename=file+tag+'day'+str(d)+'_system_gen.png')
-'''
-plot_battery_dispatch_error(hybrid_plant)
-plot_battery_output(hybrid_plant)
-plot_generation_profile(hybrid_plant)
-#plot_battery_dispatch_error(hybrid_plant, plot_filename=tag+'battery_dispatch_error.png')
-
-#TODO: Save yearlong battery output from resource files, read it back in instead of re-doing
-
-#TODO: Set load profile (flat 300 kW for now)
-
-sim_times = pd.date_range(sim_start, sim_end, freq='H')
-for time in sim_times:
-
-    #TODO: Feed forecast as resource files, as it would appear in each hour
+    # Adjust forecast
+    new_solar_fp = Path('not_implemented')
+    new_wind_fp = save_wind_forecast_SAM(wind_dict, sim_times[0], wind_file)
 
     # Previously figured out how to change resource file without setting up HybridSimulation all over again:
-    solar_fp = Path('not_implemented')
-    wind_fp = Path('not_implemented')
-    NewSolarRes = SolarResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,filepath=solar_fp)
-    NewWindRes = WindResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,hub_height,filepath=wind_fp)
+    # NewSolarRes = SolarResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,filepath=new_solar_fp)
+    NewWindRes = WindResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,hub_height,filepath=new_wind_fp)
     # Have to change pressure to sea level!
     for j in range(len(NewWindRes.data['data'])):
         NewWindRes.data['data'][j][1] = 1
-    hybrid_plant.pv._system_model.SolarResource.solar_resource_data = NewSolarRes.data
+    # hybrid_plant.pv._system_model.SolarResource.solar_resource_data = NewSolarRes.data
     hybrid_plant.wind._system_model.Resource.wind_resource_data = NewWindRes.data
 
-    #TODO: Run battery dispatch optimization, only for coming week (treat past dispatch as fixed)
+    #TODO: tell batt dispatch optimizer not to optimizer whole year, just coming week
+    #TODO: clean NaNs out of forecast before this will execute!
+    hybrid_plant.simulate(project_life=1)
 
 #TODO: Compare forecasted plant output with acutual output after each data
