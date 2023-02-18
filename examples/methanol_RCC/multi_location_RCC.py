@@ -76,6 +76,8 @@ def run_hopp_calc(site, sim_tech, technologies, on_land, lifetime=30):
     hybrid_plant.simulate(lifetime)
     gen_kw = list(hybrid_plant.generation_profile.hybrid[0:8760])
     lcoe = hybrid_plant.lcoe_real.hybrid
+    orig_lcoe = copy.copy(lcoe)
+    orig_total_cost = sum(copy.deepcopy(gen_kw))*orig_lcoe
 
     # TODO: set individual sell and buy prices
     sell_price = ppa_price_kwh
@@ -109,6 +111,9 @@ def run_hopp_calc(site, sim_tech, technologies, on_land, lifetime=30):
     for i in range(len(gen_kw)):
         cost_to_buy_from_grid += purchase[i]*buy_price
         gen_kw[i] += purchase[i]
+
+    new_total_cost = orig_total_cost+cost_to_buy_from_grid-profit_from_selling_to_grid
+    lcoe = new_total_cost/sum(gen_kw)
     
     # plt.plot(np.arange(0,8760),gen_kw,label='After buying from grid for H2')
     # plt.xlabel('[hr]')
@@ -218,21 +223,21 @@ def run_all_hybrid_calcs(site_details, technologies, results_dir, other_attrs):
                    site_details['lat'], site_details['lon'], site_details['on_land'],
                    repeat(technologies), repeat(results_dir))
 
-    # Run a multi-threaded analysis
-    with multiprocessing.Pool(10) as p:
-        p.starmap(run_hybrid_calc, all_args)
+    # # Run a multi-threaded analysis
+    # with multiprocessing.Pool(10) as p:
+    #     p.starmap(run_hybrid_calc, all_args)
 
-    # # Run a single-threaded analysis
-    # for all_arg in all_args:
-    #     run_hybrid_calc(*all_arg)
+    # Run a single-threaded analysis
+    for all_arg in all_args:
+        run_hybrid_calc(*all_arg)
 
 
 if __name__ == '__main__':
 
     # Set paths
     current_dir = Path(__file__).parent.absolute()
-    resource_dir = current_dir/'..'/'resource_files'
-    results_dir = current_dir/'resource_files'/'methanol_RCC'/'HOPP_results'
+    resource_dir = current_dir/'..'/'..'/'resource_files'
+    results_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'
     if not os.path.exists(results_dir):
         os.mkdir(results_dir)
 

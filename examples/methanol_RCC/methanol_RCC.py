@@ -108,7 +108,7 @@ NGCC_Cf = 0.85 # capacity factor of NGCC plant to scale results to
 ''' NGCC_cap*NGCC_Cf must be <170 MW for H2A model scaling to stay valid!
     (H2 output needs to stay below 200,000 kg H2/day'''
 
-resource_dir = Path(__file__).parent.absolute()/'resource_files'/'methanol_RCC'
+resource_dir = Path(__file__).parent.absolute()/'..'/'resource_files'/'methanol_RCC'
 
 #endregion
 
@@ -676,7 +676,7 @@ with open(Path(resource_dir/'locations.json'),'w') as file:
 # Load imported dicts from json dumpfiles
 import json
 from pathlib import Path
-resource_dir = Path(__file__).parent.absolute()/'resource_files'/'methanol_RCC'
+resource_dir = Path(__file__).parent.absolute()/'..'/'resource_files'/'methanol_RCC'
 with open(Path(resource_dir/'engin.json'),'r') as file:
     engin = json.load(file)
 with open(Path(resource_dir/'finance.json'),'r') as file:
