@@ -388,6 +388,7 @@ for plant in ['NGCC','CCS']:
 #endregion
 
 ## Import the NGCC plant locations and create list of survey locations
+#TODO: Actually import plant locations from file
 #region
 
 earth_rad = 6371 # Earth's radium in km, needed for lat/long calcs
@@ -654,6 +655,16 @@ for scenario in H2A_scenarios:
         finance['H2']['VOM_H2O_$_yr'][scenario].append(H2O_VOM_yr)
 
 #endregion
+
+
+## Add universal financial params to each tech
+
+for dict in finance.values():
+    dict['basis_year'] = sim_basis_year
+    dict['plant_lifespan'] = plant_lifespan
+    dict['discount_rate'] = discount_rate
+    dict['TASC_multiplier'] = TASC_multiplier
+
 
 ## Write imported dicts to json dumpfiles
 

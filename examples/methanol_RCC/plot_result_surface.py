@@ -1,0 +1,44 @@
+import matplotlib.pyplot as plt
+import numpy as np
+from pathlib import Path
+
+current_dir = Path(__file__).parent.absolute()
+results_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'
+    
+
+sites = ['IA01','TX01']#
+n_sites = len(sites)
+
+plant_size_pcts = [60,70,80,90,100]
+wind_pcts = [10,30,50,70,90]
+n_plants = len(plant_size_pcts)
+n_winds = len(wind_pcts)
+
+
+X, Y = np.meshgrid(plant_size_pcts,wind_pcts)
+
+plt.clf()
+for i, site in enumerate(sites):
+    orig_lcoe = np.zeros((n_winds,n_plants))
+    lcoe = np.zeros((n_winds,n_plants))
+    for j, plant_pct in enumerate(plant_size_pcts):
+        for k, wind_pct in enumerate(wind_pcts):
+
+            filename = '{}_plant{:03d}_wind{:02d}.txt'.format(site,plant_pct,wind_pct)
+            
+            read_dir = results_dir/'OrigLCOE'
+            with open(Path(read_dir/filename),'r') as file:
+                orig_lcoe[k][j] = np.loadtxt(file)
+            read_dir = results_dir/'LCOE'
+            with open(Path(read_dir/filename),'r') as file:
+                lcoe[k][j] = np.loadtxt(file)
+    
+    plt.subplot(n_sites,2,i*2+1)
+    plt.contourf(X,Y,orig_lcoe)
+    plt.colorbar()
+
+    plt.subplot(n_sites,2,i*2+2)
+    plt.contourf(X,Y,lcoe)
+    plt.colorbar()
+
+plt.show()

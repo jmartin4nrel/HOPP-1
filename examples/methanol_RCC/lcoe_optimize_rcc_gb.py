@@ -58,7 +58,7 @@ if __name__=="__main__":
     
     optProb.addObj("lcoe")
     optimize = pyoptsparse.SLSQP()
-    optimize.setOption("MAXIT",value=5)
+    optimize.setOption("MAXIT",value=10)
     # optimize.setOption("ACC",value=1E-6)
     # optimize = pyoptsparse.SNOPT()
     
