@@ -23,7 +23,7 @@ from hybrid.resource import (
     )
 
 # Change run ID to start from scratch (leave the same to load previously generated results)
-run_id = 'run009'
+run_id = 'run010'
 
 # Pick time period to simulate
 sim_start = '07/28/22'
@@ -131,10 +131,6 @@ sim_times = pd.date_range(sim_start, sim_end, freq='H')
 save_solar_forecast_SAM(solar_dict, sim_times[0], solar_file)
 save_wind_forecast_SAM(wind_dict, sim_times[0], wind_file)
 
-# Set up and tune hybrid
-period_file = "GE_FirstSolar_Periods_Recleaning_Weeklong.csv"
-hybrid_plant, overshoots = tune_iess(period_file)
-
 # Add battery to plant
 solar_size_mw = 0.43
 array_type = 0 # Fixed-angle
@@ -182,10 +178,14 @@ curve_power = curve_data['Power [kW]']
 hybrid_plant.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds = wind_speed
 hybrid_plant.wind._system_model.Turbine.wind_turbine_powercurve_powerout = curve_power    
 
+# # Set up and tune hybrid
+# period_file = "GE_FirstSolar_Periods_Recleaning_Weeklong.csv"
+# hybrid_plant, overshoots = tune_iess(period_file)
+# getattr(hybrid_plant,'pv').value('losses',overshoots['pv'])
+# getattr(hybrid_plant,'wind').value('turb_specific_loss',overshoots['wind'])
+
 # Set tuning coefficients (flat losses for now)
 hybrid_plant = tune_manual(hybrid_plant,base_dir/'hybrid'/'validation'/'results'/'IESS tune 2_16_23.csv')
-getattr(hybrid_plant,'pv').value('losses',overshoots['pv'])
-getattr(hybrid_plant,'wind').value('turb_specific_loss',overshoots['wind'])
 
 # prices_file are unitless dispatch factors, so add $/kwh here
 hybrid_plant.ppa_price = 0.04
@@ -311,7 +311,7 @@ for i, time in enumerate(sim_times):
     plt.xlim([xmin,xmax])
     plt.legend()
     plt.subplot(5,1,3)
-    plt.plot(year_hours[:j],time_df['BESS P [kW]'].iloc[:j],
+    plt.plot(year_hours[:j],batt_gen[:j],
             color=[0,0,0],label='Past generation/charge')
     plt.plot(year_hours[j:],time_df['BESS P [kW]'].iloc[j:],
             color=[0,.5,0],label='BESS strategy, using forecasts')  
