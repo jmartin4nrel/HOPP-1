@@ -621,7 +621,7 @@ for scenario in H2A_scenarios:
     H2_kg_day = H2_kg_yr/365
     engin['H2']['H2_kg_yr'][scenario] = H2_kg_yr
     engin['H2']['H2_kg_day'][scenario] = H2_kg_day
-    engin['H2']['output_kw'][scenario] = H2_kg_yr/8760/3600*H2_LHV_MJ_kg/1000
+    engin['H2']['output_kw'][scenario] = H2_kg_yr/8760/3600*H2_LHV_MJ_kg*1000
 
 # Use H2A model to get costs, engin params to size hybrid plant
 engin_params = ['water_use_kg_kgH2','H2O_in_tgal_mwh','elec_use_kwh_kgH2','elec_in_kw']
@@ -657,13 +657,13 @@ for scenario in H2A_scenarios:
 #endregion
 
 
-## Add universal financial params to each tech
+# Add universal financial params to each tech
 
-for dict in finance.values():
-    dict['basis_year'] = sim_basis_year
-    dict['plant_lifespan'] = plant_lifespan
-    dict['discount_rate'] = discount_rate
-    dict['TASC_multiplier'] = TASC_multiplier
+for key in finance.keys():
+    finance[key]['basis_year'] = sim_basis_year
+    finance[key]['plant_lifespan'] = plant_lifespan
+    finance[key]['discount_rate'] = discount_rate
+    finance[key]['TASC_multiplier'] = TASC_multiplier
 
 
 ## Write imported dicts to json dumpfiles
