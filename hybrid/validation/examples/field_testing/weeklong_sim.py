@@ -23,7 +23,7 @@ from hybrid.resource import (
     )
 
 # Change run ID to start from scratch (leave the same to load previously generated results)
-run_id = 'run008'
+run_id = 'run009'
 
 # Pick time period to simulate
 sim_start = '07/28/22'
@@ -261,16 +261,27 @@ for i, time in enumerate(sim_times):
     #TODO: tell batt dispatch optimizer not to optimize whole year, just coming week
     if time_fn not in os.listdir(results_dir):
         hybrid_plant.simulate(project_life=1)
-        time_df = pd.DataFrame(index=year_hours,columns=['PV [kW]','Wind [kW]','BESS P [kW]','BESS SOC [%]'])
+        time_df = pd.DataFrame(index=year_hours,columns=['PV [kW]',
+                                                        'Wind [kW]',
+                                                        'BESS P [kW]',
+                                                        'BESS SOC [%]',
+                                                        'Plant [kW]'])
         time_df['PV [kW]'] = hybrid_plant.pv.generation_profile
         time_df['Wind [kW]'] = hybrid_plant.wind.generation_profile
         time_df['BESS P [kW]'] = hybrid_plant.battery.Outputs.P
         time_df['BESS SOC [%]'] = hybrid_plant.battery.Outputs.SOC
+        time_df['Plant [kW]'] = np.sum(np.vstack((hybrid_plant.pv.generation_profile,
+                                                hybrid_plant.wind.generation_profile,
+                                                hybrid_plant.battery.Outputs.P)),axis=0)
         time_df.to_json(results_dir/time_fn)
     else:
         time_df = pd.read_json(results_dir/time_fn, convert_axes=True)
 
-    # Update total generation
+    # Update battery and total generation
+    batt_gen[j:] -= batt_gen[j:]
+    batt_soc[j:] -= batt_soc[j:]
+    batt_gen[j:] += time_df['BESS P [kW]'].iloc[j:]
+    batt_soc[j:] += time_df['BESS SOC [%]'].iloc[j:]
     total_gen[j:] -= batt_gen[j:]
     total_gen[j:] += time_df['BESS P [kW]'].iloc[j:]
     
@@ -310,7 +321,7 @@ for i, time in enumerate(sim_times):
     plt.xlim([xmin,xmax])
     plt.legend()
     plt.subplot(5,1,4)
-    plt.plot(year_hours[:j],time_df['BESS SOC [%]'].iloc[:j],
+    plt.plot(year_hours[:j],batt_soc[:j],
             color=[0,0,0],label='Past SOC')
     plt.plot(year_hours[j:],time_df['BESS SOC [%]'].iloc[j:],
             color=[0,.5,0],label='BESS strategy, using forecasts')  
@@ -320,13 +331,9 @@ for i, time in enumerate(sim_times):
     plt.xlim([xmin,xmax])
     plt.legend()
     plt.subplot(5,1,5)
-    plt.plot(year_hours[:j],np.add(time_df['PV [kW]'].iloc[:j],
-                                    time_df['Wind [kW]'].iloc[:j],
-                                    time_df['BESS P [kW]'].iloc[:j]),
+    plt.plot(year_hours[:j],total_gen[:j],
             color=[0,0,0],label='Past generation')
-    plt.plot(year_hours[j:],np.add(time_df['PV [kW]'].iloc[j:],
-                                    time_df['Wind [kW]'].iloc[j:],
-                                    time_df['BESS P [kW]'].iloc[j:]),
+    plt.plot(year_hours[j:],time_df['Plant [kW]'].iloc[j:],
             color=[0,0,1],label='Upcoming generation, forecast')  
     plt.plot(year_hours[j:],total_gen[j:],
             color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')  
