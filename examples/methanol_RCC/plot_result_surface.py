@@ -6,7 +6,7 @@ current_dir = Path(__file__).parent.absolute()
 results_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'
     
 
-sites = ['IA01','TX01']#
+sites = ['TX01']#'IA01',
 n_sites = len(sites)
 
 plant_size_pcts = [60,70,80,90,100]
@@ -35,10 +35,14 @@ for i, site in enumerate(sites):
     
     plt.subplot(n_sites,2,i*2+1)
     plt.contourf(X,Y,orig_lcoe)
-    plt.colorbar()
+    plt.xlabel('Plant size, % of original estimate')
+    plt.ylabel('% wind')
+    plt.colorbar(label='$/kWh')
 
     plt.subplot(n_sites,2,i*2+2)
     plt.contourf(X,Y,lcoe)
-    plt.colorbar()
+    plt.xlabel('Plant size, % of original estimate')
+    plt.ylabel('% wind')
+    plt.colorbar(label='$/kWh')
 
 plt.show()
