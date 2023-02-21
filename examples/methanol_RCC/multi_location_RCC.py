@@ -261,19 +261,19 @@ def run_all_hybrid_calcs(site_name, site_details, technologies_lol, costs, resul
                     all_args.append(all_arg)
         
 
-    # # Run a multi-threaded analysis
-    # with multiprocessing.Pool(9) as p:
-    #     if optimize:
-    #         p.starmap(run_hybrid_calc_optimize, all_args)
-    #     else:
-    #         p.starmap(run_hybrid_calc_bruteforce, all_args)
-
-    # Run a single-threaded analysis
-    for all_arg in all_args:
+    # Run a multi-threaded analysis
+    with multiprocessing.Pool(9) as p:
         if optimize:
-            run_hybrid_calc_optimize(*all_args)
+            p.starmap(run_hybrid_calc_optimize, all_args)
         else:
-            run_hybrid_calc_bruteforce(*all_arg)
+            p.starmap(run_hybrid_calc_bruteforce, all_args)
+
+    # # Run a single-threaded analysis
+    # for all_arg in all_args:
+    #     if optimize:
+    #         run_hybrid_calc_optimize(*all_args)
+    #     else:
+    #         run_hybrid_calc_bruteforce(*all_arg)
 
 
 if __name__ == '__main__':
@@ -303,9 +303,9 @@ if __name__ == '__main__':
 
     # Set Analysis Location and Details
     resource_year = 2013
-    sim_years = np.arange(2020,2051)
-    plant_size_pcts = [60,70,80,90,100]
-    wind_pcts = [10,30,50,70,90]
+    sim_years = scenario_info['sim_years']
+    plant_size_pcts = np.arange(60,110,10)
+    wind_pcts = np.arange(10,110,20)
     site_name_list = list(locations.keys())[:1]
     sites_per_location = 1
     
@@ -314,11 +314,11 @@ if __name__ == '__main__':
         desired_lats = locations[site_name]['lat'][:sites_per_location]
         desired_lons = locations[site_name]['lon'][:sites_per_location]
         
-        locations[site_name]['lcoe_$_kwh'] = []
-        locations[site_name]['pv_capacity_kw'] = []
-        locations[site_name]['wind_capacity_kw'] = []
-        locations[site_name]['pv_output_kw'] = []
-        locations[site_name]['wind_output_kw'] = []
+        locations[site_name]['lcoe_$_kwh'] = [[]*len(desired_lats)]
+        locations[site_name]['pv_capacity_kw'] = [[]*len(desired_lats)]
+        locations[site_name]['wind_capacity_kw'] = [[]*len(desired_lats)]
+        locations[site_name]['pv_output_kw'] = [[]*len(desired_lats)]
+        locations[site_name]['wind_output_kw'] = [[]*len(desired_lats)]
 
         # Load wind and solar resource files for location nearest desired lats and lons
         # NB this resource information will be overriden by API retrieved data if load_resource_from_file is set to False
@@ -346,12 +346,6 @@ if __name__ == '__main__':
 
         for year_idx, sim_year in enumerate(sim_years):
         
-            locations[site_name]['lcoe_$_kwh'].append([])
-            locations[site_name]['pv_capacity_kw'].append([])
-            locations[site_name]['wind_capacity_kw'].append([])
-            locations[site_name]['pv_output_kw'].append([])
-            locations[site_name]['wind_output_kw'].append([])
-            
             # Constants needed by HOPP
             solar_tracking_mode = '1-axis'
             ppa_sell_price_kwh = 0.01 #TODO setup variable ppa
@@ -360,17 +354,17 @@ if __name__ == '__main__':
             
             # Get H2 elyzer size #TODO: Add year lookup
             H2A_scenario = plant_scenarios['H2']
-            elyzer_input_kw = engin['H2']['elec_in_kw'][H2A_scenario][-1]
+            elyzer_input_kw = engin['H2']['elec_in_kw'][H2A_scenario][year_idx]
             elyzer_cf = 0.97 #TODO: variable electrolyzer capacity
             elyzer_size_kw = elyzer_input_kw/elyzer_cf
 
             # Estimate wind/solar needed based on capacity factor #TODO: Add year lookup
             pv_scenario = plant_scenarios['PV']
-            pv_cap = engin['PV']['capacity_factor'][pv_scenario][-1]
+            pv_cap = engin['PV']['capacity_factor'][pv_scenario][year_idx]
             lbw_scenario = plant_scenarios['LBW']
-            lbw_cap = engin['LBW']['capacity_factor'][lbw_scenario][-1]
+            lbw_cap = engin['LBW']['capacity_factor'][lbw_scenario][year_idx]
             osw_scenario = plant_scenarios['OSW']
-            osw_cap = engin['OSW']['capacity_factor'][osw_scenario][-1]
+            osw_cap = engin['OSW']['capacity_factor'][osw_scenario][year_idx]
 
             if site_details['on_land'][0] == 'false':
                 wind_pcts = [100]
@@ -391,13 +385,13 @@ if __name__ == '__main__':
 
                     iconn_kw = [osw_size_kw,pv_size_kw+lbw_size_kw]
 
-                    lbw_turb_rating_kw = engin['LBW']['turbine_rating_kw'][lbw_scenario][-1]
+                    lbw_turb_rating_kw = engin['LBW']['turbine_rating_kw'][lbw_scenario][year_idx]
                     lbw_hub_height = engin['LBW']['hub_height'][lbw_scenario][-1]
-                    lbw_rotor_diameter = engin['LBW']['rotor_diameter'][lbw_scenario][-1]
+                    lbw_rotor_diameter = engin['LBW']['rotor_diameter'][lbw_scenario][year_idx]
 
-                    osw_turb_rating_kw = engin['OSW']['turbine_rating_kw'][osw_scenario][-1]
+                    osw_turb_rating_kw = engin['OSW']['turbine_rating_kw'][osw_scenario][year_idx]
                     osw_hub_height = engin['OSW']['hub_height'][osw_scenario][-1]
-                    osw_rotor_diameter = engin['OSW']['rotor_diameter'][osw_scenario][-1]
+                    osw_rotor_diameter = engin['OSW']['rotor_diameter'][osw_scenario][year_idx]
 
                     technologies = {'pv': {
                                         'system_capacity_kw': pv_size_kw
@@ -434,19 +428,19 @@ if __name__ == '__main__':
             discount_rate = finance['PV']['discount_rate']
             TASC_multiplier = finance['PV']['TASC_multiplier']
             
-            pv_occ_kw = finance['PV']['OCC_$_kw'][pv_scenario][-1]
+            pv_occ_kw = finance['PV']['OCC_$_kw'][pv_scenario][year_idx]
             pv_occ_kwyr = pv_occ_kw*TASC_multiplier*discount_rate
-            pv_fom_kwyr = finance['PV']['FOM_$_kwyr'][pv_scenario][-1]
+            pv_fom_kwyr = finance['PV']['FOM_$_kwyr'][pv_scenario][year_idx]
             pv_toc_kwyr = pv_occ_kwyr + pv_fom_kwyr
             
-            lbw_occ_kw = finance['LBW']['OCC_$_kw'][lbw_scenario][-1]
+            lbw_occ_kw = finance['LBW']['OCC_$_kw'][lbw_scenario][year_idx]
             lbw_occ_kwyr = lbw_occ_kw*TASC_multiplier*discount_rate
-            lbw_fom_kwyr = finance['LBW']['FOM_$_kwyr'][lbw_scenario][-1]
+            lbw_fom_kwyr = finance['LBW']['FOM_$_kwyr'][lbw_scenario][year_idx]
             lbw_toc_kwyr = lbw_occ_kwyr + lbw_fom_kwyr
 
-            osw_occ_kw = finance['OSW']['OCC_$_kw'][osw_scenario][-1]
+            osw_occ_kw = finance['OSW']['OCC_$_kw'][osw_scenario][year_idx]
             osw_occ_kwyr = osw_occ_kw*TASC_multiplier*discount_rate
-            osw_fom_kwyr = finance['OSW']['FOM_$_kwyr'][osw_scenario][-1]
+            osw_fom_kwyr = finance['OSW']['FOM_$_kwyr'][osw_scenario][year_idx]
             osw_toc_kwyr = osw_occ_kwyr + osw_fom_kwyr
 
             costs ={'pv': {
@@ -480,12 +474,12 @@ if __name__ == '__main__':
             if not os.path.exists(year_results_dir/'kWsell'):
                 os.mkdir(year_results_dir/'kWsell')
 
-            # Run hybrid calculation for all sites
-            tic = time.time()
-            run_all_hybrid_calcs(site_name, site_details, technologies_lol, costs,
-                                    year_results_dir, plant_size_pcts, wind_pcts)
-            toc = time.time()
-            print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
+            # # Run hybrid calculation for all sites
+            # tic = time.time()
+            # run_all_hybrid_calcs(site_name, site_details, technologies_lol, costs,
+            #                         year_results_dir, plant_size_pcts, wind_pcts)
+            # toc = time.time()
+            # print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
             
             for site_num in site_nums:
             
@@ -500,7 +494,7 @@ if __name__ == '__main__':
                         final_wind_pcts = wind_pcts
                     for j, wind_pct in enumerate(final_wind_pcts):
                         fn = '{}{:02d}_plant{:03d}_wind{:02d}.txt'.format(site_name,site_num,plant_pct,wind_pct)
-                        new_lcoe = float(np.loadtxt(results_dir/'LCOE'/fn))
+                        new_lcoe = float(np.loadtxt(year_results_dir/'LCOE'/fn))
                         if new_lcoe < min_lcoe:
                             min_lcoe = copy.copy(new_lcoe)
                             
@@ -522,11 +516,11 @@ if __name__ == '__main__':
                                 opt_pv = copy.copy(pv_size_kw)
                                 opt_wind = copy.copy(lbw_size_kw)
 
-                locations[site_name]['lcoe_$_kwh'][year_idx].append(min_lcoe)
-                locations[site_name]['pv_capacity_kw'][year_idx].append(opt_pv)
-                locations[site_name]['pv_output_kw'][year_idx].append(pv_output)
-                locations[site_name]['wind_capacity_kw'][year_idx].append(opt_wind)
-                locations[site_name]['wind_output_kw'][year_idx].append(wind_output)
+                locations[site_name]['lcoe_$_kwh'][site_num-1].append(min_lcoe)
+                locations[site_name]['pv_capacity_kw'][site_num-1].append(opt_pv)
+                locations[site_name]['pv_output_kw'][site_num-1].append(pv_output)
+                locations[site_name]['wind_capacity_kw'][site_num-1].append(opt_wind)
+                locations[site_name]['wind_output_kw'][site_num-1].append(wind_output)
 
 
     resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'

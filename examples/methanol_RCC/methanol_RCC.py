@@ -73,6 +73,8 @@ locations = {'IA': {'on_land':[True ,], 'lat':[43.094000,], 'lon':[-93.292220,]}
              'TX': {'on_land':[True ,], 'lat':[32.337679,], 'lon':[-97.734610,]},
              'NJ': {'on_land':[False ,], 'lat':[39.600000,], 'lon':[-73.400000,]},
              }
+site_choice = 'IA' # Choose NGCC site to analyze all years/scenarios with HOPP
+site_num_choice = 1 # Choose site number (of 19 surrounding survey sites) to analyze
 min_plant_dist = 120 # km, minimum distance between NGCC plants in survey
 land_rad = 60 # km radius of survey area around NGCC plant on land
 osw_rad = 20 # km radium of survey area around offshore wind location
@@ -101,7 +103,10 @@ plant_scenarios =  {'NGCC':'Conservative',
 scenario_info = {'plant_scenarios': plant_scenarios,
                 'atb_scenarios':    atb_scenarios,
                 'H2A_scenarios':    H2A_scenarios,
-                'MeOH_scenarios':   MeOH_scenarios} 
+                'MeOH_scenarios':   MeOH_scenarios,
+                'sim_years':        [int(i) for i in sim_years],
+                'site_selection':  {'site_name':site_choice,
+                                    'site_num': site_num_choice}} 
 
 H2_Cf = 0.97 # capacity factor of H2 plants to scale results to
 NGCC_cap = 100 # MW, output of NGCC plant to scale results to
@@ -578,7 +583,7 @@ for scenario in MeOH_scenarios:
     MeOH_kg_yr = MeOH_kt_yr[scenario]*1e6
     engin['MeOH']['CO2_kg_yr_in'][scenario] = CO2_kg_yr
     engin['MeOH']['MeOH_kg_yr'][scenario] = MeOH_kg_yr
-    engin['MeOH']['output_kw'][scenario] = MeOH_kg_yr/8760/3600*MeOH_LHV_MJ_kg/1000
+    engin['MeOH']['output_kw'][scenario] = MeOH_kg_yr/8760/3600*MeOH_LHV_MJ_kg*1000
     
 # Add items to finance nested dict
 finance_params =   ['OCC_$_kw','OCC_$',
@@ -609,6 +614,7 @@ for scenario in MeOH_scenarios:
 #region
 
 engin['H2'] = {}
+engin['H2']['H2_LHV_MJ_kg'] = H2_LHV_MJ_kg
 finance['H2'] = {}
 
 # Scale H2 plant
