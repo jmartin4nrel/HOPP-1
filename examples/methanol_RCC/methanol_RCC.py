@@ -31,6 +31,7 @@ from hybrid.log import hybrid_logger as logger
 from hybrid.keys import set_nrel_key_dot_env
 
 from examples.H2_Analysis.H2AModel_capex_opex_scenarios import H2AModel_costs
+import examples.methanol_RCC.multi_location_RCC as multi_location_RCC_HOPP
 
 #endregion
 
@@ -53,7 +54,7 @@ def inflate(dollars, original_year, new_year):
 # Simulation duration
 sim_start_year = 2020
 sim_end_year = 2050
-sim_years = np.arange(sim_start_year,sim_end_year)
+sim_years = np.arange(sim_start_year,sim_end_year+1)
 
 # Financial constants
 sim_basis_year = 2020
@@ -682,12 +683,16 @@ with open(Path(resource_dir/'locations.json'),'w') as file:
             loc['on_land'][i] = value
     json.dump(out_locations, file)
 
+
+## RUN HOPP HERE - multi_location_RCC.py
+
 # %% Check imports and conversions
 
 # Load imported dicts from json dumpfiles
 import json
 from pathlib import Path
-resource_dir = Path(__file__).parent.absolute()/'..'/'resource_files'/'methanol_RCC'
+current_dir = Path(__file__).parent.absolute()
+resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'
 with open(Path(resource_dir/'engin.json'),'r') as file:
     engin = json.load(file)
 with open(Path(resource_dir/'finance.json'),'r') as file:
@@ -698,6 +703,8 @@ with open(Path(resource_dir/'scenario.json'),'r') as file:
     atb_scenarios = scenario_info['atb_scenarios']
     H2A_scenarios = scenario_info['H2A_scenarios']
     MeOH_scenarios = scenario_info['MeOH_scenarios']
+with open(Path(resource_dir/'locations.json'),'r') as file:
+    locations = json.load(file)
 
 # Print prices per unit for ALL scenarios
 prices_to_check = ['OCC_$_kw','FOM_$_kwyr','VOM_$_mwh']
@@ -761,4 +768,5 @@ for plant in plants_to_check:
             print('{} plant did not import {} for {} scenario'.format(plant,
                                                                     param,
                                                                     scenario))
-# %%
+
+##
