@@ -261,19 +261,19 @@ def run_all_hybrid_calcs(site_name, site_details, technologies_lol, costs, resul
                     all_args.append(all_arg)
         
 
-    # Run a multi-threaded analysis
-    with multiprocessing.Pool(9) as p:
-        if optimize:
-            p.starmap(run_hybrid_calc_optimize, all_args)
-        else:
-            p.starmap(run_hybrid_calc_bruteforce, all_args)
-
-    # # Run a single-threaded analysis
-    # for all_arg in all_args:
+    # # Run a multi-threaded analysis
+    # with multiprocessing.Pool(9) as p:
     #     if optimize:
-    #         run_hybrid_calc_optimize(*all_args)
+    #         p.starmap(run_hybrid_calc_optimize, all_args)
     #     else:
-    #         run_hybrid_calc_bruteforce(*all_arg)
+    #         p.starmap(run_hybrid_calc_bruteforce, all_args)
+
+    # Run a single-threaded analysis
+    for all_arg in all_args:
+        if optimize:
+            run_hybrid_calc_optimize(*all_args)
+        else:
+            run_hybrid_calc_bruteforce(*all_arg)
 
 
 if __name__ == '__main__':
@@ -304,8 +304,8 @@ if __name__ == '__main__':
     # Set Analysis Location and Details
     resource_year = 2013
     sim_years = scenario_info['sim_years']
-    plant_size_pcts = np.arange(60,110,10)
-    wind_pcts = np.arange(10,110,20)
+    plant_size_pcts = [60]#np.arange(60,150,10)
+    wind_pcts = [40]#np.arange(10,100,10)
     site_name_list = list(locations.keys())[:1]
     sites_per_location = 1
     
@@ -320,32 +320,32 @@ if __name__ == '__main__':
         locations[site_name]['pv_output_kw'] = [[]*len(desired_lats)]
         locations[site_name]['wind_output_kw'] = [[]*len(desired_lats)]
 
-        # Load wind and solar resource files for location nearest desired lats and lons
-        # NB this resource information will be overriden by API retrieved data if load_resource_from_file is set to False
-        sitelist_name = 'filtered_site_details_{}_locs_{}_year'.format(len(desired_lats), resource_year)
-        # sitelist_name = 'site_details.csv'
-        if load_resource_from_file:
-            # Loads resource files in 'resource_files', finds nearest files to 'desired_lats' and 'desired_lons'
-            site_details = resource_loader_file(resource_dir, desired_lats, desired_lons, resource_year, not_rect=True,\
-                                                max_dist=.01)  # Return contains
-            site_details.insert(3,'on_land',locations[site_name]['on_land'][:1])
-            # site_details = filter_sites(site_details, location='usa only')
-            site_details.to_csv(os.path.join(resource_dir, 'site_details.csv'))
-        else:
-            # Creates the site_details file containing grid of lats, lons, years, and wind and solar filenames (blank
-            # - to force API resource download)
-            if os.path.exists(sitelist_name):
-                site_details = pd.read_csv(sitelist_name)
-            else:
-                site_details = site_details_creator.site_details_creator(desired_lats, desired_lons, resource_year, not_rect=True)
-                # Filter to locations in USA - MOVE TO PARALLEL
-                site_details = filter_sites(site_details, location='usa only')
-                site_details.to_csv(sitelist_name)
-
-        site_nums = site_details['site_nums'][:sites_per_location]
-
-        for year_idx, sim_year in enumerate(sim_years):
+        for year_idx, sim_year in enumerate(sim_years[3:]):
         
+            # Load wind and solar resource files for location nearest desired lats and lons
+            # NB this resource information will be overriden by API retrieved data if load_resource_from_file is set to False
+            sitelist_name = 'filtered_site_details_{}_locs_{}_year'.format(len(desired_lats), resource_year)
+            # sitelist_name = 'site_details.csv'
+            if load_resource_from_file:
+                # Loads resource files in 'resource_files', finds nearest files to 'desired_lats' and 'desired_lons'
+                site_details = resource_loader_file(resource_dir, desired_lats, desired_lons, resource_year, not_rect=True,\
+                                                    max_dist=.01)  # Return contains
+                site_details.insert(3,'on_land',locations[site_name]['on_land'][:1])
+                # site_details = filter_sites(site_details, location='usa only')
+                site_details.to_csv(os.path.join(resource_dir, 'site_details.csv'))
+            else:
+                # Creates the site_details file containing grid of lats, lons, years, and wind and solar filenames (blank
+                # - to force API resource download)
+                if os.path.exists(sitelist_name):
+                    site_details = pd.read_csv(sitelist_name)
+                else:
+                    site_details = site_details_creator.site_details_creator(desired_lats, desired_lons, resource_year, not_rect=True)
+                    # Filter to locations in USA - MOVE TO PARALLEL
+                    site_details = filter_sites(site_details, location='usa only')
+                    site_details.to_csv(sitelist_name)
+
+            site_nums = site_details['site_nums'][:sites_per_location]
+
             # Constants needed by HOPP
             solar_tracking_mode = '1-axis'
             ppa_sell_price_kwh = 0.01 #TODO setup variable ppa
@@ -474,12 +474,12 @@ if __name__ == '__main__':
             if not os.path.exists(year_results_dir/'kWsell'):
                 os.mkdir(year_results_dir/'kWsell')
 
-            # # Run hybrid calculation for all sites
-            # tic = time.time()
-            # run_all_hybrid_calcs(site_name, site_details, technologies_lol, costs,
-            #                         year_results_dir, plant_size_pcts, wind_pcts)
-            # toc = time.time()
-            # print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
+            # Run hybrid calculation for all sites
+            tic = time.time()
+            run_all_hybrid_calcs(site_name, site_details, technologies_lol, costs,
+                                    year_results_dir, plant_size_pcts, wind_pcts)
+            toc = time.time()
+            print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
             
             for site_num in site_nums:
             

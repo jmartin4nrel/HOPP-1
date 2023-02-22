@@ -558,6 +558,7 @@ CO2_emission = 0.023 # kg CO2 emitted directly per kg MeOH
 #region
 
 engin['MeOH'] = {}
+engin['MeOH']['MeOH_LHV_MJ_kg'] = MeOH_LHV_MJ_kg
 
 # Define NG plant feed for MeOH scenarios
 engin['MeOH']['CO2 source'] = {}

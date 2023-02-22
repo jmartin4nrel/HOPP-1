@@ -129,11 +129,12 @@ CO2_kg_yr_in = engin['MeOH']['CO2_kg_yr_in'][MeOH_scenario]
 output_kw = engin['MeOH']['output_kw'][MeOH_scenario]
 VOM_CO2_yr = [CO2_kg_yr_in*i for i in CO2_price_kg]
 VOM_CO2_mwh = list(np.divide(VOM_CO2_yr,np.divide(output_kw,8.67)))
-finance['MeOH']['VOM_CO2_$_yr'] = VOM_CO2_yr
-finance['MeOH']['VOM_CO2_$_mwh'] = VOM_CO2_mwh
+finance['MeOH']['VOM_CO2_$_yr'] = {MeOH_scenario:VOM_CO2_yr}
+finance['MeOH']['VOM_CO2_$_mwh'] = {MeOH_scenario:VOM_CO2_mwh}
 
 
 ## Get H2 production cost
+
 OCC_kw = finance['H2']['OCC_$_kw'][h2_scenario]
 FOM_kwyr = finance['H2']['FOM_$_kwyr'][h2_scenario]
 VOM_mwh = finance['H2']['VOM_$_mwh'][h2_scenario]
@@ -144,6 +145,40 @@ finance['H2']['lcoh_$_kwh'] = {h2_scenario:lcoh_kwh}
 H2_LHV_MJ_kg = engin['H2']['H2_LHV_MJ_kg']
 lcoh_kg = list(np.multiply(lcoh_kwh,H2_LHV_MJ_kg/3600*1000))
 finance['H2']['lcoh_$_kg'] = lcoh_kg
+
+
+## Calculate MeOH production cost
+
+sim_years = scenario_info['sim_years']
+VOM_comps = ['VOM_CO2_$_mwh',
+            'VOM_H2_$_mwh']
+plant = 'MeOH'
+finance[plant]['VOM_$_mwh'] = {MeOH_scenario:[]}
+finance[plant]['VOM_$_yr'] = {MeOH_scenario:[]}
+for i, year in enumerate(sim_years):
+    VOM_mwh = 0
+    for VOM_comp in VOM_comps:
+        if type(finance[plant][VOM_comp]) is dict:
+            if type(finance[plant][VOM_comp][MeOH_scenario]) is list:
+                VOM_mwh += finance[plant][VOM_comp][MeOH_scenario][i]
+            else:
+                VOM_mwh += finance[plant][VOM_comp][MeOH_scenario]
+        else:
+            VOM_mwh += finance[plant][VOM_comp]
+    year_VOM = copy.copy(VOM_mwh)
+    finance[plant]['VOM_$_mwh'][MeOH_scenario].append(year_VOM)
+    finance[plant]['VOM_$_yr'][MeOH_scenario].append(year_VOM*mwh_yr[i])
+OCC_kw = finance['MeOH']['OCC_$_kw'][MeOH_scenario]
+FOM_kwyr = finance['MeOH']['FOM_$_kwyr'][MeOH_scenario]
+VOM_mwh = finance['MeOH']['VOM_$_mwh'][MeOH_scenario]
+discount_rate = finance['MeOH']['discount_rate']
+TASC_multiplier = finance['MeOH']['TASC_multiplier']
+lcom_kwh = calc_lcoe(OCC_kw,FOM_kwyr,VOM_mwh,TASC_multiplier,discount_rate)
+finance['MeOH']['lcom_$_kwh'] = {MeOH_scenario:lcom_kwh}
+MeOH_LHV_MJ_kg = engin['MeOH']['MeOH_LHV_MJ_kg']
+lcom_kg = list(np.multiply(lcom_kwh,MeOH_LHV_MJ_kg/3600*1000))
+finance['MeOH']['lcom_$_kg'] = lcom_kg
+
 
 # Print prices per unit for ALL scenarios
 prices_to_check = ['OCC_$_kw','FOM_$_kwyr','VOM_$_mwh']
