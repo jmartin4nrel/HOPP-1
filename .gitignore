@@ -42,6 +42,7 @@ tests/analysis/results/
 resource_files/
 examples/analysis/filtered_site_details*
 examples/analysis/All_Runs*
+!examples/resource_files
 
 .idea/*
 .idea/workspace.xml
