@@ -138,49 +138,6 @@ H2_LHV_MJ_kg = 120 # Hygrogen net calorific value, MJ/kg
 # TODO: Break out BOS costs (not in spreadsheets...)
 #region
 
-# Set constants not given in spreadsheet
-basis_year = 2020
-pv_constants = {'array_type':2,
-                'azimuth':180,
-                'inv_eff':None,
-                'dc_ac_ratio':1.28} # ILR NOT OPTIMIZED - can HOPP do this?
-bos_ratio = {'LBW': 322/1462, 
-             'PV': 20/89}
-wind_constants =   {'wind_turbine_max_cp':0.55,
-                    'avail_bop_loss':0,
-                    'avail_grid_loss':0,
-                    'avail_turb_loss':0,
-                    'elec_eff_loss':0,
-                    'elec_parasitic_loss':0,
-                    'env_degrad_loss':0,
-                    'env_env_loss':0,
-                    'env_icing_loss':0,
-                    'ops_env_loss':0,
-                    'ops_grid_loss':0,
-                    'ops_load_loss':0,
-                    'turb_generic_loss':0,
-                    'turb_hysteresis_loss':0,
-                    'turb_perf_loss':0,
-                    'turb_specific_loss':0,
-                    'wake_ext_loss':0}
-osw_constants =   {'wind_turbine_max_cp':0.55,
-                    'avail_bop_loss':0,
-                    'avail_grid_loss':0,
-                    'avail_turb_loss':0,
-                    'elec_eff_loss':0,
-                    'elec_parasitic_loss':0,
-                    'env_degrad_loss':0,
-                    'env_env_loss':0,
-                    'env_icing_loss':0,
-                    'ops_env_loss':0,
-                    'ops_grid_loss':0,
-                    'ops_load_loss':0,
-                    'turb_generic_loss':0,
-                    'turb_hysteresis_loss':0,
-                    'turb_perf_loss':0,
-                    'turb_specific_loss':0,
-                    'wake_ext_loss':0}
-
 # Set location info for Excel workbook with ATB values
 filename = "2022 v3 Annual Technology Baseline Workbook Corrected 1-24-2023.xlsx"
 sheets = {'NGCC':'Natural Gas_FE',
@@ -217,9 +174,12 @@ engin ={'NGCC':{'heat_rate_btu_wh':{'Advanced':72,
                 'dc_degradation':  {'Advanced':84,
                                     'Moderate':85,
                                     'Conservative':86},
-                'capacity_factor': {'Advanced':87,
+                'inv_eff':         {'Advanced':87,
                                     'Moderate':88,
-                                    'Conservative':89}},
+                                    'Conservative':89},
+                'capacity_factor': {'Advanced':90,
+                                    'Moderate':91,
+                                    'Conservative':92}},
         'LBW': {'hub_height':      {'Advanced':76,
                                     'Moderate':77,
                                     'Conservative':78},
@@ -280,6 +240,7 @@ finance =  {'NGCC':{'OCC_$_kw':    {'Advanced':105,
                                     'Conservative':343}}}
 
 # Import from spreadsheet
+basis_year = 2020
 workbook = load_workbook(resource_dir/filename, read_only=True, data_only=True)
 atb_tech = ['NGCC','CCS','PV','LBW','OSW']
 for tech in atb_tech:
@@ -306,6 +267,47 @@ for tech in atb_tech:
                         value = inflate(value, basis_year, sim_basis_year)
                     values.append(value)
                 param[scenario] = values
+
+# Set constants not given in spreadsheet
+
+bos_ratio = {'LBW': 322/1462, 
+             'PV': 20/89}
+for tech in bos_ratio.keys():
+    finance[tech]['OCC_bos_ratio'] = {}
+    for scenario in atb_scenarios:
+        finance[tech]['OCC_bos_ratio'][scenario] = bos_ratio[tech]
+
+pv_constants = {'array_type':2,
+                'azimuth':180,
+                'dc_ac_ratio':1.28} # ILR NOT OPTIMIZED - can HOPP do this?
+for constant in pv_constants:
+    engin['PV'][constant] = {}
+    for scenario in atb_scenarios:
+        engin['PV'][constant][scenario] = pv_constants[constant]
+
+wind_constants =   {'wind_turbine_max_cp':0.45,
+                    'avail_bop_loss':0,
+                    'avail_grid_loss':0,
+                    'avail_turb_loss':0,
+                    'elec_eff_loss':0,
+                    'elec_parasitic_loss':0,
+                    'env_degrad_loss':0,
+                    'env_env_loss':0,
+                    'env_icing_loss':0,
+                    'ops_env_loss':0,
+                    'ops_grid_loss':0,
+                    'ops_load_loss':0,
+                    'turb_generic_loss':0,
+                    'turb_hysteresis_loss':0,
+                    'turb_perf_loss':0,
+                    'turb_specific_loss':0,
+                    'wake_ext_loss':0}
+for constant in wind_constants:
+    engin['LBW'][constant] = {}
+    engin['OSW'][constant] = {}
+    for scenario in atb_scenarios:
+        engin['LBW'][constant][scenario] = wind_constants[constant]
+        engin['OSW'][constant][scenario] = wind_constants[constant]
 
 #endregion
 

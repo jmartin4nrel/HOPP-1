@@ -39,7 +39,7 @@ pd.set_option("display.max_rows", None, "display.max_columns", None)
 
 set_nrel_key_dot_env()
 
-def run_hopp_calc(site, sim_tech, technologies, sim_cost, on_land):
+def run_hopp_calc(site, sim_tech, technologies, sim_cost, on_land, sim_power):
     """ run_hopp_calc Establishes sizing models, creates a wind or solar farm based on the desired sizes,
      and runs SAM model calculations for the specified inputs.
      save_outputs contains a dictionary of all results for the hopp calculation.
@@ -70,8 +70,23 @@ def run_hopp_calc(site, sim_tech, technologies, sim_cost, on_land):
 
     # Set up plant
     hybrid_plant = HybridSimulation(sim_tech, site, iconn_size_kw)
-    # TODO: modify financials from HOPP defaults
     
+    # Modify pvwatts model to reflect ATB technology
+    pv_factors = sim_power['PV']
+    for factor, value in pv_factors.items():
+        getattr(hybrid_plant.pv._system_model,factor,value)
+
+    # Modify windpower model to reflect ATB technology
+    wind_factors = sim_power['wind']
+    for factor, value in wind_factors.items():
+        getattr(hybrid_plant.wind._system_model,factor,value)
+    hybrid_plant.wind._system_model.Turbine.calculate_powercurve()
+    x = hybrid_plant.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds
+    y = hybrid_plant.wind._system_model.Turbine.wind_turbine_powercurve_powerout
+    plt.clf()
+    plt.plot(x,y)
+    plt.show()
+
     # Simulate lifetime
     hybrid_plant.simulate_power()
     wind_kw = list(hybrid_plant.generation_profile.wind[0:8760])
@@ -142,7 +157,7 @@ def run_hopp_calc(site, sim_tech, technologies, sim_cost, on_land):
 
 
 def run_hybrid_calc_bruteforce(site_name, year, site_num, res_fn_wind, res_fn_solar, lat, lon, on_land,
-                                technologies, costs, results_dir, plant_pct, wind_pct):
+                                technologies, costs, results_dir, plant_pct, wind_pct, power_factors):
     
     """
     run_hybrid_calc loads the specified resource for each site, and runs wind, solar, hybrid and solar addition
@@ -162,17 +177,22 @@ def run_hybrid_calc_bruteforce(site_name, year, site_num, res_fn_wind, res_fn_so
     # Make reduced version of technologies dict that has just what HOPP uses to setup technologies dict
     sim_tech = copy.deepcopy(technologies)
     sim_cost = copy.deepcopy(costs)
+    sim_power = copy.deepcopy(power_factors)
     if on_land == 'true':
         sim_tech['wind'] = technologies['lbw']
         sim_cost['wind'] = costs['lbw']
+        sim_power['wind'] = power_factors['LBW']
     else:
         sim_tech['wind'] = technologies['osw']
         sim_cost['wind'] = costs['osw']
+        sim_power['wind'] = power_factors['OSW']
     sim_tech.pop('lbw')
     sim_tech.pop('osw')
     sim_tech.pop('interconnection')
     sim_cost.pop('lbw')
     sim_cost.pop('osw')
+    sim_power.pop('LBW')
+    sim_power.pop('OSW')
 
     # Establish site location
     Site = sample_site  # sample_site has been loaded from flatirons_site to provide sample site boundary information
@@ -201,7 +221,7 @@ def run_hybrid_calc_bruteforce(site_name, year, site_num, res_fn_wind, res_fn_so
                     wind_resource_file=Site['resource_filename_wind'])
 
     # Run HOPP calculation
-    hopp_outputs, res_fn_wind, res_fn_solar = run_hopp_calc(Site, sim_tech, technologies, sim_cost, on_land)
+    hopp_outputs, res_fn_wind, res_fn_solar = run_hopp_calc(Site, sim_tech, technologies, sim_cost, on_land, sim_power)
     filename = '{}{:02d}_plant{:03d}_wind{:02d}.txt'.format(site_name,site_num,plant_pct,wind_pct)
     print('Finished site '+filename)
 
@@ -223,7 +243,7 @@ def run_hybrid_calc_bruteforce(site_name, year, site_num, res_fn_wind, res_fn_so
 
 
 def run_all_hybrid_calcs(site_name, site_details, technologies_lol, costs, results_dir,
-                        plant_size_pcts, wind_pcts, optimize=False):
+                        plant_size_pcts, wind_pcts, power_factors, optimize=False):
 
     """
     Performs a multi-threaded run of run_hybrid_calc for the given input parameters.
@@ -248,7 +268,7 @@ def run_all_hybrid_calcs(site_name, site_details, technologies_lol, costs, resul
                         site_details['wind_filenames'][i], site_details['solar_filenames'][i],
                         site_details['lat'][i], site_details['lon'][i], site_details['on_land'][i],
                         technologies_lol[j][k], costs, results_dir,
-                        plant_pct, wind_pct]
+                        plant_pct, wind_pct, power_factors]
             all_args.append(all_arg)
         else:
             for j, plant_pct in  enumerate(plant_size_pcts):
@@ -257,7 +277,7 @@ def run_all_hybrid_calcs(site_name, site_details, technologies_lol, costs, resul
                                 site_details['wind_filenames'][i], site_details['solar_filenames'][i],
                                 site_details['lat'][i], site_details['lon'][i], site_details['on_land'][i],
                                 technologies_lol[j][k], costs, results_dir,
-                                plant_pct, wind_pct]
+                                plant_pct, wind_pct, power_factors]
                     all_args.append(all_arg)
         
 
@@ -347,7 +367,6 @@ if __name__ == '__main__':
             site_nums = site_details['site_nums'][:sites_per_location]
 
             # Constants needed by HOPP
-            solar_tracking_mode = '1-axis'
             ppa_sell_price_kwh = 0.01 #TODO setup variable ppa
             ppa_buy_price_kwh = 0.05 #TODO setup variable ppa
             correct_wind_speed_for_height = True
@@ -365,6 +384,26 @@ if __name__ == '__main__':
             lbw_cap = engin['LBW']['capacity_factor'][lbw_scenario][year_idx]
             osw_scenario = plant_scenarios['OSW']
             osw_cap = engin['OSW']['capacity_factor'][osw_scenario][year_idx]
+
+            # Make dict of power factors
+            power_factors_to_set = {
+                'PV':['albedo','array_type','azimuth','bifaciality','dc_ac_ratio',
+                      'dc_degradation','inv_eff','losses'],
+                'LBW':['wind_turbine_max_cp','avail_bop_loss','avail_grid_loss',
+                    'avail_turb_loss','elec_eff_loss','elec_parasitic_loss',
+                    'env_degrad_loss','env_env_loss','env_icing_loss','ops_env_loss',
+                    'ops_grid_loss','ops_load_loss','turb_generic_loss',
+                    'turb_hysteresis_loss','turb_perf_loss','turb_specific_loss',
+                    'wake_ext_loss']
+            }
+            power_factors_to_set['OSW'] = power_factors_to_set['LBW']
+            power_factors = {}
+            for tech, factor_list in power_factors_to_set.items():
+                power_factors[tech] = {}
+                for factor in factor_list:
+                    scenario = scenario_info['plant_scenarios'][tech]
+                    power_factors[tech][factor] = engin[tech][factor][scenario]
+                    
 
             if site_details['on_land'][0] == 'false':
                 wind_pcts = [100]
@@ -394,7 +433,7 @@ if __name__ == '__main__':
                     osw_rotor_diameter = engin['OSW']['rotor_diameter'][osw_scenario][year_idx]
 
                     technologies = {'pv': {
-                                        'system_capacity_kw': pv_size_kw
+                                        'system_capacity_kw': pv_size_kw,
                                     },
                                     'lbw': {
                                         'num_turbines': round(lbw_size_kw/lbw_turb_rating_kw),
@@ -474,12 +513,12 @@ if __name__ == '__main__':
             if not os.path.exists(year_results_dir/'kWsell'):
                 os.mkdir(year_results_dir/'kWsell')
 
-            # # Run hybrid calculation for all sites
-            # tic = time.time()
-            # run_all_hybrid_calcs(site_name, site_details, technologies_lol, costs,
-            #                         year_results_dir, plant_size_pcts, wind_pcts)
-            # toc = time.time()
-            # print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
+            # Run hybrid calculation for all sites
+            tic = time.time()
+            run_all_hybrid_calcs(site_name, site_details, technologies_lol, costs,
+                                    year_results_dir, plant_size_pcts, wind_pcts, power_factors)
+            toc = time.time()
+            print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
             
             for site_num in site_nums:
             
