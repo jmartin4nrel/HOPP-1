@@ -492,7 +492,7 @@ for id, loc in locations.items():
 capacity_kt_y =  [7,    90,    30,   440,  16.3, 50,  1800,  100]
 capex_mil_kt_y = [3.19, 2.325, 1.15, 1.26, 0.98, 1.9, 0.235, 0.62]
 basis_year = 2020
-capex_mil_ky_y = [inflate(i, basis_year, sim_basis_year) for i in capex_mil_kt_y]
+capex_mil_kt_y = [inflate(i, basis_year, sim_basis_year) for i in capex_mil_kt_y]
 sources = ['Hank 2018', 'Mignard 2003', 'Clausen 2010', 'Perez-Fortes 2016',
             'Rivera-Tonoco 2016',' Belloti 2019', 'Nyari 2020', 'Szima 2018']
 
@@ -569,20 +569,25 @@ for scenario in MeOH_scenarios:
 # Scale MeOH plant
 CO2_kt_yr_scenarios = {}
 MeOH_kt_yr = {}
+H2_kt_yr = {}
 for scenario in MeOH_scenarios:
     source = engin['MeOH']['CO2 source'][scenario]
     CO2_kt_yr = CO2_kg_mwh[source]*NGCC_cap[source]*NGCC_Cf*8760/1e6
     CO2_kt_yr_scenarios[scenario] = CO2_kt_yr
-    MeOH_kt_yr[scenario] = CO2_kt_yr*mass_ratio_CO2_MeOH
+    MeOH_kt_yr[scenario] = CO2_kt_yr/mass_ratio_CO2_MeOH
+    H2_kt_yr[scenario] = MeOH_kt_yr[scenario]*mass_ratio_H2_MeOH
 
 # Add items to engin nested dict
 engin['MeOH']['CO2_kg_yr_in'] = {}
+engin['MeOH']['H2_kg_yr_in'] = {}
 engin['MeOH']['MeOH_kg_yr'] = {}
 engin['MeOH']['output_kw'] = {}
 for scenario in MeOH_scenarios:
     CO2_kg_yr = CO2_kt_yr_scenarios[scenario]*1e6
+    H2_kg_yr = H2_kt_yr[scenario]*1e6
     MeOH_kg_yr = MeOH_kt_yr[scenario]*1e6
     engin['MeOH']['CO2_kg_yr_in'][scenario] = CO2_kg_yr
+    engin['MeOH']['H2_kg_yr_in'][scenario] = H2_kg_yr
     engin['MeOH']['MeOH_kg_yr'][scenario] = MeOH_kg_yr
     engin['MeOH']['output_kw'][scenario] = MeOH_kg_yr/8760/3600*MeOH_LHV_MJ_kg*1000
     
@@ -597,7 +602,7 @@ for scenario in MeOH_scenarios:
     kt_yr = engin['MeOH']['MeOH_kg_yr'][scenario]/1e6
     a = finance['MeOH']['capex_mil_kt_y_A']
     b = finance['MeOH']['capex_mil_kt_y_B']
-    capex = a*kt_yr**(-b) * 1e6
+    capex = a*kt_yr**(-b) * kt_yr * 1e6
     capex_kw = capex/kw
     finance['MeOH']['OCC_$_kw'][scenario] = capex_kw
     finance['MeOH']['OCC_$'][scenario] = capex

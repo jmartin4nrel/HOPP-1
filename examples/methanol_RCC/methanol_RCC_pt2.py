@@ -67,7 +67,6 @@ else:
     engin['OSW']['capacity_kw'] = {plant_scenarios['OSW']:wind_cap_kw}
 
 
-
 ## Set the H2 variable costs using electricity cost
 
 lcoe_kwh = location['lcoe_$_kwh']
@@ -78,12 +77,16 @@ mwh_yr = [i/1000 for i in kwh_yr]
 lcoe_yr = list(np.multiply(kwh_yr,lcoe_kwh))
 finance['H2']['VOM_elec_$_yr'] = {h2_scenario:lcoe_yr}
 h2_output_kw = engin['H2']['output_kw'][h2_scenario]
+mwh_yr = h2_output_kw*8.76
 VOM_elec_mwh = list(np.divide(lcoe_yr,mwh_yr))
 finance['H2']['VOM_elec_$_mwh'] = {h2_scenario:VOM_elec_mwh}
+
 sim_years = scenario_info['sim_years']
 VOM_comps = ['VOM_H2O_$_mwh',
             'VOM_elec_$_mwh']
 plant = 'H2'
+output_kw = engin[plant]['output_kw'][h2_scenario]
+mwh_yr = output_kw*8.76
 finance[plant]['VOM_$_mwh'] = {h2_scenario:[]}
 finance[plant]['VOM_$_yr'] = {h2_scenario:[]}
 for i, year in enumerate(sim_years):
@@ -98,7 +101,7 @@ for i, year in enumerate(sim_years):
             VOM_mwh += finance[plant][VOM_comp]
     year_VOM = copy.copy(VOM_mwh)
     finance[plant]['VOM_$_mwh'][h2_scenario].append(year_VOM)
-    finance[plant]['VOM_$_yr'][h2_scenario].append(year_VOM*mwh_yr[i])
+    finance[plant]['VOM_$_yr'][h2_scenario].append(year_VOM*mwh_yr)
 
 
 ## Get CO2 production cost from difference between NGCC and CCS plant LCOE
@@ -128,7 +131,7 @@ finance['MeOH']['CO2_cost_$_kg'] = {MeOH_scenario:CO2_price_kg}
 CO2_kg_yr_in = engin['MeOH']['CO2_kg_yr_in'][MeOH_scenario]
 output_kw = engin['MeOH']['output_kw'][MeOH_scenario]
 VOM_CO2_yr = [CO2_kg_yr_in*i for i in CO2_price_kg]
-VOM_CO2_mwh = list(np.divide(VOM_CO2_yr,np.divide(output_kw,8.67)))
+VOM_CO2_mwh = list(np.divide(VOM_CO2_yr,np.multiply(output_kw,8.67)))
 finance['MeOH']['VOM_CO2_$_yr'] = {MeOH_scenario:VOM_CO2_yr}
 finance['MeOH']['VOM_CO2_$_mwh'] = {MeOH_scenario:VOM_CO2_mwh}
 
@@ -145,10 +148,20 @@ finance['H2']['lcoh_$_kwh'] = {h2_scenario:lcoh_kwh}
 H2_LHV_MJ_kg = engin['H2']['H2_LHV_MJ_kg']
 lcoh_kg = list(np.multiply(lcoh_kwh,H2_LHV_MJ_kg/3600*1000))
 finance['H2']['lcoh_$_kg'] = lcoh_kg
+finance['MeOH']['VOM_H2_$_kgH2'] = {MeOH_scenario:lcoh_kg}
 
 
 ## Calculate MeOH production cost
 
+H2_kg_yr = engin['MeOH']['H2_kg_yr_in'][MeOH_scenario]
+MeOH_LHV_MJ_kg = engin['MeOH']['MeOH_LHV_MJ_kg']
+H2_price_kg = finance['MeOH']['VOM_H2_$_kgH2'][MeOH_scenario]
+VOM_H2_yr = list(np.multiply(H2_price_kg,H2_kg_yr))
+finance['MeOH']['VOM_H2_$_yr'] = {MeOH_scenario:VOM_H2_yr}
+output_kw = engin['MeOH']['output_kw'][MeOH_scenario]
+mwh_yr = output_kw*8.76
+VOM_H2_mwh = [i/mwh_yr for i in VOM_H2_yr]
+finance['MeOH']['VOM_H2_$_mwh'] = {MeOH_scenario:VOM_H2_mwh}
 sim_years = scenario_info['sim_years']
 VOM_comps = ['VOM_CO2_$_mwh',
             'VOM_H2_$_mwh']
@@ -167,7 +180,7 @@ for i, year in enumerate(sim_years):
             VOM_mwh += finance[plant][VOM_comp]
     year_VOM = copy.copy(VOM_mwh)
     finance[plant]['VOM_$_mwh'][MeOH_scenario].append(year_VOM)
-    finance[plant]['VOM_$_yr'][MeOH_scenario].append(year_VOM*mwh_yr[i])
+    finance[plant]['VOM_$_yr'][MeOH_scenario].append(year_VOM*mwh_yr)
 OCC_kw = finance['MeOH']['OCC_$_kw'][MeOH_scenario]
 FOM_kwyr = finance['MeOH']['FOM_$_kwyr'][MeOH_scenario]
 VOM_mwh = finance['MeOH']['VOM_$_mwh'][MeOH_scenario]
@@ -175,7 +188,6 @@ discount_rate = finance['MeOH']['discount_rate']
 TASC_multiplier = finance['MeOH']['TASC_multiplier']
 lcom_kwh = calc_lcoe(OCC_kw,FOM_kwyr,VOM_mwh,TASC_multiplier,discount_rate)
 finance['MeOH']['lcom_$_kwh'] = {MeOH_scenario:lcom_kwh}
-MeOH_LHV_MJ_kg = engin['MeOH']['MeOH_LHV_MJ_kg']
 lcom_kg = list(np.multiply(lcom_kwh,MeOH_LHV_MJ_kg/3600*1000))
 finance['MeOH']['lcom_$_kg'] = lcom_kg
 

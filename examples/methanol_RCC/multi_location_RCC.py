@@ -320,7 +320,7 @@ if __name__ == '__main__':
         locations[site_name]['pv_output_kw'] = [[]*len(desired_lats)]
         locations[site_name]['wind_output_kw'] = [[]*len(desired_lats)]
 
-        for year_idx, sim_year in enumerate(sim_years[3:]):
+        for year_idx, sim_year in enumerate(sim_years):
         
             # Load wind and solar resource files for location nearest desired lats and lons
             # NB this resource information will be overriden by API retrieved data if load_resource_from_file is set to False
@@ -474,12 +474,12 @@ if __name__ == '__main__':
             if not os.path.exists(year_results_dir/'kWsell'):
                 os.mkdir(year_results_dir/'kWsell')
 
-            # Run hybrid calculation for all sites
-            tic = time.time()
-            run_all_hybrid_calcs(site_name, site_details, technologies_lol, costs,
-                                    year_results_dir, plant_size_pcts, wind_pcts)
-            toc = time.time()
-            print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
+            # # Run hybrid calculation for all sites
+            # tic = time.time()
+            # run_all_hybrid_calcs(site_name, site_details, technologies_lol, costs,
+            #                         year_results_dir, plant_size_pcts, wind_pcts)
+            # toc = time.time()
+            # print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
             
             for site_num in site_nums:
             
