@@ -74,18 +74,23 @@ def run_hopp_calc(site, sim_tech, technologies, sim_cost, on_land, sim_power):
     # Modify pvwatts model to reflect ATB technology
     pv_factors = sim_power['PV']
     for factor, value in pv_factors.items():
-        getattr(hybrid_plant.pv._system_model,factor,value)
+        # Some factors have to be iterables even if constant - dumb!
+        if factor in ['albedo','dc_degradation']:
+            value = (value,)
+        hybrid_plant.pv._system_model.value(factor,value)
+    
 
     # Modify windpower model to reflect ATB technology
     wind_factors = sim_power['wind']
     for factor, value in wind_factors.items():
-        getattr(hybrid_plant.wind._system_model,factor,value)
-    hybrid_plant.wind._system_model.Turbine.calculate_powercurve()
-    x = hybrid_plant.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds
-    y = hybrid_plant.wind._system_model.Turbine.wind_turbine_powercurve_powerout
-    plt.clf()
-    plt.plot(x,y)
-    plt.show()
+        hybrid_plant.wind._system_model.value(factor,value)
+    
+    # # Check wind power curve
+    # x = hybrid_plant.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds
+    # y = hybrid_plant.wind._system_model.Turbine.wind_turbine_powercurve_powerout
+    # plt.clf()
+    # plt.plot(x,y)
+    # plt.show()
 
     # Simulate lifetime
     hybrid_plant.simulate_power()
@@ -93,6 +98,12 @@ def run_hopp_calc(site, sim_tech, technologies, sim_cost, on_land, sim_power):
     pv_kw = list(hybrid_plant.generation_profile.pv[0:8760])
     gen_kw = list(hybrid_plant.generation_profile.hybrid[0:8760])
     
+    # # Check solar power curve
+    # pv_poa = list(hybrid_plant.pv._system_model.Outputs.poa[0:8760])
+    # plt.clf()
+    # plt.plot(pv_poa,pv_kw,'.')
+    # plt.show()
+                  
     # Calculate lcoe before grid exchange for H2
     pv_toc_kwyr = sim_cost['pv']['total_annual_cost_kw']
     wind_toc_kwyr = sim_cost['wind']['total_annual_cost_kw']
@@ -195,13 +206,15 @@ def run_hybrid_calc_bruteforce(site_name, year, site_num, res_fn_wind, res_fn_so
     sim_power.pop('OSW')
 
     # Establish site location
-    Site = sample_site  # sample_site has been loaded from flatirons_site to provide sample site boundary information
+    Site = {}
     Site['lat'] = lat
     Site['lon'] = lon
-    Site['site_num'] = site_num
-    Site['resource_filename_solar'] = res_fn_solar
-    Site['resource_filename_wind'] = res_fn_wind
     Site['year'] = year
+    # For site area: square with sides = sqrt of number of turbines times rotor diameter times ten
+    d = sim_tech['wind']['rotor_diameter']
+    n = sim_tech['wind']['num_turbines']
+    side = 10*d*n**.5
+    Site['site_boundaries'] = {'verts':[[0,0],[0,side],[side,side],[side,0]]}
 
     # Get the Timezone offset value based on the lat/lon of the site
     try:
@@ -217,8 +230,8 @@ def run_hybrid_calc_bruteforce(site_name, year, site_num, res_fn_wind, res_fn_so
     
     # Create site, downloading resource files if needed
     Site = SiteInfo(Site, hub_height=sim_tech['wind']['hub_height'],
-                    solar_resource_file=Site['resource_filename_solar'],
-                    wind_resource_file=Site['resource_filename_wind'])
+                    solar_resource_file=res_fn_solar,
+                    wind_resource_file=res_fn_wind)
 
     # Run HOPP calculation
     hopp_outputs, res_fn_wind, res_fn_solar = run_hopp_calc(Site, sim_tech, technologies, sim_cost, on_land, sim_power)
@@ -281,19 +294,19 @@ def run_all_hybrid_calcs(site_name, site_details, technologies_lol, costs, resul
                     all_args.append(all_arg)
         
 
-    # # Run a multi-threaded analysis
-    # with multiprocessing.Pool(9) as p:
-    #     if optimize:
-    #         p.starmap(run_hybrid_calc_optimize, all_args)
-    #     else:
-    #         p.starmap(run_hybrid_calc_bruteforce, all_args)
-
-    # Run a single-threaded analysis
-    for all_arg in all_args:
+    # Run a multi-threaded analysis
+    with multiprocessing.Pool(9) as p:
         if optimize:
-            run_hybrid_calc_optimize(*all_args)
+            p.starmap(run_hybrid_calc_optimize, all_args)
         else:
-            run_hybrid_calc_bruteforce(*all_arg)
+            p.starmap(run_hybrid_calc_bruteforce, all_args)
+
+    # # Run a single-threaded analysis
+    # for all_arg in all_args:
+    #     if optimize:
+    #         run_hybrid_calc_optimize(*all_args)
+    #     else:
+    #         run_hybrid_calc_bruteforce(*all_arg)
 
 
 if __name__ == '__main__':
@@ -324,9 +337,9 @@ if __name__ == '__main__':
     # Set Analysis Location and Details
     resource_year = 2013
     sim_years = scenario_info['sim_years']
-    plant_size_pcts = [60]#np.arange(60,150,10)
-    wind_pcts = [40]#np.arange(10,100,10)
-    site_name_list = list(locations.keys())[:1]
+    plant_size_pcts = np.arange(60,160,20)
+    wind_pcts = np.arange(10,110,20)
+    site_name_list = list(locations.keys())
     sites_per_location = 1
     
     for site_name in site_name_list:
@@ -340,7 +353,9 @@ if __name__ == '__main__':
         locations[site_name]['pv_output_kw'] = [[]*len(desired_lats)]
         locations[site_name]['wind_output_kw'] = [[]*len(desired_lats)]
 
-        for year_idx, sim_year in enumerate(sim_years):
+        for sim_year in sim_years:
+
+            year_idx = scenario_info['sim_years'].index(sim_year)
         
             # Load wind and solar resource files for location nearest desired lats and lons
             # NB this resource information will be overriden by API retrieved data if load_resource_from_file is set to False
@@ -402,7 +417,10 @@ if __name__ == '__main__':
                 power_factors[tech] = {}
                 for factor in factor_list:
                     scenario = scenario_info['plant_scenarios'][tech]
-                    power_factors[tech][factor] = engin[tech][factor][scenario]
+                    power_factor = engin[tech][factor][scenario]
+                    if type(power_factor) is list:
+                        power_factor = power_factor[year_idx]
+                    power_factors[tech][factor] = power_factor
                     
 
             if site_details['on_land'][0] == 'false':
@@ -421,6 +439,7 @@ if __name__ == '__main__':
                     osw_size_kw = osw_input_kw/osw_cap
                     lbw_size_kw = lbw_input_kw/lbw_cap
                     pv_size_kw = pv_input_kw/pv_cap
+                    pv_dc_size_kw = pv_size_kw*power_factors['PV']['dc_ac_ratio']
 
                     iconn_kw = [osw_size_kw,pv_size_kw+lbw_size_kw]
 
@@ -433,7 +452,7 @@ if __name__ == '__main__':
                     osw_rotor_diameter = engin['OSW']['rotor_diameter'][osw_scenario][year_idx]
 
                     technologies = {'pv': {
-                                        'system_capacity_kw': pv_size_kw,
+                                        'system_capacity_kw': pv_dc_size_kw,
                                     },
                                     'lbw': {
                                         'num_turbines': round(lbw_size_kw/lbw_turb_rating_kw),
