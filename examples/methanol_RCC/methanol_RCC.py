@@ -65,7 +65,6 @@ TASC_multiplier = 1.093 # total overnight cost * TASC multiplier = total as-spen
 # Commodity prices
 NG_price_mmbtu = 4.56 # 2020 $/MMBTU TODO: make variable NG price scenarios
 H2O_price_tgal = 2.56 # 2020 $/Tgal TODO: make variable water price scenarios
-PPA_price_kwh = 0.04 # 2020 $/kwh TODO: make variable PPA price scenarios
 
 # Locations
 select_locations = False # TODO: Switch to True to only analyze locations listed below
@@ -93,8 +92,8 @@ LCOH_kg = 0.02 # $/kg
 atb_scenarios = ['Advanced','Moderate','Conservative']
 H2A_scenarios = ['Current','Future']
 MeOH_scenarios = ['Baseline CO2 Capture'] # TBA: 'NREL CO2 Capture', 'NREL Flue Gas'
-plant_scenarios =  {'NGCC':'Conservative',
-                    'CCS': 'Conservative',
+plant_scenarios =  {'NGCC':'Advanced',
+                    'CCS': 'Advanced',
                     'PV':  'Advanced',
                     'LBW': 'Advanced',
                     'OSW': 'Advanced',

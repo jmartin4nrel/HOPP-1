@@ -347,6 +347,7 @@ if __name__ == '__main__':
         desired_lats = locations[site_name]['lat'][:sites_per_location]
         desired_lons = locations[site_name]['lon'][:sites_per_location]
         
+        locations[site_name]['orig_lcoe_$_kwh'] = [[]*len(desired_lats)]
         locations[site_name]['lcoe_$_kwh'] = [[]*len(desired_lats)]
         locations[site_name]['pv_capacity_kw'] = [[]*len(desired_lats)]
         locations[site_name]['wind_capacity_kw'] = [[]*len(desired_lats)]
@@ -532,12 +533,12 @@ if __name__ == '__main__':
             if not os.path.exists(year_results_dir/'kWsell'):
                 os.mkdir(year_results_dir/'kWsell')
 
-            # Run hybrid calculation for all sites
-            tic = time.time()
-            run_all_hybrid_calcs(site_name, site_details, technologies_lol, costs,
-                                    year_results_dir, plant_size_pcts, wind_pcts, power_factors)
-            toc = time.time()
-            print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
+            # # Run hybrid calculation for all sites
+            # tic = time.time()
+            # run_all_hybrid_calcs(site_name, site_details, technologies_lol, costs,
+            #                         year_results_dir, plant_size_pcts, wind_pcts, power_factors)
+            # toc = time.time()
+            # print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
             
             for site_num in site_nums:
             
@@ -564,6 +565,7 @@ if __name__ == '__main__':
                             lbw_size_kw = lbw_input_kw/lbw_cap
                             pv_size_kw = pv_input_kw/pv_cap
 
+                            orig_lcoe = float(np.loadtxt(year_results_dir/'OrigLCOE'/fn))
                             pv_output = float(np.loadtxt(year_results_dir/'kWPV'/fn))
                             wind_output = float(np.loadtxt(year_results_dir/'kWwind'/fn))
 
@@ -575,6 +577,7 @@ if __name__ == '__main__':
                                 opt_wind = copy.copy(lbw_size_kw)
 
                 locations[site_name]['lcoe_$_kwh'][site_num-1].append(min_lcoe)
+                locations[site_name]['orig_lcoe_$_kwh'][site_num-1].append(orig_lcoe)
                 locations[site_name]['pv_capacity_kw'][site_num-1].append(opt_pv)
                 locations[site_name]['pv_output_kw'][site_num-1].append(pv_output)
                 locations[site_name]['wind_capacity_kw'][site_num-1].append(opt_wind)

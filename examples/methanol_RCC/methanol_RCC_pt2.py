@@ -2,6 +2,7 @@ import json
 import copy
 import numpy as np
 from pathlib import Path
+import matplotlib.pyplot as plt
 
 def calc_lcoe(OCC_kw, FOM_kwyr, VOM_mwh, TASC_multiplier, discount_rate):
     
@@ -69,6 +70,7 @@ else:
 
 ## Set the H2 variable costs using electricity cost
 
+orig_lcoe_kwh = location['orig_lcoe_$_kwh']
 lcoe_kwh = location['lcoe_$_kwh']
 h2_scenario = plant_scenarios['H2']
 kw_in = engin['H2']['elec_in_kw'][h2_scenario]
@@ -255,4 +257,46 @@ for plant in plants_to_check:
                                                                     param,
                                                                     scenario))
 
-##
+
+
+labels = ['NGCC w/o carbon capture',
+        'NGCC with carbon capture',
+        'Wind/solar w/o grid exchange',
+        'Wind/solar with grid exchange']
+
+lcoe_kwh = location['lcoe_$_kwh']
+plots = [lcoe_ngcc,lcoe_ccs,orig_lcoe_kwh,lcoe_kwh]
+
+plt.subplot(1,2,1)
+for i, label in enumerate(labels):
+    plt.plot(sim_years,plots[i],label=label)
+plt.legend()
+plt.xlabel('Year')
+plt.ylabel('Levelized Cost [2020 $/kWh]')
+plt.title('Electricity')
+
+labels = ['CO2 captured from NGCC plant',
+          'H2 produced from electrolyzer',
+          'Methanol produced by Nyari et al. plant']
+
+
+mass_ratio_CO2_MeOH = 1.397 # kg CO2 in needed per kg of MeOH produced
+mass_ratio_H2_MeOH = 0.199 # kg H2 in needed per kg of MeOH produced
+lcoh_kg = [i*mass_ratio_H2_MeOH for i in lcoh_kg]
+CO2_price_kg = [i*mass_ratio_CO2_MeOH for i in CO2_price_kg]
+
+plots = [CO2_price_kg,lcoh_kg,lcom_kg]
+
+
+
+plt.subplot(1,2,2)
+for i, label in enumerate(labels):
+    plt.plot(sim_years,plots[i],label=label)
+plt.legend()
+plt.xlabel('Year')
+plt.ylabel('Levelized Cost [2020 $/kg of Methanol]')
+plt.title('Materials - PER UNIT METHANOL')
+          
+
+plt.gcf().set_tight_layout(True)
+plt.show()
