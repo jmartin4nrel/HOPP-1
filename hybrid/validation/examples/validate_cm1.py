@@ -42,4 +42,4 @@ years = [2011]
 # Whether to plot results
 plot_val = True
 
-overshoots = validate_asset(asset_path, config, manual_fn, limits, run_id, years, plot_val, overwrite=True)
+overshoots = validate_asset(asset_path, config, manual_fn, limits, run_id, years, plot_val)

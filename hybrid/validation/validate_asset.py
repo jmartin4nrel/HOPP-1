@@ -152,11 +152,15 @@ def validate_asset(asset_path, config, manual_fn, limits,
         for tech in os.listdir(gen_path):
             # Find generation data and parse into format needed
             gen_subpath = gen_path/tech
+            parse_tech = getattr(parse_generation_data, 'parse_{}'.format(tech))
             # Check if generation data is split into subconfigurations
             if subconfig in os.listdir(gen_subpath):
-                gen_subpath = gen_subpath/subconfig
-            parse_tech = getattr(parse_generation_data, 'parse_{}'.format(tech))
-            gen_fps[tech] = parse_tech(gen_subpath, years, overwrite=True)
+                for subconfig in hybrid_subconfigs:
+                    gen_fps[subconfig] = {}
+                    gen_subpath = gen_path/tech/subconfig
+                    gen_fps[subconfig][tech] = parse_tech(gen_subpath, years)    
+            else:
+                gen_fps[tech] = parse_tech(gen_subpath, years)
                 
         
         # # Generate full time series, minus any leap days
@@ -182,14 +186,14 @@ def validate_asset(asset_path, config, manual_fn, limits,
                 # Pull hybrid plant out of dict
                 hybrid = hybrids[subconfig][year]
                 
-                # Have to change pressure to sea level!
-                if 'wind' in hybrid.power_sources.keys():
-                    hub_ht = int(hybrid.wind._system_model.Turbine.wind_turbine_hub_ht)
-                    NewWindRes = WindResource(hybrid.site.lat,hybrid.site.lon,year,hub_ht,
-                                              path_resource=hopp_res_path,filepath=res_fps['wind'][year])
-                    for j in range(len(NewWindRes.data['data'])):
-                        NewWindRes.data['data'][j][1] = 1
-                    hybrid.wind._system_model.Resource.wind_resource_data = NewWindRes.data
+                # # Have to change pressure to sea level if using Flatirons power curve!
+                # if 'wind' in hybrid.power_sources.keys():
+                #     hub_ht = int(hybrid.wind._system_model.Turbine.wind_turbine_hub_ht)
+                #     NewWindRes = WindResource(hybrid.site.lat,hybrid.site.lon,year,hub_ht,
+                #                               path_resource=hopp_res_path,filepath=res_fps['wind'][year])
+                #     for j in range(len(NewWindRes.data['data'])):
+                #         NewWindRes.data['data'][j][1] = 1
+                #     hybrid.wind._system_model.Resource.wind_resource_data = NewWindRes.data
                 
                 # Simulate power for 1 year
                 hybrid.simulate_power(1)
@@ -222,7 +226,10 @@ def validate_asset(asset_path, config, manual_fn, limits,
                 
                 # Load actual generation data
                 for tech in techs:
-                    gen_df = pd.read_csv(gen_fps[tech][year])
+                    if subconfig in list(gen_fps.keys()):
+                        gen_df = pd.read_csv(gen_fps[subconfig][tech][year])
+                    else:    
+                        gen_df = pd.read_csv(gen_fps[tech][year])
                     gen_act_kw = gen_df['P [kW]'].values
                     gen_act_kw = [np.max([i,0]) for i in gen_act_kw]
                     gen_act_ds = pd.Series(gen_act_kw, year_hours, name=tech+'_gen_act_kw')
@@ -288,6 +295,7 @@ def validate_asset(asset_path, config, manual_fn, limits,
                 plt.subplot(num_subconfigs,num_techs,subplot_num)
                 
                 good_idxs = tech_limit_idxs['all']
+                sim_df = sim_results[subconfig]
                 good_gen_sim = sim_df.loc[:,tech+'_gen_sim_kw'].values[good_idxs]
                 good_gen_act = sim_df.loc[:,tech+'_gen_act_kw'].values[good_idxs]
                 plt.plot(good_gen_act,good_gen_sim,'.')

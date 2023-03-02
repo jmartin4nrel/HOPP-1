@@ -36,22 +36,43 @@ def parse_wind(gen_path, years, overwrite=False):
                     if month_fn_sfx in file:
                         month_fn = file
                 if month_fn in raw_files:
-                    print('Processing {} generation data...'.format(month_str))
-                    month_df = pd.read_csv(gen_path/month_fn, skiprows=2, header=None, index_col=0)
-                    month_end_str = str(months[i]+pd.tseries.offsets.MonthEnd(0))
-                    mins = pd.date_range(month_str, end=month_end_str+' 23:59', freq='m')
+                    print('Processing {} generation data...'.format(month_fn))
+                    month_df = pd.read_csv(gen_path/month_fn, skiprows=2, header=None,
+                                           index_col=0, low_memory=False)
+                    month_stop = months[i]+pd.tseries.offsets.MonthEnd(0)\
+                                        +pd.tseries.offsets.Day(1)\
+                                        -pd.tseries.offsets.Minute(1)
+                    mins = pd.date_range(months[i], end=month_stop, freq='min')
+
+                    # If starting or ending months, pad with zeros
+                    if month_str == '2011May':
+                        zero_len = len(mins)-month_df.shape[0]
+                        zero_pad = pd.DataFrame(np.zeros((zero_len,month_df.shape[1])),
+                                                index=mins[:zero_len],columns=month_df.columns)
+                        month_df = pd.concat((zero_pad,month_df))
+                    elif month_str == '2012Jan':
+                        zero_len = len(mins)-month_df.shape[0]
+                        zero_pad = pd.DataFrame(np.zeros((zero_len,month_df.shape[1])),
+                                                index=mins[-zero_len:],columns=month_df.columns)
+                        month_df = pd.concat((month_df,zero_pad))
                     
                     # Check for daylight savings time and adjust seconds index
                     month_start = pd.Timestamp(mins[0], tz=mdt)
                     month_end = pd.Timestamp(mins[-1], tz=mdt)
                     if bool(month_start.dst()):
                         if not bool(month_end.dst()):
-                            month_end_str = str(months[i]+pd.tseries.offsets.MonthEnd(0)+pd.tseries.offsets.Hour(1))
-                            mins = pd.date_range(month_str, end=month_end_str+' 23:59', freq='m')
+                            month_stop = months[i]+pd.tseries.offsets.MonthEnd(0)\
+                                                +pd.tseries.offsets.Day(1)\
+                                                +pd.tseries.offsets.Hour(1)\
+                                                -pd.tseries.offsets.Minute(1)
+                            mins = pd.date_range(months[i], end=month_stop, freq='min')
                         mins = mins.shift(-60)
                     elif bool(month_end.dst()):
-                        month_end_str = str(months[i]+pd.tseries.offsets.MonthEnd(0)-pd.tseries.offsets.Hour(1))
-                        mins = pd.date_range(month_str, end=month_end_str+' 23:59', freq='m')
+                        month_stop = months[i]+pd.tseries.offsets.MonthEnd(0)\
+                                            +pd.tseries.offsets.Day(1)\
+                                            -pd.tseries.offsets.Hour(1)\
+                                            -pd.tseries.offsets.Minute(1)
+                        mins = pd.date_range(months[i], end=month_stop, freq='min')
                     mins = mins.shift(1) # Move time index 1 min forward for convenient resampling
                     month_df.index = mins
                     #print('Started {}, ended {}'.format(secs[0],secs[-1]))
