@@ -27,6 +27,7 @@ def validate_asset(asset_path, config, manual_fn, limits,
     gen_path = asset_path/'generation'
     cd = Path(__file__).parent.absolute()
     out_path = cd/'results'/'validate_asset'
+    hopp_res_path = cd/'..'/'..'/'resource_files'
     
     # Check if asset configuration has been validated with this run_id
     asset = asset_path.parts[-1]
@@ -151,8 +152,11 @@ def validate_asset(asset_path, config, manual_fn, limits,
         for tech in os.listdir(gen_path):
             # Find generation data and parse into format needed
             gen_subpath = gen_path/tech
+            # Check if generation data is split into subconfigurations
+            if subconfig in os.listdir(gen_subpath):
+                gen_subpath = gen_subpath/subconfig
             parse_tech = getattr(parse_generation_data, 'parse_{}'.format(tech))
-            gen_fps[tech] = parse_tech(gen_subpath, years)
+            gen_fps[tech] = parse_tech(gen_subpath, years, overwrite=True)
                 
         
         # # Generate full time series, minus any leap days
@@ -179,11 +183,13 @@ def validate_asset(asset_path, config, manual_fn, limits,
                 hybrid = hybrids[subconfig][year]
                 
                 # Have to change pressure to sea level!
-                hub_ht = hybrid.wind._system_model.Turbine.wind_turbine_hub_ht
-                NewWindRes = WindResource(hybrid.site.lat,hybrid.site.lon,year,hub_ht,filepath=res_fps['wind'][year])
-                for j in range(len(NewWindRes.data['data'])):
-                    NewWindRes.data['data'][j][1] = 1
-                hybrid.wind._system_model.Resource.wind_resource_data = NewWindRes.data
+                if 'wind' in hybrid.power_sources.keys():
+                    hub_ht = int(hybrid.wind._system_model.Turbine.wind_turbine_hub_ht)
+                    NewWindRes = WindResource(hybrid.site.lat,hybrid.site.lon,year,hub_ht,
+                                              path_resource=hopp_res_path,filepath=res_fps['wind'][year])
+                    for j in range(len(NewWindRes.data['data'])):
+                        NewWindRes.data['data'][j][1] = 1
+                    hybrid.wind._system_model.Resource.wind_resource_data = NewWindRes.data
                 
                 # Simulate power for 1 year
                 hybrid.simulate_power(1)

@@ -4,19 +4,9 @@ import numpy as np
 import pandas as pd
 from scipy.stats import circmean
 
-def parse_status_dummy(sts_path, good_period_file, years):
-
-    #Dummy function leading to already-generated files
-
-    good_period_fp = sts_path/'hybrid'/good_period_file
-    status_fp = sts_path/'wind'/'GE15_IEC_validity_hourly_2019_2022'
-    yaw_mismatch_fp = sts_path/'wind'/'GE Turbine Yaw Dec 2019 to 2022 mismatch'
-
-    return good_period_fp, status_fp, yaw_mismatch_fp
-
 def parse_status_pv_manual(sts_subpath, manual_fn, years, overwrite=False):
 
-    #Process manually-selected periods where wind turbine data is 'good'
+    #Process manually-selected periods where pv array data is 'good'
     
     files = os.listdir(sts_subpath)
     new_fn = manual_fn[:-4]+'_{}_to_{}'.format(years[0],years[-1])
