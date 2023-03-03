@@ -186,14 +186,15 @@ def validate_asset(asset_path, config, manual_fn, limits,
                 # Pull hybrid plant out of dict
                 hybrid = hybrids[subconfig][year]
                 
-                # # Have to change pressure to sea level if using Flatirons power curve!
-                # if 'wind' in hybrid.power_sources.keys():
-                #     hub_ht = int(hybrid.wind._system_model.Turbine.wind_turbine_hub_ht)
-                #     NewWindRes = WindResource(hybrid.site.lat,hybrid.site.lon,year,hub_ht,
-                #                               path_resource=hopp_res_path,filepath=res_fps['wind'][year])
-                #     for j in range(len(NewWindRes.data['data'])):
-                #         NewWindRes.data['data'][j][1] = 1
-                #     hybrid.wind._system_model.Resource.wind_resource_data = NewWindRes.data
+                # Have to change pressure to sea level if using Flatirons power curve!
+                if 'wind' in hybrid.power_sources.keys():
+                    if 'Flatirons' in sys_info[subconfig]['cons']['wind']['turbine model']:
+                        hub_ht = int(hybrid.wind._system_model.Turbine.wind_turbine_hub_ht)
+                        NewWindRes = WindResource(hybrid.site.lat,hybrid.site.lon,year,hub_ht,
+                                                path_resource=hopp_res_path,filepath=res_fps['wind'][year])
+                        for j in range(len(NewWindRes.data['data'])):
+                            NewWindRes.data['data'][j][1] = 1
+                        hybrid.wind._system_model.Resource.wind_resource_data = NewWindRes.data
                 
                 # Simulate power for 1 year
                 hybrid.simulate_power(1)
@@ -285,7 +286,8 @@ def validate_asset(asset_path, config, manual_fn, limits,
             overshoots[subconfig][tech] = pct_mismatch
 
     if plot_val:
-            
+
+        # Plot simulated vs. actual generation, scatterplot    
         subplot_num = 0
         num_subconfigs = len(overshoots.keys())
         num_techs = len(overshoots[subconfig].keys())
@@ -306,6 +308,48 @@ def validate_asset(asset_path, config, manual_fn, limits,
                 plt.legend()
 
         plt.show()
+
+        # Plot simulated vs. actual generation, timeseries  
+        subplot_num = 0
+        for subconfig, config_limit_idxs in limit_idxs.items():
+            for tech, tech_limit_idxs in config_limit_idxs.items():
+                subplot_num += 1
+                plt.subplot(num_subconfigs,num_techs,subplot_num)
+                
+                good_idxs = tech_limit_idxs['all']
+                sim_df = sim_results[subconfig]
+                times = sim_df.loc[:,tech+'_gen_sim_kw'].index[good_idxs]
+                good_gen_sim = sim_df.loc[:,tech+'_gen_sim_kw'].values[good_idxs]
+                good_gen_act = sim_df.loc[:,tech+'_gen_act_kw'].values[good_idxs]
+                plt.plot(times,good_gen_act,'-',label='Actual '+tech)
+                plt.plot(times,good_gen_sim,'-',label='Simulated '+tech)
+                plt.ylabel('[kW]')
+                plt.legend()
+
+        plt.show()
+
+        # Plot power curves
+        subplot_num = 0
+        tech_res = {'pv':'poa_w_m2','wind':'speed_m_s'}
+        for subconfig, config_limit_idxs in limit_idxs.items():
+            for tech, tech_limit_idxs in config_limit_idxs.items():
+                if tech in list(tech_res.keys()):
+                    subplot_num += 1
+                    plt.subplot(num_subconfigs,num_techs,subplot_num)
+                    
+                    good_idxs = tech_limit_idxs['all']
+                    sim_df = sim_results[subconfig]
+                    res = sim_df.loc[:,tech+'_'+tech_res[tech]].values[good_idxs]
+                    good_gen_sim = sim_df.loc[:,tech+'_gen_sim_kw'].values[good_idxs]
+                    good_gen_act = sim_df.loc[:,tech+'_gen_act_kw'].values[good_idxs]
+                    plt.plot(res,good_gen_act,'.',label='Actual '+tech)
+                    plt.plot(res,good_gen_sim,'.',label='Simulated '+tech)
+                    plt.xlabel(tech_res[tech])
+                    plt.ylabel(tech+' [kW]')
+                    plt.legend()
+
+        if subplot_num > 0:
+            plt.show()
 
         # # Generate power curves
         # good_wind_speed = [wind_speed_all[i] for i in good_wind_inds_all]

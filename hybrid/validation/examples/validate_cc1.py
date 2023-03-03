@@ -24,7 +24,7 @@ config = 'cc1' # = GE turbine + FS (FirstSolar) PV array, no battery
 # Manual status files - <asset>/status/wind/manual/Wind_Periods_<manual_fn>
 #                   and <asset>/status/pv/manual/PV_Periods_<manual_fn>
 # made from <asset>/status/hybrid/XXX_Periods_<manual_fn> using csv_splitter.py
-manual_fn = 'Uncleaned.csv'
+manual_fn = 'Cleaned.csv'
 
 # Limits - if single value, must match exactly; if 2-item list, [min, max]
 # (Makes circular limits for degrees, e.g. [350, 10] will only be 20 deg window)
@@ -34,12 +34,12 @@ limits = {'wind':   {'manual':      True,
                      'gen_act_kw':  [0,     350000]}}
 
 # Run ID - change to overwrite previous sim results, leave the same to reload
-run_id = 0
+run_id = 3
 
 # Years of data to validate over
-years = [2011,2012]
+years = [2011]
 
 # Whether to plot results
 plot_val = True
 
-overshoots = validate_asset(asset_path, config, manual_fn, limits, run_id, years, plot_val, overwrite=True)
+overshoots = validate_asset(asset_path, config, manual_fn, limits, run_id, years, plot_val)

@@ -42,7 +42,7 @@ limits = {  'pv':   {'manual':      True,
                      'gen_act_kw':  [0,     2000]}}
 
 # Run ID - change to overwrite previous sim results, leave the same to reload
-run_id = 0
+run_id = 1
 
 # Years of data to validate over
 years = [2019,2020,2021,2022]
@@ -50,4 +50,4 @@ years = [2019,2020,2021,2022]
 # Whether to plot results
 plot_val = True
 
-overshoots = validate_asset(asset_path, config, manual_fn, limits, run_id, years, plot_val)
+overshoots = validate_asset(asset_path, config, manual_fn, limits, run_id, years, plot_val, overwrite=True)
