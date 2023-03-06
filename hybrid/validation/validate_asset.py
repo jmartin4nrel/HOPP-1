@@ -287,6 +287,8 @@ def validate_asset(asset_path, config, manual_fn, limits,
 
     if plot_val:
 
+        plt.clf()
+        
         # Plot simulated vs. actual generation, scatterplot    
         subplot_num = 0
         num_subconfigs = len(overshoots.keys())
@@ -307,6 +309,7 @@ def validate_asset(asset_path, config, manual_fn, limits,
                 plt.ylabel('Simulated '+tech+' [kW]')
                 plt.legend()
 
+        plt.gcf().set_tight_layout(True)
         plt.show()
 
         # Plot simulated vs. actual generation, timeseries  
@@ -326,6 +329,7 @@ def validate_asset(asset_path, config, manual_fn, limits,
                 plt.ylabel('[kW]')
                 plt.legend()
 
+        plt.gcf().set_tight_layout(True)
         plt.show()
 
         # Plot power curves
@@ -349,6 +353,7 @@ def validate_asset(asset_path, config, manual_fn, limits,
                     plt.legend()
 
         if subplot_num > 0:
+            plt.gcf().set_tight_layout(True)
             plt.show()
 
         # # Generate power curves
