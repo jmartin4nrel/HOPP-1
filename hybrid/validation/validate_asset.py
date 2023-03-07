@@ -52,7 +52,7 @@ def validate_asset(asset_path, config, manual_fn, limits,
             if os.listdir(res_subpath)[0] == 'UNAVAILABLE':
                 res_fps[tech] = {i:'' for i in years}
             else:
-                res_fps[tech] = parse_tech(res_subpath, years)
+                res_fps[tech] = parse_tech(res_subpath, years, overwrite=True)
                 
         # Find # of "parts" needed to validate ("_pt_#_of_#" on end of config directory)
         hybrid_files = os.listdir(sys_path/'hybrid')
