@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 from pathlib import Path
 import importlib
 import json
@@ -37,8 +38,11 @@ def validate_asset(asset_path, config, manual_fn, limits,
         sim_results = pd.read_pickle(out_path/filename)
     else:
     
+        # Put asset path in system search path to import data parsing modules
+        sys.path.insert(0, str(asset_path))
+        
         # Import resource data
-        module = 'hybrid.validation.asset_data_parsing.{}.parse_resource_data'.format(asset)
+        module = 'parse_resource_data'
         parse_resource_data = importlib.import_module(module)
         res_fps = {}
         for tech in os.listdir(res_path):
@@ -128,7 +132,7 @@ def validate_asset(asset_path, config, manual_fn, limits,
                         getattr(hybrid_plant, tech).value(key, value)
 
         # Process status info
-        module = 'hybrid.validation.asset_data_parsing.{}.parse_status_info'.format(asset)
+        module = 'parse_status_info'
         parse_status_info = importlib.import_module(module)
         processed_status_fps = {}
         processed_status = {i:pd.DataFrame() for i in years}
@@ -146,7 +150,7 @@ def validate_asset(asset_path, config, manual_fn, limits,
                         processed_status[year] = processed_status[year].join(year_statuses[year], how='outer')
                                                                                 
         # Import generation data
-        module = 'hybrid.validation.asset_data_parsing.{}.parse_generation_data'.format(asset)
+        module = 'parse_generation_data'
         parse_generation_data = importlib.import_module(module)
         gen_fps = {}
         for tech in os.listdir(gen_path):
@@ -300,10 +304,10 @@ def validate_asset(asset_path, config, manual_fn, limits,
                 
                 good_idxs = tech_limit_idxs['all']
                 sim_df = sim_results[subconfig]
-                good_gen_sim = sim_df.loc[:,tech+'_gen_sim_kw'].values[good_idxs]
-                good_gen_act = sim_df.loc[:,tech+'_gen_act_kw'].values[good_idxs]
+                good_gen_sim = sim_df[tech+'_gen_sim_kw'].values[good_idxs]
+                good_gen_act = sim_df[tech+'_gen_act_kw'].values[good_idxs]
                 plt.plot(good_gen_act,good_gen_sim,'.')
-                plt.plot([0,max(good_gen_act)],[0,max(good_gen_act)],'--',
+                plt.plot([0,np.max(good_gen_act)],[0,np.max(good_gen_act)],'--',
                          label='Overshoot = {:.2f}%'.format(overshoots[subconfig][tech]))
                 plt.xlabel('Actual '+tech+' [kW]')
                 plt.ylabel('Simulated '+tech+' [kW]')
@@ -321,9 +325,9 @@ def validate_asset(asset_path, config, manual_fn, limits,
                 
                 good_idxs = tech_limit_idxs['all']
                 sim_df = sim_results[subconfig]
-                times = sim_df.loc[:,tech+'_gen_sim_kw'].index[good_idxs]
-                good_gen_sim = sim_df.loc[:,tech+'_gen_sim_kw'].values[good_idxs]
-                good_gen_act = sim_df.loc[:,tech+'_gen_act_kw'].values[good_idxs]
+                times = np.array(sim_df[tech+'_gen_sim_kw'].index)[good_idxs]
+                good_gen_sim = sim_df[tech+'_gen_sim_kw'].values[good_idxs]
+                good_gen_act = sim_df[tech+'_gen_act_kw'].values[good_idxs]
                 plt.plot(times,good_gen_act,'-',label='Actual '+tech)
                 plt.plot(times,good_gen_sim,'-',label='Simulated '+tech)
                 plt.ylabel('[kW]')
