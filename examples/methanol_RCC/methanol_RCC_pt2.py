@@ -194,6 +194,114 @@ lcom_kg = list(np.multiply(lcom_kwh,MeOH_LHV_MJ_kg/3600*1000))
 finance['MeOH']['lcom_$_kg'] = lcom_kg
 
 
+# Import TRACI impact analysis results for individual plants
+import pandas as pd
+elec_rows = [0]
+elec_rows.extend(list(np.arange(28,37)))
+co2_rows = list(np.arange(0,28))
+co2_rows.extend(list(np.arange(31,37)))
+h2_rows = list(np.arange(0,31))
+h2_rows.extend(list(np.arange(34,37)))
+methanol_rows = list(np.arange(0,34))
+elec_lca_df = pd.read_csv(resource_dir/'LCA_Inputs.csv', index_col=0, skiprows=elec_rows)
+elec_lca_df = elec_lca_df.iloc[:,:7]
+co2_lca_df = pd.read_csv(resource_dir/'LCA_Inputs.csv', index_col=0, skiprows=co2_rows)
+co2_lca_df = co2_lca_df.iloc[:,:7]
+h2_lca_df = pd.read_csv(resource_dir/'LCA_Inputs.csv', index_col=0, skiprows=h2_rows)
+h2_lca_df = h2_lca_df.iloc[:,:7]
+methanol_lca_df = pd.read_csv(resource_dir/'LCA_Inputs.csv', index_col=0, skiprows=methanol_rows)
+methanol_lca_df = methanol_lca_df.iloc[:,:7]
+
+# Get impact factor units
+factor_names = ['Eutrophication Potential',
+                'Acidification Potential',
+                'Particulate Matter Formation Potential',
+                'Photochemical Smog Formation Potential',
+                'Global Warming Potential',
+                'Ozone Depletion Potential',
+                'Water Consumption']
+traci_factors = {}
+traci_units = elec_lca_df.columns.values
+for i, name in enumerate(factor_names):
+    traci_factors[name] = traci_units[i][:-4]
+
+# Interpolate grid LCA for site over 2020-2050 from 5 year intervals
+grid_lca = pd.DataFrame(np.zeros((31,7)),index=np.arange(2020,2051),columns=traci_units)
+five_yrs = np.arange(20,55,5)
+for five_yr in five_yrs:
+    df_index = site_name+str(five_yr)
+    grid_lca.loc[five_yr+2000] = elec_lca_df.loc[df_index]
+    if five_yr > 20:
+        for i, year in enumerate(np.arange(five_yr-4,five_yr)):
+            prev_lca = grid_lca.loc[five_yr-5+2000].values
+            next_lca = grid_lca.loc[five_yr+2000].values
+            year_lca = np.zeros(len(factor_names))
+            for j in range(len(factor_names)):
+                year_lca[j] = prev_lca[j] + (next_lca[j]-prev_lca[j])*(i+1)/5
+            grid_lca.loc[year+2000] = year_lca
+
+# Put lca prices in dict
+lca = {}
+elec_techs = ['NGCC','CCS','PV','LBW','OSW']
+for plant in elec_techs:
+    lca[plant] = {}
+    for unit in elec_lca_df.columns.values:
+        lca[plant][unit] = elec_lca_df.loc[plant,unit]
+    grid_lca_list = []
+    for year in sim_years:
+        grid_lca_list.append(grid_lca.loc[year])
+lca['Grid'] = {}
+for unit in elec_lca_df.columns.values:
+    lca['Grid'][unit] = grid_lca_list
+for plant in ['NGCC','CCS']:
+    for unit in co2_lca_df.columns.values:
+        lca[plant][unit] = co2_lca_df.loc[plant,unit]
+for plant in ['H2','H2NG']:
+    lca[plant] = {}
+    for unit in h2_lca_df.columns.values:
+        lca[plant][unit] = h2_lca_df.loc[plant,unit]
+lca['MeNG'] = {}
+for unit in methanol_lca_df.columns.values:
+    lca['MeNG'][unit] = methanol_lca_df.loc['MeNG',unit]
+
+
+# Calculate impact factors per unit methanol
+lca['CO2'] = {}
+lca['H2st'] = {}
+for unit in lca['MeNG'].keys():
+
+    MeOH_out = engin['MeOH']['MeOH_kg_yr'][MeOH_scenario]
+    
+    # CO2 production - impact added by CCS plant over NGCC plant (CCS captured CO2)
+    # OR zero impact (NGCC flue gas) - NGCC flue gas impact attributed to ELECTRICITY out to grid
+    CO2_in = engin['MeOH']['CO2_kg_yr_in'][MeOH_scenario]
+    if 'CO2 Capture' in MeOH_scenario:
+        CCS_CO2_kgMeOH = lca['CCS'][unit[:-4]+'CO2']*CO2_in/MeOH_out
+        NGCC_CO2_kgMeOH = lca['NGCC'][unit[:-4]+'CO2']*CO2_in/MeOH_out
+        lca['CCS'][unit] = CCS_CO2_kgMeOH-NGCC_CO2_kgMeOH
+        lca['CO2'][unit] = CCS_CO2_kgMeOH-NGCC_CO2_kgMeOH
+    else:
+        lca['NGCC'][unit] = 0
+        lca['CO2'][unit] = 0
+    
+    # H2 production - hybrid plant + grid electricity
+    H2_kg_in = engin['MeOH']['H2_kg_yr_in'][MeOH_scenario]
+    H2st_kgMeOH = lca['H2'][unit[:-4]+'H2']*H2_kg_in/MeOH_out
+    lca['H2st'][unit] = H2st_kgMeOH
+    pv_kw_out = locations[site_name]['pv_output_kw'][site_num-1]
+    wind_kw_out = locations[site_name]['pv_output_kw'][site_num-1]
+    wind_plant = 'LBW' if location['on_land'] else 'OSW'
+    for i, year in enumerate(sim_years):
+        pct_pv = 100*pv_kw_out[i]/(pv_kw_out[i]+wind_kw_out[i])
+        pct_wind = 100-pct_pv
+        H2_MWh_yr = location['electrolyzer_input_kw'][i]*8.76
+        pv_em_MWh = lca['PV'][unit[:-6]+'MWh']*pct_pv/100
+        wind_em_MWh = lca[wind_plant][unit[:-6]+'MWh']*pct_wind/100
+        hyb_em_MWh = pv_em_MWh+wind_em_MWh
+        grid_em_MWh = grid_lca.loc[year,unit[:-6]+'MWh']
+        sell_em_MWh = hyb_em_MWh-grid_em_MWh
+        buy_em_MWh = grid_em_MWh-hyb_em_MWh
+
 # Print prices per unit for ALL scenarios
 prices_to_check = ['OCC_$_kw','FOM_$_kwyr','VOM_$_mwh']
 plants_to_check = plant_scenarios.keys()

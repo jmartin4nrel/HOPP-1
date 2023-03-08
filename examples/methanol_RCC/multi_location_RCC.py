@@ -353,6 +353,9 @@ if __name__ == '__main__':
         locations[site_name]['wind_capacity_kw'] = [[]*len(desired_lats)]
         locations[site_name]['pv_output_kw'] = [[]*len(desired_lats)]
         locations[site_name]['wind_output_kw'] = [[]*len(desired_lats)]
+        locations[site_name]['electrolyzer_input_kw'] = [[]*len(desired_lats)]
+        locations[site_name]['grid_bought_kw'] = [[]*len(desired_lats)]
+        locations[site_name]['grid_sold_kw'] = [[]*len(desired_lats)]
 
         for sim_year in sim_years:
 
@@ -568,6 +571,9 @@ if __name__ == '__main__':
                             orig_lcoe = float(np.loadtxt(year_results_dir/'OrigLCOE'/fn))
                             pv_output = float(np.loadtxt(year_results_dir/'kWPV'/fn))
                             wind_output = float(np.loadtxt(year_results_dir/'kWwind'/fn))
+                            elec_input = float(np.loadtxt(year_results_dir/'kWH2'/fn))
+                            grid_bought = float(np.loadtxt(year_results_dir/'kWbuy'/fn))
+                            grid_sold = float(np.loadtxt(year_results_dir/'kWsell'/fn))
 
                             if locations[site_name]['on_land'][0] == 'false':
                                 opt_pv = 0
@@ -582,6 +588,9 @@ if __name__ == '__main__':
                 locations[site_name]['pv_output_kw'][site_num-1].append(pv_output)
                 locations[site_name]['wind_capacity_kw'][site_num-1].append(opt_wind)
                 locations[site_name]['wind_output_kw'][site_num-1].append(wind_output)
+                locations[site_name]['electrolyzer_input_kw'][site_num-1].append(elec_input)
+                locations[site_name]['grid_bought_kw'][site_num-1].append(grid_bought)
+                locations[site_name]['grid_sold_kw'][site_num-1].append(grid_sold)
 
 
     resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'
