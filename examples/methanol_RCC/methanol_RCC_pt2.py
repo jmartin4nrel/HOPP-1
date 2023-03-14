@@ -242,32 +242,33 @@ for five_yr in five_yrs:
 
 # Put lca prices in dict
 lca = {}
+lca['Grid'] = {}
 elec_techs = ['NGCC','CCS','PV','LBW','OSW']
 for plant in elec_techs:
     lca[plant] = {}
     for unit in elec_lca_df.columns.values:
         lca[plant][unit] = elec_lca_df.loc[plant,unit]
-    grid_lca_list = []
-    for year in sim_years:
-        grid_lca_list.append(grid_lca.loc[year])
-lca['Grid'] = {}
-for unit in elec_lca_df.columns.values:
-    lca['Grid'][unit] = grid_lca_list
+        grid_lca_list = []
+        for year in sim_years:
+            grid_lca_list.append(grid_lca.loc[year,unit])
+        lca['Grid'][unit] = grid_lca_list
 for plant in ['NGCC','CCS']:
     for unit in co2_lca_df.columns.values:
         lca[plant][unit] = co2_lca_df.loc[plant,unit]
-for plant in ['H2','H2NG']:
+for plant in ['H2St','H2NG']:
     lca[plant] = {}
     for unit in h2_lca_df.columns.values:
         lca[plant][unit] = h2_lca_df.loc[plant,unit]
-lca['MeNG'] = {}
-for unit in methanol_lca_df.columns.values:
-    lca['MeNG'][unit] = methanol_lca_df.loc['MeNG',unit]
+for plant in ['MeRe','MeNG']:
+    lca[plant] = {}
+    for unit in methanol_lca_df.columns.values:
+        lca[plant][unit] = methanol_lca_df.loc['MeNG',unit]
 
 
 # Calculate impact factors per unit methanol
 lca['CO2'] = {}
-lca['H2st'] = {}
+lca['H2'] = {}
+lca['MeOH'] = {}
 for unit in lca['MeNG'].keys():
 
     MeOH_out = engin['MeOH']['MeOH_kg_yr'][MeOH_scenario]
@@ -286,11 +287,14 @@ for unit in lca['MeNG'].keys():
     
     # H2 production - hybrid plant + grid electricity
     H2_kg_in = engin['MeOH']['H2_kg_yr_in'][MeOH_scenario]
-    H2st_kgMeOH = lca['H2'][unit[:-4]+'H2']*H2_kg_in/MeOH_out
-    lca['H2st'][unit] = H2st_kgMeOH
+    H2st_kgMeOH = lca['H2St'][unit[:-4]+'H2']*H2_kg_in/MeOH_out
+    lca['H2St'][unit] = H2st_kgMeOH
     pv_kw_out = locations[site_name]['pv_output_kw'][site_num-1]
-    wind_kw_out = locations[site_name]['pv_output_kw'][site_num-1]
+    wind_kw_out = locations[site_name]['wind_output_kw'][site_num-1]
     wind_plant = 'LBW' if location['on_land'] else 'OSW'
+    for plant in ['PV',wind_plant,'Grid','H2']:
+        lca[plant][unit[:-4]+'H2'] = []
+        lca[plant][unit] = []
     for i, year in enumerate(sim_years):
         pct_pv = 100*pv_kw_out[i]/(pv_kw_out[i]+wind_kw_out[i])
         pct_wind = 100-pct_pv
@@ -299,8 +303,28 @@ for unit in lca['MeNG'].keys():
         wind_em_MWh = lca[wind_plant][unit[:-6]+'MWh']*pct_wind/100
         hyb_em_MWh = pv_em_MWh+wind_em_MWh
         grid_em_MWh = grid_lca.loc[year,unit[:-6]+'MWh']
-        sell_em_MWh = hyb_em_MWh-grid_em_MWh
         buy_em_MWh = grid_em_MWh-hyb_em_MWh
+        sell_em_MWh = hyb_em_MWh-grid_em_MWh
+        grid_bought_MWh_yr = location['grid_bought_kw'][i]*8.76
+        grid_sold_MWh_yr = location['grid_sold_kw'][i]*8.76
+        buy_em_kg_yr = buy_em_MWh*grid_bought_MWh_yr
+        sell_em_kg_yr = sell_em_MWh*grid_sold_MWh_yr
+        elyzer_hyb_MWh_yr = H2_MWh_yr-grid_bought_MWh_yr
+        lca['PV'][unit[:-4]+'H2'].append(elyzer_hyb_MWh_yr*pct_pv/100*hyb_em_MWh/H2_kg_in)
+        lca[wind_plant][unit[:-4]+'H2'].append(elyzer_hyb_MWh_yr*pct_wind/100*hyb_em_MWh/H2_kg_in)
+        lca['Grid'][unit[:-4]+'H2'].append((buy_em_kg_yr+sell_em_kg_yr)/H2_kg_in)
+        lca['H2'][unit[:-4]+'H2'].append(lca['PV'][unit[:-4]+'H2'][i] + \
+                                         lca[wind_plant][unit[:-4]+'H2'][i] + \
+                                         lca['Grid'][unit[:-4]+'H2'][i] +
+                                         lca['H2St'][unit[:-4]+'H2'])
+        for plant in ['PV',wind_plant,'Grid','H2']:
+            lca[plant][unit].append(lca[plant][unit[:-4]+'H2'][i]*H2_kg_in/MeOH_out)
+
+    # Add together components of methanol lca: H2 in, CO2 in, and reactor
+    lca['MeOH'][unit] = []
+    for i, year in enumerate(sim_years):
+        lca['MeOH'][unit] = lca['CO2'][unit] + lca['H2'][unit] + lca['MeRe'][unit]
+
 
 # Print prices per unit for ALL scenarios
 prices_to_check = ['OCC_$_kw','FOM_$_kwyr','VOM_$_mwh']
@@ -375,7 +399,7 @@ labels = ['NGCC w/o carbon capture',
 lcoe_kwh = location['lcoe_$_kwh']
 plots = [lcoe_ngcc,lcoe_ccs,orig_lcoe_kwh,lcoe_kwh]
 
-plt.subplot(1,2,1)
+plt.subplot(2,2,1)
 for i, label in enumerate(labels):
     plt.plot(sim_years,plots[i],label=label)
 plt.legend()
@@ -397,7 +421,7 @@ plots = [CO2_price_kg,lcoh_kg,lcom_kg]
 
 
 
-plt.subplot(1,2,2)
+plt.subplot(2,2,2)
 for i, label in enumerate(labels):
     plt.plot(sim_years,plots[i],label=label)
 plt.legend()
@@ -406,5 +430,13 @@ plt.ylabel('Levelized Cost [2020 $/kg of Methanol]')
 plt.title('Materials - PER UNIT METHANOL')
           
 
+plt.subplot(2,2,4)
+plt.plot([sim_years[0],sim_years[-1]],[lca['MeNG']['kgCO2e_kgMeOH'],lca['MeNG']['kgCO2e_kgMeOH']],
+         label='Methanol from Natural Gas')
+plt.plot(sim_years,lca['MeOH']['kgCO2e_kgMeOH'],label='Methanol from NGCC-captured CO2 + Green Hydrogen')
+plt.xlabel('Year')
+plt.ylabel('kg CO2-equivalent / kg methanol')
+plt.title('PROVISIONAL LCA')
+plt.legend()
 plt.gcf().set_tight_layout(True)
 plt.show()

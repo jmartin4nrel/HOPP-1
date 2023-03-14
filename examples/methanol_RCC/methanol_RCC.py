@@ -59,7 +59,7 @@ sim_years = np.arange(sim_start_year,sim_end_year+1)
 # Financial constants
 sim_basis_year = 2020
 plant_lifespan = 30 # years
-discount_rate = 0.07 # (= fixed charge rate)
+discount_rate = 0.0707 # (= fixed charge rate)
 TASC_multiplier = 1.093 # total overnight cost * TASC multiplier = total as-spent cost
 
 # Commodity prices
