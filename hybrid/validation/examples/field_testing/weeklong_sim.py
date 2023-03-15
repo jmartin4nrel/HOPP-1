@@ -10,8 +10,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import sys
-from pathlib import Path
-sys.path.append('/home/gstarke/Research_Programs/HOPP/HOPP/')
+import json
 
 from hybrid.sites import SiteInfo, flatirons_site
 from hybrid.validation.wind.iessGE15.ge15_wind_forecast_parse import process_wind_forecast, save_wind_forecast_SAM
@@ -32,6 +31,18 @@ run_id = 'run010'
 sim_start = '07/28/22'
 # sim_end = '08/14/22'
 sim_end = '08/04/22'
+
+# Get offset to current time for controller, put delay for reading battery
+cur_time = pd.Timestamp.now()
+cur_time = cur_time - pd.Timedelta(cur_time.microsecond*1000)
+delay = pd.Timedelta(10, 'min')
+offset = pd.Timedelta(cur_time+delay-pd.Timestamp(sim_start))
+
+# Make figures fullscreen
+dpi = plt.rcParams['figure.dpi']
+width = 1920
+height = 1080
+plt.rcParams['figure.figsize'] = [width/dpi,height/dpi]
 
 # Set path to forecast files
 current_dir = Path(__file__).parent.absolute()
@@ -78,11 +89,41 @@ wind_res_fp = wind_res_dir/'wind_m5_YYYY.srw'
 solar_res_fp = solar_res_dir/'solar_m2_YYYY.csv'
 
 # Set years and setup forecast
+results_dir = validation_dir/'results'/'weeklong_sim'
 forecast_year = 2022
 resource_years = [2019,2020,2021,2022]
-wind_dict = process_wind_forecast(wind_fp,wind_hours_ahead,wind_hours_offset,forecast_year,wind_res_fp,resource_years)
-solar_dict = process_solar_forecast(solar_fp,solar_hours_ahead,solar_hours_offset,forecast_year,solar_res_fp,resource_years)
-
+wind_forecast_fn = run_id + '_wind_forecast'
+if wind_forecast_fn not in os.listdir(results_dir):
+    wind_dict = process_wind_forecast(wind_fp,wind_hours_ahead,wind_hours_offset,forecast_year,wind_res_fp,resource_years)
+    with open(results_dir/wind_forecast_fn, 'w') as fp:
+        json.dump(list(wind_dict.keys()), fp)
+    for key, df in wind_dict.items():
+        df.to_csv(results_dir/(wind_forecast_fn+'_'+key))
+else:
+    wind_dict = {}
+    with open(results_dir/wind_forecast_fn, 'r') as fp:
+        wind_keys = json.load(fp)
+        for key in wind_keys:
+            forecast_item = pd.read_csv(results_dir/(wind_forecast_fn+'_'+key), index_col=0)
+            forecast_item.index = pd.DatetimeIndex(forecast_item.index)
+            forecast_item.columns = [int(i) for i in forecast_item.columns.values]
+            wind_dict[key] = forecast_item
+solar_forecast_fn = run_id + '_solar_forecast'
+if solar_forecast_fn not in os.listdir(results_dir):
+    solar_dict = process_solar_forecast(solar_fp,solar_hours_ahead,solar_hours_offset,forecast_year,solar_res_fp,resource_years)
+    with open(results_dir/solar_forecast_fn, 'w') as fp:
+        json.dump(list(solar_dict.keys()), fp)
+    for key, df in solar_dict.items():
+        df.to_csv(results_dir/(solar_forecast_fn+'_'+key))
+else:
+    solar_dict = {}
+    with open(results_dir/solar_forecast_fn, 'r') as fp:
+        solar_keys = json.load(fp)
+        for key in solar_keys:
+            forecast_item = pd.read_csv(results_dir/(solar_forecast_fn+'_'+key), index_col=0)
+            forecast_item.index = pd.DatetimeIndex(forecast_item.index)
+            forecast_item.columns = [int(i) for i in forecast_item.columns.values]
+            solar_dict[key] = forecast_item
 
 year_hours = pd.date_range(str(forecast_year)+'-01-01', periods=8760, freq='H')
     
@@ -243,47 +284,47 @@ week_time = int(7 * 24)
 prev_batt_power = []
 prev_batt_soc = []
 for i, time in enumerate(sim_times):
-        # print('i', i, 'time', time)
-        loop_indx = list(year_hours).index(pd.Timestamp(time))
-        dispatch_indexs = {'start_indx': loop_indx,\
-                        'end_indx': loop_indx + week_time,\
-                        'initial_soc': batt_soc[loop_indx-1]}
+    # print('i', i, 'time', time)
+    loop_indx = list(year_hours).index(pd.Timestamp(time))
+    dispatch_indexs = {'start_indx': loop_indx,\
+                    'end_indx': loop_indx + week_time,\
+                    'initial_soc': batt_soc[loop_indx-1]}
 
-        # print('battery soc', batt_soc[loop_indx-10:loop_indx+10])
-        # print('bat 2', batt_soc[loop_indx-1:loop_indx+1])
-        j = list(year_hours).index(time)
-        print('index check', j, time, loop_indx)
+    # print('battery soc', batt_soc[loop_indx-10:loop_indx+10])
+    # print('bat 2', batt_soc[loop_indx-1:loop_indx+1])
+    j = list(year_hours).index(time)
+    print('index check', j, time, loop_indx)
 
 
 
-        #Change load schedule to actual hybrid plant generation before current time
-        hybrid_plant.site.desired_schedule[:i] = [i/10000 for i in total_gen[:i]]
+    #Change load schedule to actual hybrid plant generation before current time
+    hybrid_plant.site.desired_schedule[:i] = [i/10000 for i in total_gen[:i]]
 
-        # Adjust forecast
-        new_solar_fp = save_solar_forecast_SAM(solar_dict, time, solar_file)
-        new_wind_fp = save_wind_forecast_SAM(wind_dict, time, wind_file)
+    # Adjust forecast
+    new_solar_fp = save_solar_forecast_SAM(solar_dict, time, solar_file)
+    new_wind_fp = save_wind_forecast_SAM(wind_dict, time, wind_file)
 
-        # Previously figured out how to change resource file without setting up HybridSimulation all over again:
-        NewSolarRes = SolarResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,filepath=new_solar_fp)
-        NewWindRes = WindResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,hub_height,filepath=new_wind_fp)
-        # Have to change pressure to sea level!
-        for k in range(len(NewWindRes.data['data'])):
-                NewWindRes.data['data'][k][1] = 1
-        hybrid_plant.pv._system_model.SolarResource.solar_resource_data = NewSolarRes.data
-        hybrid_plant.wind._system_model.Resource.wind_resource_data = NewWindRes.data
+    # Previously figured out how to change resource file without setting up HybridSimulation all over again:
+    NewSolarRes = SolarResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,filepath=new_solar_fp)
+    NewWindRes = WindResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,hub_height,filepath=new_wind_fp)
+    # Have to change pressure to sea level!
+    for k in range(len(NewWindRes.data['data'])):
+            NewWindRes.data['data'][k][1] = 1
+    hybrid_plant.pv._system_model.SolarResource.solar_resource_data = NewSolarRes.data
+    hybrid_plant.wind._system_model.Resource.wind_resource_data = NewWindRes.data
 
-        # Generate filename for this timestep
-        time_fn = run_id+\
-                '_{:02d}'.format(time.month)+\
-                '_{:02d}'.format(time.day)+\
-                '_{:02d}'.format(time.hour)
+    # Generate filename for this timestep
+    time_fn = run_id+\
+            '_{:02d}'.format(time.month)+\
+            '_{:02d}'.format(time.day)+\
+            '_{:02d}'.format(time.hour)
 
-        # print('time_fn', time_fn, 'list', os.listdir(results_dir))
-        #     jkjkjkj
+    # print('time_fn', time_fn, 'list', os.listdir(results_dir))
+    #     jkjkjkj
 
-        #TODO: tell batt dispatch optimizer not to optimize whole year, just coming week
-        #     if time_fn not in os.listdir(results_dir):
-        # hybrid_plant.simulate(project_life=1)
+    #TODO: tell batt dispatch optimizer not to optimize whole year, just coming week
+    if time_fn not in os.listdir(results_dir):
+    # hybrid_plant.simulate(project_life=1)
         hybrid_plant.simulate(project_life=1, finite_dispatch=dispatch_indexs)
         time_df = pd.DataFrame(index=year_hours,columns=['PV [kW]',
                                                         'Wind [kW]',
@@ -298,98 +339,114 @@ for i, time in enumerate(sim_times):
                                                 hybrid_plant.wind.generation_profile,
                                                 hybrid_plant.battery.Outputs.P)),axis=0)
         time_df.to_json(results_dir/time_fn)
-        #     else:
-        #         time_df = pd.read_json(results_dir/time_fn, convert_axes=True)
+    else:
+        time_df = pd.read_json(results_dir/time_fn, convert_axes=True)
 
-        # print('Battery Outputs', time_df['BESS P [kW]'][loop_indx-10:loop_indx+10], time_df['BESS SOC [%]'][loop_indx-10:loop_indx+10])
-        # print('Ohter Outputs', time_df['PV [kW]'][loop_indx-10:loop_indx+10], time_df['Wind [kW]'][loop_indx-10:loop_indx+10], time_df['Plant [kW]'][loop_indx-10:loop_indx+10])
-        # Update battery and total generation
-        prev_batt_power.append(np.copy(batt_gen[start_idx:]))
-        prev_batt_soc.append(np.copy(batt_soc[start_idx:]))
-        batt_gen[j:] -= batt_gen[j:]
-        batt_soc[j:] -= batt_soc[j:]
-        batt_gen[j:] += time_df['BESS P [kW]'].iloc[j:]
-        batt_soc[j:] += time_df['BESS SOC [%]'].iloc[j:]
-        total_gen[j:] -= batt_gen[j:]
-        total_gen[j:] += time_df['BESS P [kW]'].iloc[j:]
+    # print('Battery Outputs', time_df['BESS P [kW]'][loop_indx-10:loop_indx+10], time_df['BESS SOC [%]'][loop_indx-10:loop_indx+10])
+    # print('Ohter Outputs', time_df['PV [kW]'][loop_indx-10:loop_indx+10], time_df['Wind [kW]'][loop_indx-10:loop_indx+10], time_df['Plant [kW]'][loop_indx-10:loop_indx+10])
+    # Update battery and total generation
+    prev_batt_power.append(np.copy(batt_gen[start_idx:]))
+    prev_batt_soc.append(np.copy(batt_soc[start_idx:]))
+    batt_gen[j:] -= batt_gen[j:]
+    batt_soc[j:] -= batt_soc[j:]
+    batt_gen[j:] += time_df['BESS P [kW]'].iloc[j:]
+    batt_soc[j:] += time_df['BESS SOC [%]'].iloc[j:]
+    total_gen[j:] -= batt_gen[j:]
+    total_gen[j:] += time_df['BESS P [kW]'].iloc[j:]
 
-        # print(batt_gen[j:], batt_soc[j:], time_df['BESS P [kW]'].iloc[j:], time_df['BESS SOC [%]'].iloc[j:])
-        # for ijk in range(len(prev_batt_power)):
-        #         print('Prev batt power', ijk, prev_batt_power[ijk][0:24])
-        
-        #TODO: Compare forecasted plant output with acutual output after each data point
+    # print(batt_gen[j:], batt_soc[j:], time_df['BESS P [kW]'].iloc[j:], time_df['BESS SOC [%]'].iloc[j:])
+    # for ijk in range(len(prev_batt_power)):
+    #         print('Prev batt power', ijk, prev_batt_power[ijk][0:24])
+    
+    #TODO: Compare forecasted plant output with acutual output after each data point
 
-        # xmin = time-pd.Timedelta(3,unit='D')
-        # xmax = time+pd.Timedelta(7,unit='D')
-        print(time, sim_start)
-        xmin = sim_times[0] - pd.Timedelta(1,unit='D')
-        xmax = sim_times[-1] + pd.Timedelta(1,unit='D')     
-        plt.clf()
-        plt.subplot(5,1,1)
-        plt.plot(year_hours[:start_idx],time_df['PV [kW]'].iloc[:start_idx],
-                color=[0,0,0],label='Past generation')
-        plt.plot(year_hours[start_idx:],time_df['PV [kW]'].iloc[start_idx:],
-                color=[0,0,1],label='Upcoming generation, forecast')  
-        plt.plot(year_hours[start_idx:],pv_gen[start_idx:],
-                color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')
-        plt.ylabel('PV [kW]')
-        plt.xlim([xmin,xmax])
-        plt.legend()
-        plt.subplot(5,1,2)
-        plt.plot(year_hours[:start_idx],time_df['Wind [kW]'].iloc[:start_idx],
-                color=[0,0,0],label='Past generation')
-        plt.plot(year_hours[start_idx:],time_df['Wind [kW]'].iloc[start_idx:],
-                color=[0,0,1],label='Upcoming generation, forecast')  
-        plt.plot(year_hours[start_idx:],wind_gen[start_idx:],
-                color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')
-        plt.ylabel('Wind [kW]')
-        plt.xlim([xmin,xmax])
-        plt.legend()
-        plt.subplot(5,1,3)
-        plt.plot(year_hours[:start_idx],batt_gen[:start_idx],
-                color=[0,0,0],label='Past generation/charge')
-        # for ijk in range(len(prev_batt_power)):
-        #         plt.plot(year_hours[start_idx:], prev_batt_power[ijk], '--', alpha=.5)
-        plt.plot(year_hours[start_idx:],time_df['BESS P [kW]'].iloc[start_idx:],
-                color=[0,.5,0],label='BESS strategy, using forecasts')  
-        # plt.plot(year_hours[start_idx:],batt_gen[start_idx:],
-        #         color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"') 
-        plt.plot(year_hours[start_idx:],orig_df['BESS P [kW]'] [start_idx:],
-                color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"')       
-     
-        plt.ylabel('BESS P [kW]')
-        plt.xlim([xmin,xmax])
-        plt.legend()
-        plt.subplot(5,1,4)
-        plt.plot(year_hours[:start_idx],batt_soc[:start_idx],
-                color=[0,0,0],label='Past SOC')
-        # for ijk in range(len(prev_batt_soc)):
-        #         plt.plot(year_hours[start_idx:], prev_batt_soc[ijk], '--', alpha=.5)   
-        plt.plot(year_hours[start_idx:],time_df['BESS SOC [%]'].iloc[start_idx:],
-                color=[0,.5,0],label='BESS strategy, using forecasts')  
-        # plt.plot(year_hours[start_idx:],batt_soc[start_idx:],
-        #         color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"') 
-        plt.plot(year_hours[start_idx:],orig_df['BESS SOC [%]'] [start_idx:],
-                color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"') 
-              
-        plt.ylabel('BESS SOC [%]')
-        plt.xlim([xmin,xmax])
-        plt.legend()
-        plt.subplot(5,1,5)
-        plt.plot(year_hours[:j],total_gen[:j],
-                color=[0,0,0],label='Past generation')
-        plt.plot(year_hours[j:],time_df['Plant [kW]'].iloc[j:],
-                color=[0,0,1],label='Upcoming generation, forecast')  
-        plt.plot(year_hours[start_idx:],total_gen_0[start_idx:],
-                color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')  
-        # plt.plot(year_hours[j:],total_gen[j:],
-        #         color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')  
-        plt.ylabel('Plant [kW]')
-        plt.xlim([xmin,xmax])
-        plt.legend()
-        # plt.show()
-        plt.savefig(results_dir/time_fn)
-        #     plt.pause(1)
+    # xmin = time-pd.Timedelta(3,unit='D')
+    # xmax = time+pd.Timedelta(7,unit='D')
+    print(time, sim_start)
+    xmin = sim_times[0] - pd.Timedelta(1,unit='D')
+    xmax = sim_times[-1] + pd.Timedelta(1,unit='D')     
+    plt.clf()
+    plt.subplot(5,1,1)
+    plt.plot(year_hours[:start_idx],time_df['PV [kW]'].iloc[:start_idx],
+            color=[0,0,0],label='Past generation')
+    plt.plot(year_hours[start_idx:],time_df['PV [kW]'].iloc[start_idx:],
+            color=[0,0,1],label='Upcoming generation, forecast')  
+    plt.plot(year_hours[start_idx:],pv_gen[start_idx:],
+            color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')
+    plt.ylabel('PV [kW]')
+    plt.xlim([xmin,xmax])
+    plt.legend()
+    plt.subplot(5,1,2)
+    plt.plot(year_hours[:start_idx],time_df['Wind [kW]'].iloc[:start_idx],
+            color=[0,0,0],label='Past generation')
+    plt.plot(year_hours[start_idx:],time_df['Wind [kW]'].iloc[start_idx:],
+            color=[0,0,1],label='Upcoming generation, forecast')  
+    plt.plot(year_hours[start_idx:],wind_gen[start_idx:],
+            color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')
+    plt.ylabel('Wind [kW]')
+    plt.xlim([xmin,xmax])
+    plt.legend()
+    plt.subplot(5,1,3)
+    plt.plot(year_hours[:start_idx],batt_gen[:start_idx],
+            color=[0,0,0],label='Past generation/charge')
+    # for ijk in range(len(prev_batt_power)):
+    #         plt.plot(year_hours[start_idx:], prev_batt_power[ijk], '--', alpha=.5)
+    plt.plot(year_hours[start_idx:],time_df['BESS P [kW]'].iloc[start_idx:],
+            color=[0,.5,0],label='BESS strategy, using forecasts')  
+    # plt.plot(year_hours[start_idx:],batt_gen[start_idx:],
+    #         color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"') 
+    plt.plot(year_hours[start_idx:],orig_df['BESS P [kW]'] [start_idx:],
+            color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"')       
+    
+    plt.ylabel('BESS P [kW]')
+    plt.xlim([xmin,xmax])
+    plt.legend()
+    plt.subplot(5,1,4)
+    plt.plot(year_hours[:start_idx],batt_soc[:start_idx],
+            color=[0,0,0],label='Past SOC')
+    # for ijk in range(len(prev_batt_soc)):
+    #         plt.plot(year_hours[start_idx:], prev_batt_soc[ijk], '--', alpha=.5)   
+    plt.plot(year_hours[start_idx:],time_df['BESS SOC [%]'].iloc[start_idx:],
+            color=[0,.5,0],label='BESS strategy, using forecasts')  
+    # plt.plot(year_hours[start_idx:],batt_soc[start_idx:],
+    #         color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"') 
+    plt.plot(year_hours[start_idx:],orig_df['BESS SOC [%]'] [start_idx:],
+            color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"') 
+            
+    plt.ylabel('BESS SOC [%]')
+    plt.xlim([xmin,xmax])
+    plt.legend()
+    plt.subplot(5,1,5)
+    plt.plot(year_hours[:j],total_gen[:j],
+            color=[0,0,0],label='Past generation')
+    plt.plot(year_hours[j:],time_df['Plant [kW]'].iloc[j:],
+            color=[0,0,1],label='Upcoming generation, forecast')  
+    plt.plot(year_hours[start_idx:],total_gen_0[start_idx:],
+            color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')  
+    # plt.plot(year_hours[j:],total_gen[j:],
+    #         color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')  
+    plt.ylabel('Plant [kW]')
+    plt.xlim([xmin,xmax])
+    plt.legend()
+    plt.savefig(results_dir/time_fn)
+    # plt.show()
+    # plt.pause(1)
+
+    # Export timeseries with current time for reference
+    sec_df = time_df.loc[time:time+pd.Timedelta('2H')].resample('1S').bfill()
+    sec_df['BESS SOC [%]'] = time_df.loc[time:time+pd.Timedelta('2H'),'BESS P [kW]'].resample('1S').interpolate()
+    sec_df['Plant [kW]'] = np.transpose(np.sum(np.vstack((sec_df['PV [kW]'].values,
+                                                        sec_df['Wind [kW]'].values,
+                                                        sec_df['BESS P [kW]'].values)), axis=0))
+    real_time = sec_df.index+offset
+    sec_df.reset_index(inplace=True)
+    sec_df = sec_df.rename(columns = {'index':'Data time'})
+    sec_df.index = real_time
+    sec_fn = '{}_sec_df'.format(run_id)+\
+            '_{:02d}'.format(time.month)+\
+            '_{:02d}'.format(time.day)+\
+            '_{:02d}'.format(time.hour)+'.csv'
+    sec_df.to_csv(results_dir/sec_fn)
 
 plt.show()
 

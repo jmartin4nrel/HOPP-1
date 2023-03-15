@@ -21,13 +21,23 @@ current_dir = Path(__file__).parent.absolute()
 validation_dir = current_dir/'..'/'..'
 # Set path to resource files
 base_dir = validation_dir/'..'/'..'
-wind_res_dir = base_dir/'resource_files'/'wind'
-solar_res_dir = base_dir/'resource_files'/'solar'
-wind_res_fp = wind_res_dir/'wind_m5_2022.srw'
-solar_res_fp = solar_res_dir/'solar_m2_2022.csv'
+# wind_res_dir = base_dir/'resource_files'/'wind'
+# solar_res_dir = base_dir/'resource_files'/'solar'
+# wind_res_fp = wind_res_dir/'wind_m5_2022.srw'
+# solar_res_fp = solar_res_dir/'solar_m2_2022.csv'
 
-# Pick time period to simulate
-sim_start = '07/28/22'
-sim_end = '08/14/22'
-sim_times = pd.date_range(sim_start, sim_end, freq='H')
-save_wind_forecast_SAM({}, sim_times[0], wind_res_fp)
+# # Pick time period to simulate
+# sim_start = '07/28/22'
+# sim_end = '08/14/22'
+# sim_times = pd.date_range(sim_start, sim_end, freq='H')
+# save_wind_forecast_SAM({}, sim_times[0], wind_res_fp)
+
+dpi = plt.rcParams['figure.dpi']
+width = 1920
+height = 1080
+plt.rcParams['figure.figsize'] = [width/dpi,height/dpi]
+
+results_dir = validation_dir/'results'/'weeklong_sim'
+plt.plot([0,1],[0,1])
+plt.savefig(results_dir/'test')
+    
