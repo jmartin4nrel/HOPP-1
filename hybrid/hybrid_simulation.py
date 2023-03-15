@@ -476,7 +476,7 @@ class HybridSimulation:
         for source in self.power_sources.keys():
             self.power_sources[source].setup_performance_model()
 
-    def simulate_power(self, project_life: int = 25, lifetime_sim=False):
+    def simulate_power(self, project_life: int = 25, lifetime_sim=False, finite_dispatch=None):
         """
         Runs the individual system models for power generation and storage, while calculating the hybrid power variables.
 
@@ -497,7 +497,11 @@ class HybridSimulation:
                 model.simulate_power(project_life, lifetime_sim)
 
         # simulate dispatchable systems using dispatch optimization
-        self.dispatch_builder.simulate_power()
+
+        if finite_dispatch:
+            self.dispatch_builder.finite_dispatch(finite_dispatch)
+        elif self.dispatch_builder.options.skip_dispatch == False:
+            self.dispatch_builder.simulate_power()
 
         # Put the hybrid together for grid simulation
         hybrid_size_kw = 0
@@ -573,7 +577,8 @@ class HybridSimulation:
 
     def simulate(self,
                  project_life: int = 25,
-                 lifetime_sim = False):
+                 lifetime_sim = False,
+                 finite_dispatch = None):
         """
         Runs the individual system models then combines the financials
 
@@ -581,7 +586,10 @@ class HybridSimulation:
             For simulation modules which support simulating each year of the project_life, whether or not to do so; otherwise the first year data is repeated
         :return:
         """
-        self.simulate_power(project_life, lifetime_sim)
+        if finite_dispatch:
+            self.simulate_power(project_life, lifetime_sim, finite_dispatch=finite_dispatch)
+        else:
+            self.simulate_power(project_life, lifetime_sim)
         self.calculate_installed_cost()
         self.calculate_financials()
         self.simulate_financials(project_life)

@@ -510,6 +510,51 @@ class HybridDispatchBuilderSolver:
 
         self.power_sources['battery'].dispatch.set_fixed_dispatch(tot_gen, grid_limit)
 
+    def finite_dispatch(self, dispatch_times):
+        if self.needs_dispatch:
+            # Dispatch Optimization Simulation with Rolling Horizon
+            print("Simulating system with dispatch optimization...")
+        else:
+            print("Dispatch optimization not required...")
+            return
+        start_indx = dispatch_times['start_indx']
+        end_indx = dispatch_times['end_indx']
+        initial_soc = dispatch_times['initial_soc']
+        ti = list(range(start_indx, end_indx, self.options.n_roll_periods))
+        # print('ti', ti)
+
+        # print('battery state', self.power_sources['battery'].dispatch.initial_soc)
+    
+        self.dispatch.update_time_series_parameters(start_indx)
+        self.power_sources['battery'].dispatch.initialize_parameters()
+        self.power_sources['battery'].dispatch.update_dispatch_initial_soc(initial_soc)
+        # print('initial SOC', self.power_sources['battery'].dispatch.initial_soc)
+        # print('wind state', self.power_sources['wind'].dispatch.available_generation)
+        # print('pv state', self.power_sources['pv'].dispatch.available_generation)
+        # print('battery state', self.power_sources['battery'].dispatch.soc)
+
+        # update_time_series_parameters
+
+        # Solving the year in series
+        for i, t in enumerate(ti):
+            if self.options.is_test_start_year or self.options.is_test_end_year:
+                if (self.options.is_test_start_year and i < 5) or (self.options.is_test_end_year and i > 359):
+                    start_time = time.time()
+                    print(start_time)
+                    self.simulate_with_dispatch(t)
+                    sim_w_dispath_time = time.time()
+                    print('Day {} dispatch optimized.'.format(i))
+                    print("      %6.2f seconds required to simulate with dispatch" % (sim_w_dispath_time - start_time))
+                else:
+                    continue
+                    # TODO: can we make the csp and battery model run with heuristic dispatch here?
+                    #  Maybe calling a simulate_with_heuristic() method
+            else:
+                if (i % 73) == 0:
+                    print("\t {:.0f} % complete".format(i*20/73))
+                self.simulate_with_dispatch(t)
+
+
     @property
     def pyomo_model(self) -> pyomo.ConcreteModel:
         return self._pyomo_model
