@@ -118,7 +118,7 @@ def process_wind_forecast(forecast_files:dict, forecast_hours_ahead:dict, foreca
     A_n = np.divide(A,A_means)
     b_mean = np.mean(b)
     b_n = np.divide(b,b_mean)
-    results = np.linalg.lstsq(A_n.astype(float),b_n.astype(float))
+    results = np.linalg.lstsq(A_n.astype(float),b_n.astype(float), rcond=None)
     x = results[0]
 
     # Correct forecast with correlation 
