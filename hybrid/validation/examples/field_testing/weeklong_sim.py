@@ -9,6 +9,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
+import sys
+from pathlib import Path
+sys.path.append('/home/gstarke/Research_Programs/HOPP/HOPP/')
 
 from hybrid.sites import SiteInfo, flatirons_site
 from hybrid.validation.wind.iessGE15.ge15_wind_forecast_parse import process_wind_forecast, save_wind_forecast_SAM
@@ -27,7 +30,8 @@ run_id = 'run010'
 
 # Pick time period to simulate
 sim_start = '07/28/22'
-sim_end = '08/14/22'
+# sim_end = '08/14/22'
+sim_end = '08/04/22'
 
 # Set path to forecast files
 current_dir = Path(__file__).parent.absolute()
@@ -233,34 +237,54 @@ batt_soc[start_idx:] = orig_df['BESS SOC [%]'].values[start_idx:]
 for i in range(orig_df.shape[0]):
     total_gen[i] = pv_gen[i]+wind_gen[i]+batt_gen[i]
 
+total_gen_0 = np.copy(total_gen)
+week_time = int(7 * 24)
 # Loop through sim times
+prev_batt_power = []
+prev_batt_soc = []
 for i, time in enumerate(sim_times):
+        # print('i', i, 'time', time)
+        loop_indx = list(year_hours).index(pd.Timestamp(time))
+        dispatch_indexs = {'start_indx': loop_indx,\
+                        'end_indx': loop_indx + week_time,\
+                        'initial_soc': batt_soc[loop_indx-1]}
 
-    #Change load schedule to actual hybrid plant generation before current time
-    hybrid_plant.site.desired_schedule[:i] = [i/10000 for i in total_gen[:i]]
-    
-    # Adjust forecast
-    new_solar_fp = save_solar_forecast_SAM(solar_dict, time, solar_file)
-    new_wind_fp = save_wind_forecast_SAM(wind_dict, time, wind_file)
+        # print('battery soc', batt_soc[loop_indx-10:loop_indx+10])
+        # print('bat 2', batt_soc[loop_indx-1:loop_indx+1])
+        j = list(year_hours).index(time)
+        print('index check', j, time, loop_indx)
 
-    # Previously figured out how to change resource file without setting up HybridSimulation all over again:
-    NewSolarRes = SolarResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,filepath=new_solar_fp)
-    NewWindRes = WindResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,hub_height,filepath=new_wind_fp)
-    # Have to change pressure to sea level!
-    for j in range(len(NewWindRes.data['data'])):
-        NewWindRes.data['data'][j][1] = 1
-    hybrid_plant.pv._system_model.SolarResource.solar_resource_data = NewSolarRes.data
-    hybrid_plant.wind._system_model.Resource.wind_resource_data = NewWindRes.data
 
-    # Generate filename for this timestep
-    time_fn = run_id+\
+
+        #Change load schedule to actual hybrid plant generation before current time
+        hybrid_plant.site.desired_schedule[:i] = [i/10000 for i in total_gen[:i]]
+
+        # Adjust forecast
+        new_solar_fp = save_solar_forecast_SAM(solar_dict, time, solar_file)
+        new_wind_fp = save_wind_forecast_SAM(wind_dict, time, wind_file)
+
+        # Previously figured out how to change resource file without setting up HybridSimulation all over again:
+        NewSolarRes = SolarResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,filepath=new_solar_fp)
+        NewWindRes = WindResource(hybrid_plant.site.lat,hybrid_plant.site.lon,forecast_year,hub_height,filepath=new_wind_fp)
+        # Have to change pressure to sea level!
+        for k in range(len(NewWindRes.data['data'])):
+                NewWindRes.data['data'][k][1] = 1
+        hybrid_plant.pv._system_model.SolarResource.solar_resource_data = NewSolarRes.data
+        hybrid_plant.wind._system_model.Resource.wind_resource_data = NewWindRes.data
+
+        # Generate filename for this timestep
+        time_fn = run_id+\
                 '_{:02d}'.format(time.month)+\
                 '_{:02d}'.format(time.day)+\
                 '_{:02d}'.format(time.hour)
-    
-    #TODO: tell batt dispatch optimizer not to optimize whole year, just coming week
-    if time_fn not in os.listdir(results_dir):
-        hybrid_plant.simulate(project_life=1)
+
+        # print('time_fn', time_fn, 'list', os.listdir(results_dir))
+        #     jkjkjkj
+
+        #TODO: tell batt dispatch optimizer not to optimize whole year, just coming week
+        #     if time_fn not in os.listdir(results_dir):
+        # hybrid_plant.simulate(project_life=1)
+        hybrid_plant.simulate(project_life=1, finite_dispatch=dispatch_indexs)
         time_df = pd.DataFrame(index=year_hours,columns=['PV [kW]',
                                                         'Wind [kW]',
                                                         'BESS P [kW]',
@@ -274,76 +298,99 @@ for i, time in enumerate(sim_times):
                                                 hybrid_plant.wind.generation_profile,
                                                 hybrid_plant.battery.Outputs.P)),axis=0)
         time_df.to_json(results_dir/time_fn)
-    else:
-        time_df = pd.read_json(results_dir/time_fn, convert_axes=True)
+        #     else:
+        #         time_df = pd.read_json(results_dir/time_fn, convert_axes=True)
 
-    # Update battery and total generation
-    batt_gen[j:] -= batt_gen[j:]
-    batt_soc[j:] -= batt_soc[j:]
-    batt_gen[j:] += time_df['BESS P [kW]'].iloc[j:]
-    batt_soc[j:] += time_df['BESS SOC [%]'].iloc[j:]
-    total_gen[j:] -= batt_gen[j:]
-    total_gen[j:] += time_df['BESS P [kW]'].iloc[j:]
-    
-    #TODO: Compare forecasted plant output with acutual output after each data point
-    j = list(year_hours).index(time)
-    xmin = time-pd.Timedelta(3,unit='D')
-    xmax = time+pd.Timedelta(7,unit='D')
-    plt.clf()
-    plt.subplot(5,1,1)
-    plt.plot(year_hours[:j],time_df['PV [kW]'].iloc[:j],
-            color=[0,0,0],label='Past generation')
-    plt.plot(year_hours[j:],time_df['PV [kW]'].iloc[j:],
-            color=[0,0,1],label='Upcoming generation, forecast')  
-    plt.plot(year_hours[j:],pv_gen[j:],
-            color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')
-    plt.ylabel('PV [kW]')
-    plt.xlim([xmin,xmax])
-    plt.legend()
-    plt.subplot(5,1,2)
-    plt.plot(year_hours[:j],time_df['Wind [kW]'].iloc[:j],
-            color=[0,0,0],label='Past generation')
-    plt.plot(year_hours[j:],time_df['Wind [kW]'].iloc[j:],
-            color=[0,0,1],label='Upcoming generation, forecast')  
-    plt.plot(year_hours[j:],wind_gen[j:],
-            color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')
-    plt.ylabel('Wind [kW]')
-    plt.xlim([xmin,xmax])
-    plt.legend()
-    plt.subplot(5,1,3)
-    plt.plot(year_hours[:j],batt_gen[:j],
-            color=[0,0,0],label='Past generation/charge')
-    plt.plot(year_hours[j:],time_df['BESS P [kW]'].iloc[j:],
-            color=[0,.5,0],label='BESS strategy, using forecasts')  
-    plt.plot(year_hours[start_idx:],batt_gen[start_idx:],
-            color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"')  
-    plt.ylabel('BESS P [kW]')
-    plt.xlim([xmin,xmax])
-    plt.legend()
-    plt.subplot(5,1,4)
-    plt.plot(year_hours[:j],batt_soc[:j],
-            color=[0,0,0],label='Past SOC')
-    plt.plot(year_hours[j:],time_df['BESS SOC [%]'].iloc[j:],
-            color=[0,.5,0],label='BESS strategy, using forecasts')  
-    plt.plot(year_hours[start_idx:],batt_soc[start_idx:],
-            color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"')  
-    plt.ylabel('BESS SOC [%]')
-    plt.xlim([xmin,xmax])
-    plt.legend()
-    plt.subplot(5,1,5)
-    plt.plot(year_hours[:j],total_gen[:j],
-            color=[0,0,0],label='Past generation')
-    plt.plot(year_hours[j:],time_df['Plant [kW]'].iloc[j:],
-            color=[0,0,1],label='Upcoming generation, forecast')  
-    plt.plot(year_hours[j:],total_gen[j:],
-            color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')  
-    plt.ylabel('Plant [kW]')
-    plt.xlim([xmin,xmax])
-    plt.legend()
-    plt.show()
-    plt.savefig(results_dir/time_fn)
-#     plt.pause(1)
+        # print('Battery Outputs', time_df['BESS P [kW]'][loop_indx-10:loop_indx+10], time_df['BESS SOC [%]'][loop_indx-10:loop_indx+10])
+        # print('Ohter Outputs', time_df['PV [kW]'][loop_indx-10:loop_indx+10], time_df['Wind [kW]'][loop_indx-10:loop_indx+10], time_df['Plant [kW]'][loop_indx-10:loop_indx+10])
+        # Update battery and total generation
+        prev_batt_power.append(np.copy(batt_gen[start_idx:]))
+        prev_batt_soc.append(np.copy(batt_soc[start_idx:]))
+        batt_gen[j:] -= batt_gen[j:]
+        batt_soc[j:] -= batt_soc[j:]
+        batt_gen[j:] += time_df['BESS P [kW]'].iloc[j:]
+        batt_soc[j:] += time_df['BESS SOC [%]'].iloc[j:]
+        total_gen[j:] -= batt_gen[j:]
+        total_gen[j:] += time_df['BESS P [kW]'].iloc[j:]
 
+        # print(batt_gen[j:], batt_soc[j:], time_df['BESS P [kW]'].iloc[j:], time_df['BESS SOC [%]'].iloc[j:])
+        # for ijk in range(len(prev_batt_power)):
+        #         print('Prev batt power', ijk, prev_batt_power[ijk][0:24])
+        
+        #TODO: Compare forecasted plant output with acutual output after each data point
 
+        # xmin = time-pd.Timedelta(3,unit='D')
+        # xmax = time+pd.Timedelta(7,unit='D')
+        print(time, sim_start)
+        xmin = sim_times[0] - pd.Timedelta(1,unit='D')
+        xmax = sim_times[-1] + pd.Timedelta(1,unit='D')     
+        plt.clf()
+        plt.subplot(5,1,1)
+        plt.plot(year_hours[:start_idx],time_df['PV [kW]'].iloc[:start_idx],
+                color=[0,0,0],label='Past generation')
+        plt.plot(year_hours[start_idx:],time_df['PV [kW]'].iloc[start_idx:],
+                color=[0,0,1],label='Upcoming generation, forecast')  
+        plt.plot(year_hours[start_idx:],pv_gen[start_idx:],
+                color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')
+        plt.ylabel('PV [kW]')
+        plt.xlim([xmin,xmax])
+        plt.legend()
+        plt.subplot(5,1,2)
+        plt.plot(year_hours[:start_idx],time_df['Wind [kW]'].iloc[:start_idx],
+                color=[0,0,0],label='Past generation')
+        plt.plot(year_hours[start_idx:],time_df['Wind [kW]'].iloc[start_idx:],
+                color=[0,0,1],label='Upcoming generation, forecast')  
+        plt.plot(year_hours[start_idx:],wind_gen[start_idx:],
+                color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')
+        plt.ylabel('Wind [kW]')
+        plt.xlim([xmin,xmax])
+        plt.legend()
+        plt.subplot(5,1,3)
+        plt.plot(year_hours[:start_idx],batt_gen[:start_idx],
+                color=[0,0,0],label='Past generation/charge')
+        # for ijk in range(len(prev_batt_power)):
+        #         plt.plot(year_hours[start_idx:], prev_batt_power[ijk], '--', alpha=.5)
+        plt.plot(year_hours[start_idx:],time_df['BESS P [kW]'].iloc[start_idx:],
+                color=[0,.5,0],label='BESS strategy, using forecasts')  
+        # plt.plot(year_hours[start_idx:],batt_gen[start_idx:],
+        #         color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"') 
+        plt.plot(year_hours[start_idx:],orig_df['BESS P [kW]'] [start_idx:],
+                color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"')       
+     
+        plt.ylabel('BESS P [kW]')
+        plt.xlim([xmin,xmax])
+        plt.legend()
+        plt.subplot(5,1,4)
+        plt.plot(year_hours[:start_idx],batt_soc[:start_idx],
+                color=[0,0,0],label='Past SOC')
+        # for ijk in range(len(prev_batt_soc)):
+        #         plt.plot(year_hours[start_idx:], prev_batt_soc[ijk], '--', alpha=.5)   
+        plt.plot(year_hours[start_idx:],time_df['BESS SOC [%]'].iloc[start_idx:],
+                color=[0,.5,0],label='BESS strategy, using forecasts')  
+        # plt.plot(year_hours[start_idx:],batt_soc[start_idx:],
+        #         color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"') 
+        plt.plot(year_hours[start_idx:],orig_df['BESS SOC [%]'] [start_idx:],
+                color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"') 
+              
+        plt.ylabel('BESS SOC [%]')
+        plt.xlim([xmin,xmax])
+        plt.legend()
+        plt.subplot(5,1,5)
+        plt.plot(year_hours[:j],total_gen[:j],
+                color=[0,0,0],label='Past generation')
+        plt.plot(year_hours[j:],time_df['Plant [kW]'].iloc[j:],
+                color=[0,0,1],label='Upcoming generation, forecast')  
+        plt.plot(year_hours[start_idx:],total_gen_0[start_idx:],
+                color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')  
+        # plt.plot(year_hours[j:],total_gen[j:],
+        #         color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')  
+        plt.ylabel('Plant [kW]')
+        plt.xlim([xmin,xmax])
+        plt.legend()
+        # plt.show()
+        plt.savefig(results_dir/time_fn)
+        #     plt.pause(1)
+
+plt.show()
 
     
