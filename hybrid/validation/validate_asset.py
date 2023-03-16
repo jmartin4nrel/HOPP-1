@@ -306,11 +306,13 @@ def validate_asset(asset_path, config, manual_fn, limits,
                 sim_df = sim_results[subconfig]
                 good_gen_sim = sim_df[tech+'_gen_sim_kw'].values[good_idxs]
                 good_gen_act = sim_df[tech+'_gen_act_kw'].values[good_idxs]
-                plt.plot(good_gen_act,good_gen_sim,'.')
-                plt.plot([0,np.max(good_gen_act)],[0,np.max(good_gen_act)],'--',
+                good_gen_sim_mw = [i/1000 for i in good_gen_sim]
+                good_gen_act_mw = [i/1000 for i in good_gen_act]
+                plt.plot(good_gen_act_mw,good_gen_sim_mw,'.')
+                plt.plot([0,np.max(good_gen_act_mw)],[0,np.max(good_gen_act_mw)],'--',
                          label='Overshoot = {:.2f}%'.format(overshoots[subconfig][tech]))
-                plt.xlabel('Actual '+tech+' [kW]')
-                plt.ylabel('Simulated '+tech+' [kW]')
+                plt.xlabel('Actual '+tech+' [MW]')
+                plt.ylabel('Simulated '+tech+' [MW]')
                 plt.legend()
 
         plt.gcf().set_tight_layout(True)
