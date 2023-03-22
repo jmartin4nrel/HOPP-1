@@ -38,9 +38,15 @@ from examples.H2_Analysis.H2AModel_capex_opex_scenarios import H2AModel_costs
 
 def inflate(dollars, original_year, new_year):
 
-    # TODO: Adjust dollars using CPI
+    CPI = [172.2, 177.1, 179.9, 184.0, 188.9, 195.3, 201.6, 207.3, 215.3, 214.5,
+           218.1, 224.9, 229.6, 233.0, 236.7, 237.0, 240.0, 245.1, 251.1, 255.7,
+           258.8, 271.0, 292.7] # US City Average, all items, https://data.bls.gov/pdq/SurveyOutputServlet
+    orig_cpi = CPI[int(original_year)-2000]
+    new_cpi = CPI[int(new_year)-2000]
+    # dollars *= new_cpi/orig_cpi
+
     standard_inflation = 0.025
-    dollars += (new_year-original_year)**(1+standard_inflation)
+    dollars *= (1+standard_inflation)**(new_year-original_year)
 
     return dollars
     
@@ -83,26 +89,29 @@ LCOE_kwh = 0.04 # $/kWh
 manual_LCOH = False # Switch to True to override HOPP-calculated LCOE
 LCOH_kg = 0.02 # $/kg
 
-# Switch dict definitions to use certain scenarios for different technologies
-# Options for non-H2, non-MeOH: 'Conservative', 'Moderate', 'Advanced' (from ATB)
-# Options for H2: 'Current', 'Future': 'Current' holds 2015 baseline H2A scenario,
-#       'Future' interpolates between that and 2040 'Future' H2A scenario
-# Options for MeOH: 'Baseline CO2', others to come as ASPEN models developed
+# List possible dict definitions to use certain scenarios for different technologies
 atb_scenarios = ['Advanced','Moderate','Conservative']
 H2A_scenarios = ['Current','Future']
-cambium_scenarios = ['Mid-case','High natural gas prices','Low natural gas prices']
 MeOH_scenarios = ['Great','Good','OK']
+cambium_scenarios = ['Mid-case','High natural gas prices','Low natural gas prices']
+# Set specific scenarios to size with
 plant_scenarios =  {'NGCC':'Advanced',
                     'CCS': 'Advanced',
                     'PV':  'Advanced',
                     'LBW': 'Advanced',
                     'OSW': 'Advanced',
-                    'H2':  'Future'}
+                    'HCO2':'Future',
+                    'HPSR':'Future',
+                    'MSMR':'Great',
+                    'MSMC':'Great',
+                    'MCO2':'Great',
+                    'MPSR':'Great'}
 cambium_scenario = 'Mid-case'
 scenario_info = {'plant_scenarios': plant_scenarios,
                 'cambium_scenario': cambium_scenario,
                 'atb_scenarios':    atb_scenarios,
                 'H2A_scenarios':    H2A_scenarios,
+                'MeOH_scenarios':   MeOH_scenarios,
                 'cambium_scenarios':cambium_scenarios,
                 'sim_years':        [int(i) for i in sim_years],
                 'site_selection':  {'site_name':site_choice,
@@ -509,7 +518,7 @@ finance['MPSR']['capex_mil_kt_y_A'] = a_cap2capex_mil_kt_y
 finance['MPSR']['capex_mil_kt_y_B'] = b_cap2capex_mil_kt_y
 # Add other methanol plants to finance matrix
 finance['MSMR'] = {}
-finance['MSCC'] = {}
+finance['MSMC'] = {}
 
 # # Plot to check
 # log_x = np.linspace(np.log(np.min(capacity_kt_y)),np.log(np.max(capacity_kt_y)),100)
@@ -584,7 +593,7 @@ ruddy_cat_price_kg =   {'Great':    10,
 ## Scale MeOH plants to NGCC output 
 #region
 
-for plant in ['MSMR','MSCC','MCO2','MPSR']:
+for plant in ['MSMR','MSMC','MCO2','MPSR']:
     engin[plant] = {}
     engin[plant]['MeOH_LHV_MJ_kg'] = MeOH_LHV_MJ_kg
 
@@ -619,7 +628,6 @@ for plant in ['MSMR','MSCC','MCO2','MPSR']:
             H2O_gal_day[scenario] = MeOH_kt_yr[scenario] * 1e6 / 365 * nyari_H2O_gal_kg_MeOH
         NG_MMBtu_day = 0
         TS_CO2_kt_yr = 0
-        elec_out = 0
         elec_out_kw = 0
     else:
         MeOH_lb_hr = 940989 # Source number from DOE/NETL-341/101514
@@ -656,6 +664,8 @@ for plant in ['MSMR','MSCC','MCO2','MPSR']:
     engin[plant]['MeOH_kg_yr'] = {}
     engin[plant]['elec_in_kw'] = {}
     engin[plant]['elec_out_kw'] = {}
+    engin[plant]['elec_in_mwh_yr'] = {}
+    engin[plant]['elec_out_mwh_yr'] = {}
     engin[plant]['output_kw'] = {}
     for scenario in MeOH_scenarios:
         CO2_kg_yr = CO2_kt_yr*1e6
@@ -675,7 +685,9 @@ for plant in ['MSMR','MSCC','MCO2','MPSR']:
         engin[plant]['Stack_CO2_kg_yr'][scenario] = Stack_CO2_kg_yr
         engin[plant]['cat_kg_yr'][scenario] = cat_kg_yr
         engin[plant]['elec_in_kw'][scenario] = elec_in_kw[scenario]
+        engin[plant]['elec_in_mwh_yr'][scenario] = elec_in_kw[scenario]*8.76
         engin[plant]['elec_out_kw'][scenario] = elec_out_kw
+        engin[plant]['elec_out_mwh_yr'][scenario] = elec_out_kw*8.76
         engin[plant]['output_kw'][scenario] = MeOH_kg_yr/8760/3600*MeOH_LHV_MJ_kg*1000
         
     # Add items to finance nested dict
@@ -740,56 +752,59 @@ for plant in ['MSMR','MSCC','MCO2','MPSR']:
 
 #endregion
 
-# Scale H2 plant to H2 needs and calculate financials with H2A model
+# Scale H2 plants to H2 needs and calculate financials with H2A model
 #region
 
-engin['H2'] = {}
-engin['H2']['H2_LHV_MJ_kg'] = H2_LHV_MJ_kg
-finance['H2'] = {}
+for plant in ['HCO2','HPSR']:
+    engin[plant] = {}
+    engin[plant]['H2_LHV_MJ_kg'] = H2_LHV_MJ_kg
+    finance[plant] = {}
 
-# Scale H2 plant
-engin['H2']['H2_kg_yr'] = {}
-engin['H2']['H2_kg_day'] = {}
-engin['H2']['output_kw'] = {}
-MeOH_scenario = plant_scenarios['MeOH']
-for scenario in H2A_scenarios:
-    MeOH_kg_yr = engin['MeOH']['MeOH_kg_yr'][MeOH_scenario]
-    H2_kg_yr = MeOH_kg_yr*nyari_mass_ratio_H2_MeOH
-    H2_kg_day = H2_kg_yr/365
-    engin['H2']['H2_kg_yr'][scenario] = H2_kg_yr
-    engin['H2']['H2_kg_day'][scenario] = H2_kg_day
-    engin['H2']['output_kw'][scenario] = H2_kg_yr/8760/3600*H2_LHV_MJ_kg*1000
+    # Scale H2 plant
+    engin[plant]['H2_kg_yr'] = {}
+    engin[plant]['H2_kg_day'] = {}
+    engin[plant]['output_kw'] = {}
+    MeOH_scenario = plant_scenarios['MPSR']
+    for scenario in H2A_scenarios:
+        Mplant = 'M'+plant[1:]
+        MeOH_kg_yr = engin[Mplant]['MeOH_kg_yr'][MeOH_scenario]
+        H2_kg_yr = engin[Mplant]['H2_kg_yr_in'][MeOH_scenario]
+        H2_kg_day = H2_kg_yr/365
+        engin[plant]['H2_kg_yr'][scenario] = H2_kg_yr
+        engin[plant]['H2_kg_day'][scenario] = H2_kg_day
+        engin[plant]['output_kw'][scenario] = H2_kg_yr/8760/3600*H2_LHV_MJ_kg*1000
 
-# Use H2A model to get costs, engin params to size hybrid plant
-engin_params = ['water_use_kg_kgH2','H2O_in_tgal_mwh','elec_use_kwh_kgH2','elec_in_kw']
-finance_params = ['OCC_$','OCC_$_kw','FOM_$_yr','FOM_$_kwyr','VOM_H2O_$_mwh','VOM_H2O_$_yr']
-for engin_param in engin_params:
-    engin['H2'][engin_param] = dict([(i,[]) for i in H2A_scenarios])
-for finance_param in finance_params:
-    finance['H2'][finance_param] = dict([(i,[]) for i in H2A_scenarios])
-for scenario in H2A_scenarios:
-    H2_kg_day = engin['H2']['H2_kg_day'][scenario]
-    output_kw = engin['H2']['output_kw'][scenario]
-    for i, year in enumerate(sim_years):
-        H2A_out = H2AModel_costs(H2_Cf,H2_kg_day,year,scenario)
-        H2_basis_year, H2_capex, H2_fixed_om, kgH2O_kgH2, kwh_kgH2 = H2A_out
-        H2_capex = inflate(H2_capex, H2_basis_year, basis_year)
-        H2_fixed_om = inflate(H2_fixed_om, H2_basis_year, basis_year)
-        finance['H2']['OCC_$'][scenario].append(H2_capex)
-        finance['H2']['OCC_$_kw'][scenario].append(H2_capex/output_kw)
-        finance['H2']['FOM_$_yr'][scenario].append(H2_fixed_om)
-        finance['H2']['FOM_$_kwyr'][scenario].append(H2_fixed_om/output_kw)
-        engin['H2']['water_use_kg_kgH2'][scenario].append(kgH2O_kgH2)
-        engin['H2']['elec_use_kwh_kgH2'][scenario].append(kwh_kgH2)
-        elec_in_kw = kwh_kgH2 * H2_kg_day / 24
-        engin['H2']['elec_in_kw'][scenario].append(elec_in_kw)
-        H2O_tgal_mwh = kgH2O_kgH2 / kwh_kgH2 / L_gal
-        engin['H2']['H2O_in_tgal_mwh'][scenario].append(H2O_tgal_mwh)
-        H2O_VOM_mwh = H2O_tgal_mwh * H2O_price_tgal[i]
-        finance['H2']['VOM_H2O_$_mwh'][scenario].append(H2O_VOM_mwh)
-        mwh_yr = output_kw/1000*8760
-        H2O_VOM_yr = H2O_VOM_mwh*mwh_yr
-        finance['H2']['VOM_H2O_$_yr'][scenario].append(H2O_VOM_yr)
+    # Use H2A model to get costs, engin params to size hybrid plant
+    engin_params = ['water_use_kg_kgH2','H2O_in_tgal_mwh','elec_use_kwh_kgH2','elec_in_kw','elec_in_mwh_yr']
+    finance_params = ['OCC_$','OCC_$_kw','FOM_$_yr','FOM_$_kwyr','VOM_H2O_$_mwh','VOM_H2O_$_yr']
+    for engin_param in engin_params:
+        engin[plant][engin_param] = dict([(i,[]) for i in H2A_scenarios])
+    for finance_param in finance_params:
+        finance[plant][finance_param] = dict([(i,[]) for i in H2A_scenarios])
+    for scenario in H2A_scenarios:
+        H2_kg_day = engin[plant]['H2_kg_day'][scenario]
+        output_kw = engin[plant]['output_kw'][scenario]
+        for i, year in enumerate(sim_years):
+            H2A_out = H2AModel_costs(H2_Cf,H2_kg_day,year,scenario)
+            H2_basis_year, H2_capex, H2_fixed_om, kgH2O_kgH2, kwh_kgH2 = H2A_out
+            H2_capex = inflate(H2_capex, H2_basis_year, basis_year)
+            H2_fixed_om = inflate(H2_fixed_om, H2_basis_year, basis_year)
+            finance[plant]['OCC_$'][scenario].append(H2_capex)
+            finance[plant]['OCC_$_kw'][scenario].append(H2_capex/output_kw)
+            finance[plant]['FOM_$_yr'][scenario].append(H2_fixed_om)
+            finance[plant]['FOM_$_kwyr'][scenario].append(H2_fixed_om/output_kw)
+            engin[plant]['water_use_kg_kgH2'][scenario].append(kgH2O_kgH2)
+            engin[plant]['elec_use_kwh_kgH2'][scenario].append(kwh_kgH2)
+            elec_in_kw = kwh_kgH2 * H2_kg_day / 24
+            engin[plant]['elec_in_kw'][scenario].append(elec_in_kw)
+            engin[plant]['elec_in_mwh_yr'][scenario].append(elec_in_kw*8.76)
+            H2O_tgal_mwh = kgH2O_kgH2 / kwh_kgH2 / L_gal
+            engin[plant]['H2O_in_tgal_mwh'][scenario].append(H2O_tgal_mwh)
+            H2O_VOM_mwh = H2O_tgal_mwh * H2O_price_tgal[i]
+            finance[plant]['VOM_H2O_$_mwh'][scenario].append(H2O_VOM_mwh)
+            mwh_yr = output_kw/1000*8760
+            H2O_VOM_yr = H2O_VOM_mwh*mwh_yr
+            finance[plant]['VOM_H2O_$_yr'][scenario].append(H2O_VOM_yr)
 
 #endregion
 
@@ -836,19 +851,23 @@ with open(Path(resource_dir/'finance.json'),'r') as file:
 with open(Path(resource_dir/'scenario.json'),'r') as file:
     scenario_info = json.load(file)
     plant_scenarios = scenario_info['plant_scenarios']
+    cambium_scenarios = scenario_info['cambium_scenarios']
+    cambium_scenario = scenario_info['cambium_scenario']
     atb_scenarios = scenario_info['atb_scenarios']
     H2A_scenarios = scenario_info['H2A_scenarios']
     MeOH_scenarios = scenario_info['MeOH_scenarios']
 with open(Path(resource_dir/'locations.json'),'r') as file:
     locations = json.load(file)
 
+
+
 # Print prices per unit for ALL scenarios
 prices_to_check = ['OCC_$_kw','FOM_$_kwyr','VOM_$_mwh']
 plants_to_check = plant_scenarios.keys()
 for plant in plants_to_check:
-    if plant == 'H2':
+    if plant[0] == 'H':
         scenario_list = H2A_scenarios
-    elif plant == 'MeOH':
+    elif plant[0] == 'M':
         scenario_list = MeOH_scenarios
     else:
         scenario_list = atb_scenarios
@@ -860,7 +879,7 @@ for plant in plants_to_check:
                     price_value = price_value[scenario]
                     if type(price_value) is list:
                         price_value = price_value[0]
-                print('{} plant {} ({} scenario): ${}'.format(plant,
+                print('{} plant {} ({} scenario): ${:,.2f}'.format(plant,
                                                                 price,
                                                                 scenario,
                                                                 price_value))
@@ -870,8 +889,8 @@ for plant in plants_to_check:
                                                                         scenario))
 
 # Print absolute prices and parameters for specific scenarios
-prices_to_check = ['OCC_$','FOM_$_yr','VOM_$_yr']
-params_to_check = ['output_kw'] 
+prices_to_check = ['OCC_$','FOM_$_yr','VOM_$_yr','VOM_other_$_yr','VOM_elec_$_yr','VOM_H2_$_yr','VOM_CO2_$_yr','VOM_NG_$_yr','VOM_H2O_$_yr','VOM_cat_$_yr']
+params_to_check = ['output_kw','elec_out_mwh_yr','H2_kg_yr','CO2_kg_yr','MeOH_kg_yr'] 
 for plant in plants_to_check:
     scenario = plant_scenarios[plant]
     for price in prices_to_check:
@@ -881,7 +900,7 @@ for plant in plants_to_check:
                 price_value = price_value[scenario]
                 if type(price_value) is list:
                     price_value = price_value[0]
-            print('{} plant {} ({} scenario): ${}'.format(plant,
+            print('{} plant {} ({} scenario): ${:,.2f}'.format(plant,
                                                             price,
                                                             scenario,
                                                             price_value))
@@ -890,13 +909,26 @@ for plant in plants_to_check:
                                                                     price,
                                                                     scenario))
     for param in params_to_check:
+        # if 'prod' in param:
+        #     if 'CC' in plant:
+        #         product = 'CO2'
+        #     elif plant[0] == 'H':
+        #         product = 'H2'
+        #     elif plant[0] == 'M':
+        #         product = 'MeOH'
+        #     else:
+        #         product = 'elec'
+        #     if product == 'elec':
+        #         param = 'elec_out_mwh_yr'
+        #     else:
+        #         param = param = product+'_kg_yr'
         try:
             param_value = engin[plant][param]
             if type(param_value) is dict:
                 param_value = param_value[scenario]
                 if type(param_value) is list:
                     param_value = param_value[0]
-            print('{} plant {} ({} scenario): {}'.format(plant,
+            print('{} plant {} ({} scenario): {:,.2f}'.format(plant,
                                                             param,
                                                             scenario,
                                                             param_value))
