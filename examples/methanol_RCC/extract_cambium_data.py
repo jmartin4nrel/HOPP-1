@@ -22,7 +22,7 @@ def inflate(dollars, original_year, new_year):
 
 cambium_dir = Path(__file__).parent.absolute()/'..'/'..'/'..'/'..'/'..'/'Projects'/'22 CO2 to Methanol'/'Cambium Data'
 
-scenarios = {'Mid-case':'MidCase',
+scenario_names = {'Mid-case':'MidCase',
              'High natural gas prices':'HighNGPrice',
              'Low natural gas prices':'LowNGPrice'}
 
@@ -54,15 +54,8 @@ prefix = {2020:'StdScen20',
           2045:'Cambium22',
           2050:'Cambium22'}
 
-
-annual_items = {'Energy cost [2020$/MWh]':'energy_cost_enduse',
-              'Capacity cost [2020$/MWh]':'capacity_cost_enduse',
-              'Portfolio cost [2020$/MWh]':'portfolio_cost_enduse'}
-
-hourly_items = {'Natural Gas Price [2020$/MMBtu]':'repgasprice_nat.csv',
-              'Energy cost [2020$/MWh]':'energy_cost_enduse',
-              'Capacity cost [2020$/MWh]':'capacity_cost_enduse',
-              'Portfolio cost [2020$/MWh]':'portfolio_cost_enduse',
+cambium_items = {'Natural Gas Price [2020$/MMBtu]':'repgasprice_nat.csv',
+              'End Use Cost [2020$/MWh]':'total_cost_enduse',
               'Average Regional Generation Emissions [kgCO2e/MWh]':'aer_gen_co2e'}
 
 aeo_price_fn = 'Average_retail_price_of_electricity.csv'
@@ -85,71 +78,107 @@ aeo_prices.columns = [int(i) for i in aeo_prices.columns]
 aeo_prices = aeo_prices.sort_index()
 
 # Import annual cambium data
-annual_cambium_prices = {}
-for key, name in annual_items.items():
-    annual_cambium_prices[key] = pd.DataFrame(None,index=new_index)
-    for year in [2020,2022]:
-        fn = prefix[year]+'_'+scenarios['Mid-case']+'_annual_state.csv'
-        temp_df = pd.read_csv(cambium_dir/'Mid-case'/fn,skiprows=year-2018,index_col=0)
-        temp_df = temp_df.loc[new_index]
-        temp_df.reset_index(inplace=True)
-        temp_df.set_index('t',inplace=True)
-        temp_df = temp_df.loc[year]
-        temp_df = temp_df.loc[:,name]
-        prices = inflate(temp_df.values, (year-2020)/2+2019, 2021)
-        new_series = pd.Series(prices,new_index,name=year)
-        annual_cambium_prices[key] = annual_cambium_prices[key].join(new_series)
-    mid_prices = []
-    for state in new_index:
-        values = annual_cambium_prices[key].loc[state].values
-        mid_prices.append(np.mean(values))
-    new_series = pd.Series(mid_prices,new_index,name=2021)
-    annual_cambium_prices[key] = annual_cambium_prices[key].join(new_series)
-    annual_cambium_prices[key] = annual_cambium_prices[key].sort_index(axis=1)
-    annual_cambium_prices[key] = annual_cambium_prices[key].sort_index()
+annual_cambium_prices = pd.DataFrame(None,index=new_index)
+annual_cambium_ghgs = pd.DataFrame(None,index=new_index)
+for year in [2020,2022]:
+    fn = prefix[year]+'_'+scenario_names['Mid-case']+'_annual_state.csv'
+    temp_df = pd.read_csv(cambium_dir/'Mid-case'/fn,skiprows=year-2018,index_col=0)
+    temp_df = temp_df.loc[new_index]
+    temp_df.reset_index(inplace=True)
+    temp_df.set_index('t',inplace=True)
+    temp_df = temp_df.loc[year]
+    temp_price = temp_df.loc[:,'total_cost_enduse']
+    if year == 2020:
+        temp_ghg = temp_df.loc[:,'co2_rate_avg_gen']
+    else:
+        temp_ghg = temp_df.loc[:,'aer_gen_co2e']
+    prices = inflate(temp_price.values, (year-2020)/2+2019, 2021)
+    new_series = pd.Series(prices,new_index,name=year)
+    annual_cambium_prices = annual_cambium_prices.join(new_series)
+    new_series = pd.Series(temp_ghg.values,new_index,name=year)
+    annual_cambium_ghgs = annual_cambium_ghgs.join(new_series)
+mid_prices = []
+mid_ghgs = []
+for state in new_index:
+    values = annual_cambium_prices.loc[state].values
+    mid_prices.append(np.mean(values))
+    values = annual_cambium_ghgs.loc[state].values
+    mid_ghgs.append(np.mean(values))
+new_series = pd.Series(mid_prices,new_index,name=2021)
+annual_cambium_prices = annual_cambium_prices.join(new_series)
+annual_cambium_prices = annual_cambium_prices.sort_index(axis=1)
+annual_cambium_prices = annual_cambium_prices.sort_index()
+new_series = pd.Series(mid_ghgs,new_index,name=2021)
+annual_cambium_ghgs = annual_cambium_ghgs.join(new_series)
+annual_cambium_ghgs = annual_cambium_ghgs.sort_index(axis=1)
+annual_cambium_ghgs = annual_cambium_ghgs.sort_index()
 
 # Correlate cambium data with AEO retail prices
-A1 = []
-A2 = []
-A3 = []
-b = []
-for year in [2022,]:
-    A1.extend(list(annual_cambium_prices['Energy cost [2020$/MWh]'].loc[:,year].values))
-    A2.extend(list(annual_cambium_prices['Capacity cost [2020$/MWh]'].loc[:,year].values))
-    A3.extend(list(annual_cambium_prices['Portfolio cost [2020$/MWh]'].loc[:,year].values))
-    b.extend(list(aeo_prices.loc[:,year].values))
-A_alt = [A1[i]+A2[i]+A3[i] for i in range(len(b))]
-# A3 = [i*100+100 for i in A3]
+cambium = np.mean(annual_cambium_prices.values,axis=1)
+aeo = np.mean(aeo_prices.values,axis=1)*10 # cents/kWh to $/MWh
+state_multipliers = {}
+for i, state in enumerate(aeo_prices.index.values):
+    state_multipliers[state] = aeo[i]/cambium[i]
 
-# plt.plot(A_alt,b,'.')
-# plt.show()
-
-A_cols = [A_alt,A3]
-# A_cols = [A1,A2,A3,np.ones(len(A_alt))]
-A = np.hstack([np.transpose(np.array([i])) for i in A_cols])
-A_means = np.mean(A, axis=0)
-A_n = np.divide(A,A_means)
-b_mean = np.mean(b)
-b_n = np.divide(b,b_mean)
-results = np.linalg.lstsq(A_n.astype(float),b_n.astype(float), rcond=None)
-x = results[0]
-alt_results = np.linalg.lstsq(A_n[:,[0,]].astype(float),b_n.astype(float), rcond=None)
-x_alt = alt_results[0]
-
-b_fit_alt = np.multiply(np.sum(np.multiply(A_n[:,[0,]],x_alt),axis=1),b_mean)
-x_adj = np.multiply(np.divide(x,A_means),b_mean)
-b_fit = np.sum(np.multiply(A,x_adj),axis=1)
-
-plt.subplot(1,2,1)
-plt.plot(b_fit,b,'.')
-plt.subplot(1,2,2)
-plt.plot(b_fit_alt,b,'.')
-# plt.show()
-
-plt.clf()
-ax = plt.figure().add_subplot(projection='3d')
-ax.plot(A_alt,A3,b,'.')
-plt.show()
-
-years = np.arange(2020,2051)
-
+# Add cambium prices for different scenarios
+key_years = [2022,2024,2026,2028,2030,2035,2040,2045,2050]
+years = np.arange(2023,2051)
+cambium_prices = {}
+cambium_ghgs = {}
+cambium_ng = {}
+for scenario, name in scenario_names.items():
+    cambium_prices[scenario] = copy.deepcopy(annual_cambium_prices)
+    cambium_ghgs[scenario] = copy.deepcopy(annual_cambium_ghgs)
+    cambium_ng[scenario] = pd.read_csv(cambium_dir/scenario/'repgasprice_nat.csv',index_col=0)
+    cambium_ng[scenario] = cambium_ng[scenario].loc[2020:2050]
+    ng2021 = pd.DataFrame(np.mean(cambium_ng[scenario].loc[2020:2022].values),index=[2021],columns=['Val'])
+    cambium_ng[scenario] = pd.concat([cambium_ng[scenario],ng2021])
+    fn = 'Cambium22_'+name+'_annual_state.csv'
+    temp_df = pd.read_csv(cambium_dir/scenario/fn,skiprows=5,index_col=0)
+    temp_df = temp_df.loc[new_index]
+    temp_df.reset_index(inplace=True)
+    temp_df.set_index('t',inplace=True)
+    for year in key_years[1:]:
+        year_df = temp_df.loc[year]
+        temp_price = year_df.loc[:,'total_cost_enduse']
+        temp_ghg = year_df.loc[:,'aer_gen_co2e']
+        prices = temp_price.values
+        new_series = pd.Series(prices,new_index,name=year)
+        cambium_prices[scenario] = cambium_prices[scenario].join(new_series)
+        new_series = pd.Series(temp_ghg.values,new_index,name=year)
+        cambium_ghgs[scenario] = cambium_ghgs[scenario].join(new_series)
+    for year in years:
+        if year not in key_years:
+            key_idx = np.argmax([year<i for i in key_years])
+            prev_key_year = key_years[key_idx-1]
+            next_key_year = key_years[key_idx]
+            interp_frac = (year-prev_key_year)/(next_key_year-prev_key_year)
+            if prev_key_year == 2022:
+                fn = 'StdScen21_MidCase_annual_state.csv'
+                temp_prev_df = pd.read_csv(cambium_dir/'Mid-case'/fn,skiprows=4,index_col=0)
+                temp_prev_df = temp_prev_df.loc[new_index]
+                temp_prev_df.reset_index(inplace=True)
+                temp_prev_df.set_index('t',inplace=True)
+                prev_df = temp_prev_df.loc[prev_key_year]
+            else:
+                prev_df = temp_df.loc[prev_key_year]
+            next_df = temp_df.loc[next_key_year]
+            prev_price = prev_df.loc[:,'total_cost_enduse'].values
+            next_price = next_df.loc[:,'total_cost_enduse'].values
+            prev_ghg = prev_df.loc[:,'aer_gen_co2e'].values
+            next_ghg = next_df.loc[:,'aer_gen_co2e'].values
+            prev_ng = cambium_ng[scenario].loc[prev_key_year].values
+            next_ng = cambium_ng[scenario].loc[next_key_year].values
+            prices = np.add(prev_price,np.multiply(interp_frac,np.subtract(next_price,prev_price)))
+            ghgs = np.add(prev_ghg,np.multiply(interp_frac,np.subtract(next_ghg,prev_ghg)))
+            ng = prev_ng+interp_frac*(next_ng-prev_ng)
+            new_series = pd.Series(prices,new_index,name=year)
+            cambium_prices[scenario] = cambium_prices[scenario].join(new_series)
+            new_series = pd.Series(ghgs,new_index,name=year)
+            cambium_ghgs[scenario] = cambium_ghgs[scenario].join(new_series)
+            new_ng = pd.DataFrame(ng,index=[year],columns=['Val'])
+            cambium_ng[scenario] = pd.concat([cambium_ng[scenario],new_ng])
+    cambium_prices[scenario] = cambium_prices[scenario].sort_index(axis=1)
+    cambium_ghgs[scenario] = cambium_ghgs[scenario].sort_index(axis=1)
+    cambium_ng[scenario] = cambium_ng[scenario].sort_index()
+    cambium_ng[scenario].loc[:] = inflate(cambium_ng[scenario].values, 2004, 2021)
