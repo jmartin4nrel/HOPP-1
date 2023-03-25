@@ -1,2 +1,2 @@
 ,site_nums,lat,lon,on_land,solar_filenames,wind_filenames,year,actual solar site latitutde,actual solar site longitutde,actual wind site latitutde,actual wind site longitutde
-0,1,39.6,-73.4,false,,,2013,,,,
+0,1,43.094,-93.29222,true,C:\Users\jmartin4\Documents\VS Code\jmartin4nrel\HOPP-NREL\resource_files\solar\43.094_-93.29222_psmv3_60_2013.csv,C:\Users\jmartin4\Documents\VS Code\jmartin4nrel\HOPP-NREL\resource_files\wind\43.094_-93.29222_windtoolkit_2013_60min_100m.srw,2013,43.09,-93.3,43.0876998901,-93.2855834961
