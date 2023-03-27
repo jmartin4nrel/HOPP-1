@@ -62,7 +62,7 @@ if __name__ == '__main__':
     # Simulation duration
     sim_start_year = 2020
     sim_end_year = 2050
-    sim_increment = 30
+    sim_increment = 5
     sim_years = np.arange(sim_start_year,sim_end_year+sim_increment,sim_increment)
 
     # Financial constants
@@ -100,7 +100,7 @@ if __name__ == '__main__':
     MeOH_scenarios = ['Great','Good','OK']
     cambium_scenarios = ['MidCase','HighNGPrice','LowNGPrice']
     # Set specific scenarios to size with
-    cambium_scenario = 'MidCase'
+    cambium_scenario = 'HighNGPrice'
     plant_scenarios =  {'NGCC':'Advanced',
                         'CCS': 'Advanced',
                         'PV':  'Advanced',
@@ -856,6 +856,8 @@ if __name__ == '__main__':
 
     ## Write imported dicts to json dumpfiles
 
+    current_dir = Path(__file__).parent.absolute()
+    resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'/cambium_scenario
     with open(Path(resource_dir/'engin.json'),'w') as file:
         json.dump(engin, file)
     with open(Path(resource_dir/'finance.json'),'w') as file:
@@ -876,10 +878,6 @@ if __name__ == '__main__':
     # %% Check imports and conversions
 
     # Load imported dicts from json dumpfiles
-    import json
-    from pathlib import Path
-    current_dir = Path(__file__).parent.absolute()
-    resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'
     with open(Path(resource_dir/'engin.json'),'r') as file:
         engin = json.load(file)
     with open(Path(resource_dir/'finance.json'),'r') as file:

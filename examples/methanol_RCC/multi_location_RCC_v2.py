@@ -367,335 +367,337 @@ if __name__ == '__main__':
     # Set paths
     current_dir = Path(__file__).parent.absolute()
     resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'
-    results_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'
-    if not os.path.exists(results_dir):
-        os.mkdir(results_dir)
-
     load_resource_from_file = True
 
     # Load dump files from data import
-    with open(Path(resource_dir/'engin.json'),'r') as file:
-        engin = json.load(file)
-    with open(Path(resource_dir/'finance.json'),'r') as file:
-        finance = json.load(file)
-    with open(Path(resource_dir/'scenario.json'),'r') as file:
-        scenario_info = json.load(file)
-        plant_scenarios = scenario_info['plant_scenarios']
-        cambium_scenarios = scenario_info['cambium_scenarios']
-        cambium_scenario = scenario_info['cambium_scenario']
-        atb_scenarios = scenario_info['atb_scenarios']
-        H2A_scenarios = scenario_info['H2A_scenarios']
-        MeOH_scenarios = scenario_info['MeOH_scenarios']
-    with open(Path(resource_dir/'locations.json'),'r') as file:
-        locations = json.load(file)
-    with open(Path(resource_dir/('cambium_prices_'+cambium_scenario+'.json')),'r') as file:
-        cambium_prices = pd.read_json(file)
-    with open(Path(resource_dir/('cambium_ghgs_'+cambium_scenario+'.json')),'r') as file:
-        cambium_ghgs = pd.read_json(file)
-    with open(Path(resource_dir/('cambium_ng_'+cambium_scenario+'.json')),'r') as file:
-        cambium_ng = pd.read_json(file)
-    with open(Path(resource_dir/('cambium_aeo_multipliers.json')),'r') as file:
-        state_multipliers = json.load(file)
+    cambium_scenarios = ['MidCase','HighNGPrice','LowNGPrice']
+    for l, cambium_scenario in enumerate(cambium_scenarios):   
+        resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'
+        results_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'/cambium_scenario
+        with open(Path(results_dir/'engin.json'),'r') as file:
+            engin = json.load(file)
+        with open(Path(results_dir/'finance.json'),'r') as file:
+            finance = json.load(file)
+        with open(Path(results_dir/'scenario.json'),'r') as file:
+            scenario_info = json.load(file)
+            plant_scenarios = scenario_info['plant_scenarios']
+            # cambium_scenarios = scenario_info['cambium_scenarios']
+            # cambium_scenario = scenario_info['cambium_scenario']
+            atb_scenarios = scenario_info['atb_scenarios']
+            H2A_scenarios = scenario_info['H2A_scenarios']
+            MeOH_scenarios = scenario_info['MeOH_scenarios']
+        if not os.path.exists(results_dir):
+            os.mkdir(results_dir)
+        with open(Path(results_dir/'locations.json'),'r') as file:
+            locations = json.load(file)
+        with open(Path(resource_dir/('cambium_prices_'+cambium_scenario+'.json')),'r') as file:
+            cambium_prices = pd.read_json(file)
+        with open(Path(resource_dir/('cambium_ghgs_'+cambium_scenario+'.json')),'r') as file:
+            cambium_ghgs = pd.read_json(file)
+        with open(Path(resource_dir/('cambium_ng_'+cambium_scenario+'.json')),'r') as file:
+            cambium_ng = pd.read_json(file)
+        with open(Path(resource_dir/('cambium_aeo_multipliers.json')),'r') as file:
+            state_multipliers = json.load(file)
 
-    # Set Analysis Location and Details
-    resource_year = 2013
-    sim_years = [2020,2050]#scenario_info['sim_years']
-    plant_size_pcts = np.arange(60,160,20)
-    wind_pcts = np.arange(10,110,20)
-    site_name_list = list(locations.keys())[:1]
-    sites_per_location = 1
-    
-    resource_dir = current_dir/'..'/'..'/'resource_files'
-
-    for site_name in site_name_list:
+        # Set Analysis Location and Details
+        resource_year = 2013
+        sim_years = scenario_info['sim_years']
+        plant_size_pcts = np.arange(60,160,20)
+        wind_pcts = np.arange(10,110,20)
+        site_name_list = list(locations.keys())[:2]
+        sites_per_location = 1
         
-        desired_lats = locations[site_name]['lat'][:sites_per_location]
-        desired_lons = locations[site_name]['lon'][:sites_per_location]
+        resource_dir = current_dir/'..'/'..'/'resource_files'
 
-        for plant in ['HCO2','HPSR']:
-        
-            locations[site_name][plant] = {}
-            locations[site_name][plant]['orig_lcoe_$_kwh'] = [[]*len(desired_lats)]
-            locations[site_name][plant]['lcoe_$_kwh'] = [[]*len(desired_lats)]
-            locations[site_name][plant]['orig_CI_g_kwh'] = [[]*len(desired_lats)]
-            locations[site_name][plant]['CI_g_kwh'] = [[]*len(desired_lats)]
-            locations[site_name][plant]['pv_capacity_kw'] = [[]*len(desired_lats)]
-            locations[site_name][plant]['wind_capacity_kw'] = [[]*len(desired_lats)]
-            locations[site_name][plant]['pv_output_kw'] = [[]*len(desired_lats)]
-            locations[site_name][plant]['wind_output_kw'] = [[]*len(desired_lats)]
-            locations[site_name][plant]['electrolyzer_input_kw'] = [[]*len(desired_lats)]
-            locations[site_name][plant]['grid_bought_kw'] = [[]*len(desired_lats)]
-            locations[site_name][plant]['grid_sold_kw'] = [[]*len(desired_lats)]
+        for site_name in site_name_list:
+            
+            desired_lats = locations[site_name]['lat'][:sites_per_location]
+            desired_lons = locations[site_name]['lon'][:sites_per_location]
 
-        for sim_year in sim_years:
+            for plant in ['HCO2','HPSR']:
+            
+                locations[site_name][plant] = {}
+                locations[site_name][plant]['orig_lcoe_$_kwh'] = [[]*len(desired_lats)]
+                locations[site_name][plant]['lcoe_$_kwh'] = [[]*len(desired_lats)]
+                locations[site_name][plant]['orig_CI_g_kwh'] = [[]*len(desired_lats)]
+                locations[site_name][plant]['CI_g_kwh'] = [[]*len(desired_lats)]
+                locations[site_name][plant]['pv_capacity_kw'] = [[]*len(desired_lats)]
+                locations[site_name][plant]['wind_capacity_kw'] = [[]*len(desired_lats)]
+                locations[site_name][plant]['pv_output_kw'] = [[]*len(desired_lats)]
+                locations[site_name][plant]['wind_output_kw'] = [[]*len(desired_lats)]
+                locations[site_name][plant]['electrolyzer_input_kw'] = [[]*len(desired_lats)]
+                locations[site_name][plant]['grid_bought_kw'] = [[]*len(desired_lats)]
+                locations[site_name][plant]['grid_sold_kw'] = [[]*len(desired_lats)]
 
-            year_idx = scenario_info['sim_years'].index(sim_year)
-        
-            # Load wind and solar resource files for location nearest desired lats and lons
-            # NB this resource information will be overriden by API retrieved data if load_resource_from_file is set to False
-            sitelist_name = 'filtered_site_details_{}_locs_{}_year'.format(len(desired_lats), resource_year)
-            # sitelist_name = 'site_details.csv'
-            if load_resource_from_file:
-                # Loads resource files in 'resource_files', finds nearest files to 'desired_lats' and 'desired_lons'
-                site_details = resource_loader_file(resource_dir, desired_lats, desired_lons, resource_year, not_rect=True,\
-                                                    max_dist=.01)  # Return contains
-                site_details.insert(3,'on_land',locations[site_name]['on_land'][:1])
-                # site_details = filter_sites(site_details, location='usa only')
-                site_details.to_csv(os.path.join(resource_dir, 'site_details.csv'))
-            else:
-                # Creates the site_details file containing grid of lats, lons, years, and wind and solar filenames (blank
-                # - to force API resource download)
-                if os.path.exists(sitelist_name):
-                    site_details = pd.read_csv(sitelist_name)
+            for sim_year in sim_years:
+
+                year_idx = scenario_info['sim_years'].index(sim_year)
+            
+                # Load wind and solar resource files for location nearest desired lats and lons
+                # NB this resource information will be overriden by API retrieved data if load_resource_from_file is set to False
+                sitelist_name = 'filtered_site_details_{}_locs_{}_year'.format(len(desired_lats), resource_year)
+                # sitelist_name = 'site_details.csv'
+                if load_resource_from_file:
+                    # Loads resource files in 'resource_files', finds nearest files to 'desired_lats' and 'desired_lons'
+                    site_details = resource_loader_file(resource_dir, desired_lats, desired_lons, resource_year, not_rect=True,\
+                                                        max_dist=.01)  # Return contains
+                    site_details.insert(3,'on_land',locations[site_name]['on_land'][:1])
+                    # site_details = filter_sites(site_details, location='usa only')
+                    site_details.to_csv(os.path.join(resource_dir, 'site_details.csv'))
                 else:
-                    site_details = site_details_creator.site_details_creator(desired_lats, desired_lons, resource_year, not_rect=True)
-                    # Filter to locations in USA - MOVE TO PARALLEL
-                    site_details = filter_sites(site_details, location='usa only')
-                    site_details.to_csv(sitelist_name)
+                    # Creates the site_details file containing grid of lats, lons, years, and wind and solar filenames (blank
+                    # - to force API resource download)
+                    if os.path.exists(sitelist_name):
+                        site_details = pd.read_csv(sitelist_name)
+                    else:
+                        site_details = site_details_creator.site_details_creator(desired_lats, desired_lons, resource_year, not_rect=True)
+                        # Filter to locations in USA - MOVE TO PARALLEL
+                        site_details = filter_sites(site_details, location='usa only')
+                        site_details.to_csv(sitelist_name)
 
-            site_nums = site_details['site_nums'][:sites_per_location]
+                site_nums = site_details['site_nums'][:sites_per_location]
 
-            # Constants needed by HOPP
-            correct_wind_speed_for_height = True
-            
-            # Get H2 elyzer size
-            H2_plants = ['HCO2','HPSR']
-            HCO2_scenario = plant_scenarios['HCO2']
-            HPSR_scenario = plant_scenarios['HPSR']
-            elyzer_inputs_kw = [engin['HCO2']['elec_in_kw'][HCO2_scenario][year_idx],
-                               engin['HPSR']['elec_in_kw'][HPSR_scenario][year_idx]]
-            elyzer_cf = 0.97 #TODO: variable electrolyzer capacity
-            elyzer_sizes_kw = [i/elyzer_cf for i in elyzer_inputs_kw]
+                # Constants needed by HOPP
+                correct_wind_speed_for_height = True
+                
+                # Get H2 elyzer size
+                H2_plants = ['HCO2','HPSR']
+                HCO2_scenario = plant_scenarios['HCO2']
+                HPSR_scenario = plant_scenarios['HPSR']
+                elyzer_inputs_kw = [engin['HCO2']['elec_in_kw'][HCO2_scenario][year_idx],
+                                engin['HPSR']['elec_in_kw'][HPSR_scenario][year_idx]]
+                elyzer_cf = 0.97 #TODO: variable electrolyzer capacity
+                elyzer_sizes_kw = [i/elyzer_cf for i in elyzer_inputs_kw]
 
-            # Get grid pricing & ghgs
-            wind_ppa_lcoe_ratio = 0.7742
-            solar_ppa_lcoe_ratio = 0.6959
-            cambium_aeo_multiplier = state_multipliers[site_name[:2]]
-            cambium_price = cambium_prices.loc[site_name[:2],sim_year:].values
-            grid_co2e_kg_mwh = cambium_ghgs.loc[site_name[:2],sim_year:].values
-            ppa_buy_price_kwh = cambium_price*cambium_aeo_multiplier/1000
-            
-            # Estimate wind/solar needed based on capacity factor
-            pv_scenario = plant_scenarios['PV']
-            pv_cap = engin['PV']['capacity_factor'][pv_scenario][year_idx]
-            lbw_scenario = plant_scenarios['LBW']
-            lbw_cap = engin['LBW']['capacity_factor'][lbw_scenario][year_idx]
-            osw_scenario = plant_scenarios['OSW']
-            osw_cap = engin['OSW']['capacity_factor'][osw_scenario][year_idx]
+                # Get grid pricing & ghgs
+                wind_ppa_lcoe_ratio = 0.7742
+                solar_ppa_lcoe_ratio = 0.6959
+                cambium_aeo_multiplier = state_multipliers[site_name[:2]]
+                cambium_price = cambium_prices.loc[site_name[:2],sim_year:].values
+                grid_co2e_kg_mwh = cambium_ghgs.loc[site_name[:2],sim_year:].values
+                ppa_buy_price_kwh = cambium_price*cambium_aeo_multiplier/1000
+                
+                # Estimate wind/solar needed based on capacity factor
+                pv_scenario = plant_scenarios['PV']
+                pv_cap = engin['PV']['capacity_factor'][pv_scenario][year_idx]
+                lbw_scenario = plant_scenarios['LBW']
+                lbw_cap = engin['LBW']['capacity_factor'][lbw_scenario][year_idx]
+                osw_scenario = plant_scenarios['OSW']
+                osw_cap = engin['OSW']['capacity_factor'][osw_scenario][year_idx]
 
-            # Make dict of power factors
-            power_factors_to_set = {
-                'PV':['albedo','array_type','azimuth','bifaciality','dc_ac_ratio',
-                      'dc_degradation','inv_eff','losses'],
-                'LBW':['wind_turbine_max_cp','avail_bop_loss','avail_grid_loss',
-                    'avail_turb_loss','elec_eff_loss','elec_parasitic_loss',
-                    'env_degrad_loss','env_env_loss','env_icing_loss','ops_env_loss',
-                    'ops_grid_loss','ops_load_loss','turb_generic_loss',
-                    'turb_hysteresis_loss','turb_perf_loss','turb_specific_loss',
-                    'wake_ext_loss']
-            }
-            power_factors_to_set['OSW'] = power_factors_to_set['LBW']
-            power_factors = {}
-            for tech, factor_list in power_factors_to_set.items():
-                power_factors[tech] = {}
-                for factor in factor_list:
-                    scenario = scenario_info['plant_scenarios'][tech]
-                    power_factor = engin[tech][factor][scenario]
-                    if type(power_factor) is list:
-                        power_factor = power_factor[year_idx]
-                    power_factors[tech][factor] = power_factor
-                    
-
-            if site_details['on_land'][0] == 'false':
-                wind_pcts = [100]
-            technologies_lols = []
-            
-            for plant_pct in plant_size_pcts:
-                technologies_lol = []   
-                costs_list = []   
-                for wind_pct in wind_pcts:
-                    technologies_list = []
-                    for i, elyzer_input_kw in enumerate(elyzer_inputs_kw):
-                        elyzer_size_kw = elyzer_sizes_kw[i]
-
-                        osw_input_kw = elyzer_input_kw*plant_pct/100
-                        lbw_input_kw = elyzer_input_kw*plant_pct/100*wind_pct/100
-                        pv_input_kw= elyzer_input_kw*plant_pct/100*(100-wind_pct)/100
+                # Make dict of power factors
+                power_factors_to_set = {
+                    'PV':['albedo','array_type','azimuth','bifaciality','dc_ac_ratio',
+                        'dc_degradation','inv_eff','losses'],
+                    'LBW':['wind_turbine_max_cp','avail_bop_loss','avail_grid_loss',
+                        'avail_turb_loss','elec_eff_loss','elec_parasitic_loss',
+                        'env_degrad_loss','env_env_loss','env_icing_loss','ops_env_loss',
+                        'ops_grid_loss','ops_load_loss','turb_generic_loss',
+                        'turb_hysteresis_loss','turb_perf_loss','turb_specific_loss',
+                        'wake_ext_loss']
+                }
+                power_factors_to_set['OSW'] = power_factors_to_set['LBW']
+                power_factors = {}
+                for tech, factor_list in power_factors_to_set.items():
+                    power_factors[tech] = {}
+                    for factor in factor_list:
+                        scenario = scenario_info['plant_scenarios'][tech]
+                        power_factor = engin[tech][factor][scenario]
+                        if type(power_factor) is list:
+                            power_factor = power_factor[year_idx]
+                        power_factors[tech][factor] = power_factor
                         
-                        osw_size_kw = osw_input_kw/osw_cap
-                        lbw_size_kw = lbw_input_kw/lbw_cap
-                        pv_size_kw = pv_input_kw/pv_cap
-                        pv_dc_size_kw = pv_size_kw*power_factors['PV']['dc_ac_ratio']
 
-                        iconn_kw = [osw_size_kw,pv_size_kw+lbw_size_kw]
+                if site_details['on_land'][0] == 'false':
+                    wind_pcts = [100]
+                technologies_lols = []
+                
+                for plant_pct in plant_size_pcts:
+                    technologies_lol = []   
+                    costs_list = []   
+                    for wind_pct in wind_pcts:
+                        technologies_list = []
+                        for i, elyzer_input_kw in enumerate(elyzer_inputs_kw):
+                            elyzer_size_kw = elyzer_sizes_kw[i]
 
-                        lbw_turb_rating_kw = engin['LBW']['turbine_rating_kw'][lbw_scenario][year_idx]
-                        lbw_hub_height = engin['LBW']['hub_height'][lbw_scenario][year_idx]
-                        lbw_rotor_diameter = engin['LBW']['rotor_diameter'][lbw_scenario][year_idx]
+                            osw_input_kw = elyzer_input_kw*plant_pct/100
+                            lbw_input_kw = elyzer_input_kw*plant_pct/100*wind_pct/100
+                            pv_input_kw= elyzer_input_kw*plant_pct/100*(100-wind_pct)/100
+                            
+                            osw_size_kw = osw_input_kw/osw_cap
+                            lbw_size_kw = lbw_input_kw/lbw_cap
+                            pv_size_kw = pv_input_kw/pv_cap
+                            pv_dc_size_kw = pv_size_kw*power_factors['PV']['dc_ac_ratio']
 
-                        osw_turb_rating_kw = engin['OSW']['turbine_rating_kw'][osw_scenario][year_idx]
-                        osw_hub_height = engin['OSW']['hub_height'][osw_scenario][year_idx]
-                        osw_rotor_diameter = engin['OSW']['rotor_diameter'][osw_scenario][year_idx]
+                            iconn_kw = [osw_size_kw,pv_size_kw+lbw_size_kw]
 
-                        technologies = {'pv': {
-                                            'system_capacity_kw': pv_dc_size_kw,
-                                        },
-                                        'lbw': {
-                                            'num_turbines': round(lbw_size_kw/lbw_turb_rating_kw),
-                                            'turbine_rating_kw': lbw_turb_rating_kw,
-                                            'hub_height': lbw_hub_height,
-                                            'rotor_diameter': lbw_rotor_diameter
-                                        },
-                                        'osw': {
-                                            'num_turbines': round(osw_size_kw/osw_turb_rating_kw),
-                                            'turbine_rating_kw': osw_turb_rating_kw,
-                                            'hub_height': osw_hub_height,
-                                            'rotor_diameter': osw_rotor_diameter
-                                        },
-                                        'pem': {
-                                            'capacity_kw': elyzer_size_kw,
-                                            'capacity_factor': elyzer_cf,
-                                        },
-                                        'interconnection': {
-                                            'capacity_kw': iconn_kw,
-                                            'ppa_buy_price_kwh': ppa_buy_price_kwh,
-                                            'wind_ppa_lcoe_ratio': wind_ppa_lcoe_ratio,
-                                            'solar_ppa_lcoe_ratio': solar_ppa_lcoe_ratio,
-                                            'grid_co2e_kg_mwh': grid_co2e_kg_mwh,
-                                            'H2_plant': H2_plants[i]
-                                        }
-                                        }
+                            lbw_turb_rating_kw = engin['LBW']['turbine_rating_kw'][lbw_scenario][year_idx]
+                            lbw_hub_height = engin['LBW']['hub_height'][lbw_scenario][year_idx]
+                            lbw_rotor_diameter = engin['LBW']['rotor_diameter'][lbw_scenario][year_idx]
 
-                        technologies_list.append(technologies)
+                            osw_turb_rating_kw = engin['OSW']['turbine_rating_kw'][osw_scenario][year_idx]
+                            osw_hub_height = engin['OSW']['hub_height'][osw_scenario][year_idx]
+                            osw_rotor_diameter = engin['OSW']['rotor_diameter'][osw_scenario][year_idx]
 
-                    technologies_lol.append(technologies_list)
+                            technologies = {'pv': {
+                                                'system_capacity_kw': pv_dc_size_kw,
+                                            },
+                                            'lbw': {
+                                                'num_turbines': round(lbw_size_kw/lbw_turb_rating_kw),
+                                                'turbine_rating_kw': lbw_turb_rating_kw,
+                                                'hub_height': lbw_hub_height,
+                                                'rotor_diameter': lbw_rotor_diameter
+                                            },
+                                            'osw': {
+                                                'num_turbines': round(osw_size_kw/osw_turb_rating_kw),
+                                                'turbine_rating_kw': osw_turb_rating_kw,
+                                                'hub_height': osw_hub_height,
+                                                'rotor_diameter': osw_rotor_diameter
+                                            },
+                                            'pem': {
+                                                'capacity_kw': elyzer_size_kw,
+                                                'capacity_factor': elyzer_cf,
+                                            },
+                                            'interconnection': {
+                                                'capacity_kw': iconn_kw,
+                                                'ppa_buy_price_kwh': ppa_buy_price_kwh,
+                                                'wind_ppa_lcoe_ratio': wind_ppa_lcoe_ratio,
+                                                'solar_ppa_lcoe_ratio': solar_ppa_lcoe_ratio,
+                                                'grid_co2e_kg_mwh': grid_co2e_kg_mwh,
+                                                'H2_plant': H2_plants[i]
+                                            }
+                                            }
 
-                technologies_lols.append(technologies_lol)
+                            technologies_list.append(technologies)
 
-            sim_basis_year = finance['PV']['basis_year']
-            plant_lifespan = finance['PV']['plant_lifespan']
-            discount_rate = finance['PV']['discount_rate']
-            TASC_multiplier = finance['PV']['TASC_multiplier']
-            
-            pv_occ_kw = finance['PV']['OCC_$_kw'][pv_scenario][year_idx]
-            pv_occ_kwyr = pv_occ_kw*TASC_multiplier*discount_rate
-            pv_fom_kwyr = finance['PV']['FOM_$_kwyr'][pv_scenario][year_idx]
-            pv_toc_kwyr = pv_occ_kwyr + pv_fom_kwyr
-            
-            lbw_occ_kw = finance['LBW']['OCC_$_kw'][lbw_scenario][year_idx]
-            lbw_occ_kwyr = lbw_occ_kw*TASC_multiplier*discount_rate
-            lbw_fom_kwyr = finance['LBW']['FOM_$_kwyr'][lbw_scenario][year_idx]
-            lbw_toc_kwyr = lbw_occ_kwyr + lbw_fom_kwyr
+                        technologies_lol.append(technologies_list)
 
-            osw_occ_kw = finance['OSW']['OCC_$_kw'][osw_scenario][year_idx]
-            osw_occ_kwyr = osw_occ_kw*TASC_multiplier*discount_rate
-            osw_fom_kwyr = finance['OSW']['FOM_$_kwyr'][osw_scenario][year_idx]
-            osw_toc_kwyr = osw_occ_kwyr + osw_fom_kwyr
+                    technologies_lols.append(technologies_lol)
 
-            costs ={'pv': {
-                        'total_annual_cost_kw': pv_toc_kwyr
-                    },
-                    'lbw': {
-                        'total_annual_cost_kw': lbw_toc_kwyr
-                    },
-                    'osw': {
-                        'total_annual_cost_kw': osw_toc_kwyr
-                    }}   # TODO :Add other inputs such as pricing
-            
+                sim_basis_year = finance['PV']['basis_year']
+                plant_lifespan = finance['PV']['plant_lifespan']
+                discount_rate = finance['PV']['discount_rate']
+                TASC_multiplier = finance['PV']['TASC_multiplier']
+                
+                pv_occ_kw = finance['PV']['OCC_$_kw'][pv_scenario][year_idx]
+                pv_occ_kwyr = pv_occ_kw*TASC_multiplier*discount_rate
+                pv_fom_kwyr = finance['PV']['FOM_$_kwyr'][pv_scenario][year_idx]
+                pv_toc_kwyr = pv_occ_kwyr + pv_fom_kwyr
+                
+                lbw_occ_kw = finance['LBW']['OCC_$_kw'][lbw_scenario][year_idx]
+                lbw_occ_kwyr = lbw_occ_kw*TASC_multiplier*discount_rate
+                lbw_fom_kwyr = finance['LBW']['FOM_$_kwyr'][lbw_scenario][year_idx]
+                lbw_toc_kwyr = lbw_occ_kwyr + lbw_fom_kwyr
 
+                osw_occ_kw = finance['OSW']['OCC_$_kw'][osw_scenario][year_idx]
+                osw_occ_kwyr = osw_occ_kw*TASC_multiplier*discount_rate
+                osw_fom_kwyr = finance['OSW']['FOM_$_kwyr'][osw_scenario][year_idx]
+                osw_toc_kwyr = osw_occ_kwyr + osw_fom_kwyr
 
-            # Save results from all locations to folder
-            year_results_dir = results_dir/str(sim_year)
-            if not os.path.exists(year_results_dir):
-                os.mkdir(year_results_dir)
-            if not os.path.exists(year_results_dir/'OrigLCOE'):
-                os.mkdir(year_results_dir/'OrigLCOE')
-            if not os.path.exists(year_results_dir/'LCOE'):
-                os.mkdir(year_results_dir/'LCOE')
-            if not os.path.exists(year_results_dir/'OrigCI'):
-                os.mkdir(year_results_dir/'OrigCI')
-            if not os.path.exists(year_results_dir/'CI'):
-                os.mkdir(year_results_dir/'CI')
-            if not os.path.exists(year_results_dir/'kWH2'):
-                os.mkdir(year_results_dir/'kWH2')
-            if not os.path.exists(year_results_dir/'kWwind'):
-                os.mkdir(year_results_dir/'kWwind')
-            if not os.path.exists(year_results_dir/'kWPV'):
-                os.mkdir(year_results_dir/'kWPV')
-            if not os.path.exists(year_results_dir/'kWbuy'):
-                os.mkdir(year_results_dir/'kWbuy')
-            if not os.path.exists(year_results_dir/'kWsell'):
-                os.mkdir(year_results_dir/'kWsell')
-
-            # # Run hybrid calculation for all sites
-            # tic = time.time()
-            # run_all_hybrid_calcs(site_name, site_details, technologies_lols, costs,
-            #                         year_results_dir, plant_size_pcts, wind_pcts, power_factors)
-            # toc = time.time()
-            # print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
-            
-            for site_num in site_nums:
-            
-                for plant in ['HCO2','HPSR']:
-                    
-                    min_lcoe = np.inf
-                    opt_pv = np.inf
-                    opt_wind = np.inf
-
-                    for i, plant_pct in enumerate(plant_size_pcts):
-                        if locations[site_name]['on_land'][0] == 'false':
-                            final_wind_pcts = [100]
-                        else:
-                            final_wind_pcts = wind_pcts
-                        for j, wind_pct in enumerate(final_wind_pcts):
-                            fn = '{}{:02d}_plant{:03d}_wind{:02d}_{}.txt'.format(site_name,site_num,plant_pct,wind_pct,plant)
-                            new_lcoe = float(np.loadtxt(year_results_dir/'LCOE'/fn))
-                            if new_lcoe < min_lcoe:
-                                min_lcoe = copy.copy(new_lcoe)
-                                
-                                osw_input_kw = elyzer_input_kw*plant_pct/100
-                                lbw_input_kw = elyzer_input_kw*plant_pct/100*wind_pct/100
-                                pv_input_kw= elyzer_input_kw*plant_pct/100*(100-wind_pct)/100
-                                
-                                osw_size_kw = osw_input_kw/osw_cap
-                                lbw_size_kw = lbw_input_kw/lbw_cap
-                                pv_size_kw = pv_input_kw/pv_cap
-
-                                orig_lcoe = float(np.loadtxt(year_results_dir/'OrigLCOE'/fn))
-                                orig_CI = float(np.loadtxt(year_results_dir/'OrigCI'/fn))
-                                CI = float(np.loadtxt(year_results_dir/'CI'/fn))
-                                pv_output = float(np.loadtxt(year_results_dir/'kWPV'/fn))
-                                wind_output = float(np.loadtxt(year_results_dir/'kWwind'/fn))
-                                elec_input = float(np.loadtxt(year_results_dir/'kWH2'/fn))
-                                grid_bought = float(np.loadtxt(year_results_dir/'kWbuy'/fn))
-                                grid_sold = float(np.loadtxt(year_results_dir/'kWsell'/fn))
-
-                                if locations[site_name]['on_land'][0] == 'false':
-                                    opt_pv = 0
-                                    opt_wind = copy.copy(osw_size_kw)
-                                else:
-                                    opt_pv = copy.copy(pv_size_kw)
-                                    opt_wind = copy.copy(lbw_size_kw)
-
-                    locations[site_name][plant]['lcoe_$_kwh'][site_num-1].append(min_lcoe)
-                    locations[site_name][plant]['orig_lcoe_$_kwh'][site_num-1].append(orig_lcoe)
-                    locations[site_name][plant]['CI_g_kwh'][site_num-1].append(CI)
-                    locations[site_name][plant]['orig_CI_g_kwh'][site_num-1].append(orig_CI)
-                    locations[site_name][plant]['pv_capacity_kw'][site_num-1].append(opt_pv)
-                    locations[site_name][plant]['pv_output_kw'][site_num-1].append(pv_output)
-                    locations[site_name][plant]['wind_capacity_kw'][site_num-1].append(opt_wind)
-                    locations[site_name][plant]['wind_output_kw'][site_num-1].append(wind_output)
-                    locations[site_name][plant]['electrolyzer_input_kw'][site_num-1].append(elec_input)
-                    locations[site_name][plant]['grid_bought_kw'][site_num-1].append(grid_bought)
-                    locations[site_name][plant]['grid_sold_kw'][site_num-1].append(grid_sold)
+                costs ={'pv': {
+                            'total_annual_cost_kw': pv_toc_kwyr
+                        },
+                        'lbw': {
+                            'total_annual_cost_kw': lbw_toc_kwyr
+                        },
+                        'osw': {
+                            'total_annual_cost_kw': osw_toc_kwyr
+                        }}   # TODO :Add other inputs such as pricing
+                
 
 
-    resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'
-    with open(Path(resource_dir/'locations.json'),'w') as file:
-        out_locations = copy.deepcopy(locations)
-        for ID, loc in out_locations.items():
-            for i, value in enumerate(loc['on_land']):
-                value = str(value).lower()
-                loc['on_land'][i] = value
-        json.dump(out_locations, file)
+                # Save results from all locations to folder
+                year_results_dir = results_dir/str(sim_year)
+                if not os.path.exists(year_results_dir):
+                    os.mkdir(year_results_dir)
+                if not os.path.exists(year_results_dir/'OrigLCOE'):
+                    os.mkdir(year_results_dir/'OrigLCOE')
+                if not os.path.exists(year_results_dir/'LCOE'):
+                    os.mkdir(year_results_dir/'LCOE')
+                if not os.path.exists(year_results_dir/'OrigCI'):
+                    os.mkdir(year_results_dir/'OrigCI')
+                if not os.path.exists(year_results_dir/'CI'):
+                    os.mkdir(year_results_dir/'CI')
+                if not os.path.exists(year_results_dir/'kWH2'):
+                    os.mkdir(year_results_dir/'kWH2')
+                if not os.path.exists(year_results_dir/'kWwind'):
+                    os.mkdir(year_results_dir/'kWwind')
+                if not os.path.exists(year_results_dir/'kWPV'):
+                    os.mkdir(year_results_dir/'kWPV')
+                if not os.path.exists(year_results_dir/'kWbuy'):
+                    os.mkdir(year_results_dir/'kWbuy')
+                if not os.path.exists(year_results_dir/'kWsell'):
+                    os.mkdir(year_results_dir/'kWsell')
+
+                # # Run hybrid calculation for all sites
+                # tic = time.time()
+                # run_all_hybrid_calcs(site_name, site_details, technologies_lols, costs,
+                #                         year_results_dir, plant_size_pcts, wind_pcts, power_factors)
+                # toc = time.time()
+                # print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
+                
+                for site_num in site_nums:
+                
+                    for plant in ['HCO2','HPSR']:
+                        
+                        min_lcoe = np.inf
+                        opt_pv = np.inf
+                        opt_wind = np.inf
+
+                        for i, plant_pct in enumerate(plant_size_pcts):
+                            if locations[site_name]['on_land'][0] == 'false':
+                                final_wind_pcts = [100]
+                            else:
+                                final_wind_pcts = wind_pcts
+                            for j, wind_pct in enumerate(final_wind_pcts):
+                                fn = '{}{:02d}_plant{:03d}_wind{:02d}_{}.txt'.format(site_name,site_num,plant_pct,wind_pct,plant)
+                                new_lcoe = float(np.loadtxt(year_results_dir/'LCOE'/fn))
+                                if new_lcoe < min_lcoe:
+                                    min_lcoe = copy.copy(new_lcoe)
+                                    
+                                    osw_input_kw = elyzer_input_kw*plant_pct/100
+                                    lbw_input_kw = elyzer_input_kw*plant_pct/100*wind_pct/100
+                                    pv_input_kw= elyzer_input_kw*plant_pct/100*(100-wind_pct)/100
+                                    
+                                    osw_size_kw = osw_input_kw/osw_cap
+                                    lbw_size_kw = lbw_input_kw/lbw_cap
+                                    pv_size_kw = pv_input_kw/pv_cap
+
+                                    orig_lcoe = float(np.loadtxt(year_results_dir/'OrigLCOE'/fn))
+                                    orig_CI = float(np.loadtxt(year_results_dir/'OrigCI'/fn))
+                                    CI = float(np.loadtxt(year_results_dir/'CI'/fn))
+                                    pv_output = float(np.loadtxt(year_results_dir/'kWPV'/fn))
+                                    wind_output = float(np.loadtxt(year_results_dir/'kWwind'/fn))
+                                    elec_input = float(np.loadtxt(year_results_dir/'kWH2'/fn))
+                                    grid_bought = float(np.loadtxt(year_results_dir/'kWbuy'/fn))
+                                    grid_sold = float(np.loadtxt(year_results_dir/'kWsell'/fn))
+
+                                    if locations[site_name]['on_land'][0] == 'false':
+                                        opt_pv = 0
+                                        opt_wind = copy.copy(osw_size_kw)
+                                    else:
+                                        opt_pv = copy.copy(pv_size_kw)
+                                        opt_wind = copy.copy(lbw_size_kw)
+
+                        locations[site_name][plant]['lcoe_$_kwh'][site_num-1].append(min_lcoe)
+                        locations[site_name][plant]['orig_lcoe_$_kwh'][site_num-1].append(orig_lcoe)
+                        locations[site_name][plant]['CI_g_kwh'][site_num-1].append(CI)
+                        locations[site_name][plant]['orig_CI_g_kwh'][site_num-1].append(orig_CI)
+                        locations[site_name][plant]['pv_capacity_kw'][site_num-1].append(opt_pv)
+                        locations[site_name][plant]['pv_output_kw'][site_num-1].append(pv_output)
+                        locations[site_name][plant]['wind_capacity_kw'][site_num-1].append(opt_wind)
+                        locations[site_name][plant]['wind_output_kw'][site_num-1].append(wind_output)
+                        locations[site_name][plant]['electrolyzer_input_kw'][site_num-1].append(elec_input)
+                        locations[site_name][plant]['grid_bought_kw'][site_num-1].append(grid_bought)
+                        locations[site_name][plant]['grid_sold_kw'][site_num-1].append(grid_sold)
+
+
+        resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'/cambium_scenario
+        with open(Path(resource_dir/'locations.json'),'w') as file:
+            out_locations = copy.deepcopy(locations)
+            for ID, loc in out_locations.items():
+                for i, value in enumerate(loc['on_land']):
+                    value = str(value).lower()
+                    loc['on_land'][i] = value
+            json.dump(out_locations, file)
 
