@@ -32,3 +32,5 @@ urllib3
 hybridbosse
 setuptools
 python-rapidjson
+influxdb
+pymodbus==2.5.3

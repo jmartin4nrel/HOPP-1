@@ -340,37 +340,37 @@ for i, time in enumerate(sim_times):
     #     jkjkjkj
 
     # Tell batt dispatch optimizer not to optimize whole year, just coming week
-    # if time_fn not in os.listdir(results_dir):
-    # # hybrid_plant.simulate(project_life=1)
-    hybrid_plant.simulate(project_life=1, finite_dispatch=dispatch_indexs)
-    time_df = pd.DataFrame(index=year_hours,columns=['PV [kW]',
-                                                    'Wind [kW]',
-                                                    'BESS P [kW]',
-                                                    'BESS SOC [%]',
-                                                    'Plant [kW]'])
-    time_df['PV [kW]'] = hybrid_plant.pv.generation_profile
-    time_df['Wind [kW]'] = hybrid_plant.wind.generation_profile
-    time_df['BESS P [kW]'] = hybrid_plant.battery.Outputs.P
-    time_df['BESS SOC [%]'] = hybrid_plant.battery.Outputs.SOC
-    time_df['Plant [kW]'] = np.sum(np.vstack((hybrid_plant.pv.generation_profile,
-                                            hybrid_plant.wind.generation_profile,
-                                            hybrid_plant.battery.Outputs.P)),axis=0)
+    if time_fn not in os.listdir(results_dir):
+    # hybrid_plant.simulate(project_life=1)
+        hybrid_plant.simulate(project_life=1, finite_dispatch=dispatch_indexs)
+        time_df = pd.DataFrame(index=year_hours,columns=['PV [kW]',
+                                                        'Wind [kW]',
+                                                        'BESS P [kW]',
+                                                        'BESS SOC [%]',
+                                                        'Plant [kW]'])
+        time_df['PV [kW]'] = hybrid_plant.pv.generation_profile
+        time_df['Wind [kW]'] = hybrid_plant.wind.generation_profile
+        time_df['BESS P [kW]'] = hybrid_plant.battery.Outputs.P
+        time_df['BESS SOC [%]'] = hybrid_plant.battery.Outputs.SOC
+        time_df['Plant [kW]'] = np.sum(np.vstack((hybrid_plant.pv.generation_profile,
+                                                hybrid_plant.wind.generation_profile,
+                                                hybrid_plant.battery.Outputs.P)),axis=0)
 
-    # If command for this period is within 20% of firm power requirement,
-    # just change it to firm power requirement
-    if abs(time_df.loc[time,'Plant [kW]']-target_firm_power_mw*1000)/target_firm_power_mw/1000 < 0.2:
-        prev_time = sim_times[i-1]
-        prev_soc = time_df.loc[prev_time,'BESS SOC [%]']
-        new_bess_p = target_firm_power_mw*1000 - time_df.loc[time,'PV [kW]'] - time_df.loc[time,'Wind [kW]']
-        new_soc = prev_soc-new_bess_p/(batt_cap_mw*batt_time_h*1000)*100
-        if (new_soc >= min_soc) and (new_soc <= max_soc):
-            time_df.loc[time,'Plant [kW]'] = target_firm_power_mw*1000
-            time_df.loc[time,'BESS SOC [%]'] = new_soc
-            time_df.loc[time,'BESS P [kW]'] = new_bess_p
-                
-    time_df.to_json(results_dir/time_fn)
-    # else:
-    #     time_df = pd.read_json(results_dir/time_fn, convert_axes=True)
+        # If command for this period is within 20% of firm power requirement,
+        # just change it to firm power requirement
+        if abs(time_df.loc[time,'Plant [kW]']-target_firm_power_mw*1000)/target_firm_power_mw/1000 < 0.2:
+            prev_time = sim_times[i-1]
+            prev_soc = time_df.loc[prev_time,'BESS SOC [%]']
+            new_bess_p = target_firm_power_mw*1000 - time_df.loc[time,'PV [kW]'] - time_df.loc[time,'Wind [kW]']
+            new_soc = prev_soc-new_bess_p/(batt_cap_mw*batt_time_h*1000)*100
+            if (new_soc >= min_soc) and (new_soc <= max_soc):
+                time_df.loc[time,'Plant [kW]'] = target_firm_power_mw*1000
+                time_df.loc[time,'BESS SOC [%]'] = new_soc
+                time_df.loc[time,'BESS P [kW]'] = new_bess_p
+                    
+        time_df.to_json(results_dir/time_fn)
+    else:
+        time_df = pd.read_json(results_dir/time_fn, convert_axes=True)
 
     # print('Battery Outputs', time_df['BESS P [kW]'][loop_indx-10:loop_indx+10], time_df['BESS SOC [%]'][loop_indx-10:loop_indx+10])
     # print('Ohter Outputs', time_df['PV [kW]'][loop_indx-10:loop_indx+10], time_df['Wind [kW]'][loop_indx-10:loop_indx+10], time_df['Plant [kW]'][loop_indx-10:loop_indx+10])
@@ -444,9 +444,9 @@ for i, time in enumerate(sim_times):
     plt.subplot(5,1,1)
     plt.plot(year_hours[:j],time_df['PV [kW]'].iloc[:j],
             color=[0,0,0],label='Past generation')
-    plt.plot(year_hours[j:],time_df['PV [kW]'].iloc[j:],
+    plt.plot(year_hours[j:(j+168)],time_df['PV [kW]'].iloc[j:(j+168)],
             color=[0,0,1],label='Upcoming generation, forecast')  
-    plt.plot(year_hours[j:],pv_gen[j:],
+    plt.plot(year_hours[j:(j+168)],pv_gen[j:(j+168)],
             color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')
     plt.plot([year_hours[j]-pd.Timedelta(30,'min'),year_hours[j]-pd.Timedelta(30,'min')],
              [min(pv_gen),max(pv_gen)],'k:',label=None)
@@ -457,9 +457,9 @@ for i, time in enumerate(sim_times):
     plt.subplot(5,1,2)
     plt.plot(year_hours[:j],time_df['Wind [kW]'].iloc[:j],
             color=[0,0,0],label='Past generation')
-    plt.plot(year_hours[j:],time_df['Wind [kW]'].iloc[j:],
+    plt.plot(year_hours[j:(j+168)],time_df['Wind [kW]'].iloc[j:(j+168)],
             color=[0,0,1],label='Upcoming generation, forecast')  
-    plt.plot(year_hours[j:],wind_gen[j:],
+    plt.plot(year_hours[j:(j+168)],wind_gen[j:(j+168)],
             color=[.5,.5,1],alpha=.5,label='Upcoming generation, actual')
     plt.plot([year_hours[j]-pd.Timedelta(30,'min'),year_hours[j]-pd.Timedelta(30,'min')],
              [min(wind_gen),max(wind_gen)],'k:',label=None)
@@ -472,32 +472,34 @@ for i, time in enumerate(sim_times):
             color=[0,0,0],label='Past generation/charge')
     # for ijk in range(len(prev_batt_power)):
     #         plt.plot(year_hours[i:], prev_batt_power[ijk], '--', alpha=.5)
-    plt.plot(year_hours[j:],time_df['BESS P [kW]'].iloc[j:],
+    plt.plot(year_hours[j:(j+168)],time_df['BESS P [kW]'].iloc[j:(j+168)],
             color=[0,.5,0],label='BESS strategy, using forecasts')  
     # plt.plot(year_hours[i:],batt_gen[i:],
     #         color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"') 
     # plt.plot(year_hours[i:],orig_df['BESS P [kW]'] [i:],
     #         color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"')
-    plt.plot(year_hours[j:],act_batt_gen,
+    plt.plot(year_hours[j:(j+168)],act_batt_gen[:168],
             color=[.5,1,.5],alpha=.5,label='What controller will do to meet Plant kW setpoint')             
     plt.plot([year_hours[j]-pd.Timedelta(30,'min'),year_hours[j]-pd.Timedelta(30,'min')],
              [min(batt_gen),max(batt_gen)],'k:',label=None)
     plt.ylabel('BESS P [kW]')
     plt.xlim([xmin,xmax])
-    plt.legend()
+    plt.legend(ncol=3)
 
     plt.subplot(5,1,4)
-    plt.plot(year_hours[:j],batt_soc[:j],
+    plt.plot(year_hours[:start_idx],batt_soc[:start_idx],
             color=[0,0,0],label='Past SOC')
+    plt.plot(year_hours[start_idx-1:j],batt_soc[start_idx-1:j],
+            color=[0,.5,0],label=None)
     # for ijk in range(len(prev_batt_soc)):
     #         plt.plot(year_hours[start_idx:], prev_batt_soc[ijk], '--', alpha=.5)   
-    plt.plot(year_hours[j:],time_df['BESS SOC [%]'].iloc[j:],
+    plt.plot(year_hours[j:(j+168)],time_df['BESS SOC [%]'].iloc[j:(j+168)],
             color=[0,.5,0],label='BESS strategy, using forecasts')  
     # plt.plot(year_hours[start_idx:],batt_soc[start_idx:],
     #         color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"') 
     # plt.plot(year_hours[i:],orig_df['BESS SOC [%]'] [i:],
     #         color=[.5,1,.5],alpha=.5,label='BESS strategy, "crystal ball"') 
-    plt.plot(year_hours[j:],act_batt_soc[1:],
+    plt.plot(year_hours[j:(j+168)],act_batt_soc[1:169],
             color=[.5,1,.5],alpha=.5,label='What controller will do to meet Plant kW setpoint')     
     plt.plot([year_hours[j]-pd.Timedelta(30,'min'),year_hours[j]-pd.Timedelta(30,'min')],
              [min(batt_soc),max(batt_soc)],'k:',label=None)
@@ -505,16 +507,17 @@ for i, time in enumerate(sim_times):
              color=[1,0,0],label="What a 'non-strategizing' controller will actually to do")
     plt.ylabel('BESS SOC [%]')
     plt.xlim([xmin,xmax])
+    plt.ylim([0,110])
     plt.legend(ncol=2)
 
     plt.subplot(5,1,5)
     plt.plot(year_hours[:start_idx],total_gen[:start_idx],
             color=[0,0,0],label='Past generation')
-    plt.plot(year_hours[j:],time_df['Plant [kW]'].iloc[j:],
+    plt.plot(year_hours[j:(j+168)],time_df['Plant [kW]'].iloc[j:(j+168)],
             color=[0,0,1],label='Controller setpoint, strategized 1 week out')  
-    plt.plot(year_hours[j:],total_gen_0[j:],
+    plt.plot(year_hours[j:(j+168)],total_gen_0[j:(j+168)],
             color=[.5,.5,1],alpha=.5,label='What the controller will actually be able to achieve')  
-    plt.plot(year_hours[j:],[l*0+target_firm_power_mw*1000 for l in act_batt_gen],
+    plt.plot(year_hours[j:(j+168)],[l*0+target_firm_power_mw*1000 for l in act_batt_gen[:168]],
             ':',color=[1,0,0],alpha=.5,label="What a 'non-strategizing' controller will try to do")  
     plt.plot(year_hours[(start_idx-1):j],total_gen_dumb[0:-1],
             color=[1,0,0],label="What a 'non-strategizing' controller actually does")  
@@ -526,8 +529,8 @@ for i, time in enumerate(sim_times):
              [min(total_gen),max(total_gen)],'k:',label=None)
     plt.ylabel('Plant [kW]')
     plt.xlim([xmin,xmax])
-    plt.legend(ncol=2)
-    plt.savefig(results_dir/time_fn)
+    plt.legend(ncol=3)
+    plt.savefig(results_dir/(time_fn+'_pretty'))
     # plt.show()
     # plt.pause(1)
 
