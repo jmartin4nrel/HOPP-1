@@ -1,5 +1,6 @@
 import csv
 from collections import defaultdict
+import pandas as pd
 import numpy as np
 from PySAM.ResourceTools import SAM_CSV_to_solar_data
 
@@ -52,6 +53,7 @@ class SolarResource(Resource):
         logger.info("SolarResource: {}".format(self.filename))
 
     def download_resource(self):
+
         url = 'https://developer.nrel.gov/api/nsrdb/v2/solar/psm3-download.csv?wkt=POINT({lon}+{lat})&names={year}&leap_day={leap}&interval={interval}&utc={utc}&full_name={name}&email={email}&affiliation={affiliation}&mailing_list={mailing_list}&reason={reason}&api_key={api}&attributes={attr}'.format(
             year=self.year, lat=self.latitude, lon=self.longitude, leap=self.leap_year, interval=self.interval,
             utc=self.utc, name=self.name, email=self.email,
@@ -90,7 +92,7 @@ class SolarResource(Resource):
         :key wspd: array, wind speed [m/s]
         :key tdry: array, dry bulb temp [C]
         :key tdew: array, dew point temp [C]
-        :key press: array, atmospheric pressure [mbar]
+        :key pres: array, atmospheric pressure [mbar]
         """
         self._data = SAM_CSV_to_solar_data(data_dict)
         # TODO: Update ResourceTools.py in pySAM to include pressure and dew point or relative humidity
@@ -111,6 +113,7 @@ class SolarResource(Resource):
         elif 'Pressure' in wfd:
             self._data['pres'] = wfd.pop('Pressure')
 
+        self.n_timesteps = len(self._data['year'])
 
     def roll_timezone(self, roll_hours, timezone):
         """
@@ -133,3 +136,31 @@ class SolarResource(Resource):
 
         self._data['tz'] = timezone
         logger.info('Rolled solar data by {} hours for timezone {}'.format(roll_hours, timezone))
+
+
+    def resample_data(self, frequency_mins: int):
+        """
+        Resample the solar resource given the new frequency in minutes
+        """
+        n_recs = len(self._data['year'])
+        if not n_recs:
+            return
+        cur_freq = 8760/n_recs
+        n_recs += 1
+        start_date = pd.Timestamp(f'2013-01-01 00:00:00')   # choose non-leap-year
+        ix = pd.date_range(start=start_date, 
+                    end=start_date
+                    + pd.offsets.DateOffset(hours=8761),
+                    freq=f'{cur_freq}H')[0:n_recs]
+        cols_to_resample = [k for k in ('dn', 'df', 'gh', 'wspd', 'tdry', 'pres', 'tdew') if k in self._data.keys()]
+        data = np.array([self._data[k] + [self._data[k][0]] for k in cols_to_resample]).T
+        df = pd.DataFrame(data, index=ix, columns=cols_to_resample)
+        df = df.resample(frequency_mins).mean().interpolate(method='linear').head(-1)
+        for k in cols_to_resample:
+            self._data[k] = df[k].values.tolist()
+        self._data['year'] = [self._data['year'][0]] * len(df)
+        self._data['month'] = df.index.month.values.tolist()
+        self._data['day'] = df.index.day.values.tolist()
+        self._data['hour'] = df.index.hour.values.tolist()
+        self._data['minute'] = df.index.minute.values.tolist()
+        self.n_timesteps = len(self._data['year'])

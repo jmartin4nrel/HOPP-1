@@ -1,5 +1,6 @@
 import csv
 from collections import defaultdict
+import pandas as pd
 import numpy as np
 from PySAM.ResourceTools import SRW_to_wind_data
 
@@ -164,3 +165,24 @@ class WindResource(Resource):
         """
 
         self._data = SRW_to_wind_data(data_file)
+        self.n_timesteps = len(self._data['data'])
+
+    def resample_data(self, frequency_mins: int):
+        """
+        Resample the wind resource given the new frequency in minutes
+        """
+        n_recs = len(self._data['data'])
+        if not n_recs:
+            return
+        cur_freq = 8760/n_recs
+        self._data['data'].append(self._data['data'][0])
+        n_recs += 1
+        start_date = pd.Timestamp(f'2013-01-01 00:00:00')   # choose non-leap-year
+        ix = pd.date_range(start=start_date, 
+                    end=start_date
+                    + pd.offsets.DateOffset(hours=8761),
+                    freq=f'{cur_freq}H')[0:n_recs]
+        df = pd.DataFrame(self._data['data'], index=ix)
+        df = df.resample(frequency_mins).mean().interpolate(method='linear').head(-1)
+        self._data['data'] = df.to_numpy().tolist()
+        self.n_timesteps = len(self._data['data'])

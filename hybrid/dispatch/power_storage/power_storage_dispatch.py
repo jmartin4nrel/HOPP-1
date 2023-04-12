@@ -1,3 +1,5 @@
+from typing import Union
+from numbers import Number
 import pyomo.environ as pyomo
 from pyomo.network import Port
 from pyomo.environ import units as u
@@ -275,10 +277,13 @@ class PowerStorageDispatch(Dispatch):
         return [self.blocks[t].time_duration.value for t in self.blocks.index_set()]
 
     @time_duration.setter
-    def time_duration(self, time_duration: list):
-        if len(time_duration) == len(self.blocks):
+    def time_duration(self, time_duration: Union[list, Number]):
+        if isinstance(time_duration, Number):
+            for t in self.blocks:
+                self.blocks[t].time_duration.set_value(round(time_duration, self.round_digits))
+        elif len(time_duration) == len(self.blocks):
             for t, delta in zip(self.blocks, time_duration):
-                self.blocks[t].time_duration = round(delta, self.round_digits)
+                self.blocks[t].time_duration.set_value(round(delta, self.round_digits))
         else:
             raise ValueError(self.time_duration.__name__ + " list must be the same length as time horizon")
 
