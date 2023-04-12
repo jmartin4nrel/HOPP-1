@@ -35,7 +35,8 @@ lon = flatirons_site['lon']
 # prices_file = examples_dir.parent / "resource_files" / "grid" / "pricing-data-2015-IronMtn-002_factors.csv"
 prices_file = examples_dir.parent / "timescale_test_files" / "pricing_data_test.csv"
 wind_file = examples_dir.parent / "timescale_test_files" / "wind_test.srw"
-site = SiteInfo(flatirons_site, wind_resource_file=wind_file,
+solar_file = examples_dir.parent / "timescale_test_files" / "35.2018863_-101.945027_psmv3_60_2012.csv"
+site = SiteInfo(flatirons_site, wind_resource_file=wind_file, solar_resource_file=solar_file,
                 grid_resource_file=prices_file)
 print('n_timesteps', site.n_timesteps)
 print('n periods per day', site.n_periods_per_day)
@@ -48,7 +49,7 @@ print('n periods per day', site.n_periods_per_day)
 print('n periods per day', site.interval)
 
 dispatch_options = {"n_look_ahead_periods": site.n_periods_per_day*2, \
-                        "n_roll_periods":site.n_periods_per_day}
+                        "n_roll_periods": site.n_periods_per_day}
 
 # Create base model
 hybrid_plant = HybridSimulation(technologies, site, interconnect_kw=interconnection_size_mw * 1000,\
