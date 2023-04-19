@@ -529,7 +529,7 @@ class HybridDispatchBuilderSolver:
 
         # print('battery state', self.power_sources['battery'].dispatch.initial_soc)
     
-        self.dispatch.update_time_series_parameters(start_indx)
+        self.dispatch.update_time_series_parameters(start_indx, self.site.interval / 60) # It APPEARS time_duration is time step duration in hours
         self.power_sources['battery'].dispatch.initialize_parameters()
         self.power_sources['battery'].dispatch.update_dispatch_initial_soc(initial_soc)
         # print('initial SOC', self.power_sources['battery'].dispatch.initial_soc)

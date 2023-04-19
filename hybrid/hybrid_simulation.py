@@ -594,7 +594,7 @@ class HybridSimulation:
             self.simulate_power(project_life, lifetime_sim)
         self.calculate_installed_cost()
         self.calculate_financials()
-        self.simulate_financials(project_life)
+        # self.simulate_financials(project_life)
 
     @property
     def interconnect_kw(self) -> float:

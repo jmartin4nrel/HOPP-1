@@ -209,7 +209,7 @@ class SiteInfo:
         if not self.data['no_wind']:
             self.wind_resource.resample_data(frequency_mins)
         self.elec_prices.resample_data(frequency_mins)
-        self.n_timesteps = int(8760 / pd.Timedelta(frequency_mins).seconds * 3600)
+        self.n_timesteps = int(8760 / frequency_mins * 60)
         self.n_periods_per_day = self.n_timesteps // 365  # TODO: Does not handle leap years well
         self.interval = int((60*24)/self.n_periods_per_day)
 
