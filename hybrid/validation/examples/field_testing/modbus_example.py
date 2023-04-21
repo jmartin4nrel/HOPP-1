@@ -8,12 +8,14 @@
 #    holding register 3 -> hour
 #    holding register 4 -> minute
 #    holding register 5 -> second
-#    holding register 6  -> BESS Pset (units of kW)
+#    holding register 6 -> millisecond
+#    holding register 7  -> BESS Pset (units of kW)
 ################ Signals to HOPP from plant controller ################
-#    holding register 7 -> Bess Power (units of kW)
-#    holding register 8 -> Bess SOC (divide by 10 to get SOC in percent)
-#    holding register 9 -> Wind Power (units of kW)
-#    holding register 10 -> PV Power (units of kW)
+#    holding register 8 -> Bess Power (units of kW)
+#    holding register 9 -> Bess SOC (divide by 10 to get SOC in percent)
+#    holding register 10 -> Wind Power (units of kW)
+#    holding register 11 -> PV Power (units of kW)
+#    holding register 12 -> HOPP Control (1 if HOPP in control, 0 if not)
 ########################################################################
 """
 
@@ -21,7 +23,7 @@ from pymodbus.client.sync import ModbusTcpClient
 
 mbClient = ModbusTcpClient(host='192.174.56.29',port=502)
 connected = mbClient.connect()
-res = mbClient.read_holding_registers(address=0, count=11)
+res = mbClient.read_holding_registers(address=0, count=13)
 #use the getRegisters function to decode a register value
 year = res.getRegister(0)
 
@@ -32,8 +34,8 @@ regs = res.registers
 #in this example we set the year to zero on the modbus server
 #Setting the year to zero will enable the plant controller to operate in real-time, using live PV,Wind power measurements
 #Setting the year to non-zero value will enable the plant controller to oeperate from data based on the date provided on registers 0-5
-mbClient.write_register(address=0, value=0)
+# mbClient.write_register(address=0, value=0)
 
 #use the write_register function to write to multiple registers
-#in this example we write the year,month,day,hour,minute,second, and power setpoint to the holding registers on the modbus server
-# mbClient.write_registers(address=0,values=[2022, 8, 9, 15, 0, 0, 125])
+#in this example we write the year,month,day,hour,minute,second,millisecond and power setpoint to the holding registers on the modbus server
+mbClient.write_registers(address=0,values=[2022, 8, 9, 15, 0, 0, 0, 200])

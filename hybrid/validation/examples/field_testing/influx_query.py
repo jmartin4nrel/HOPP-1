@@ -24,7 +24,7 @@ def getUnix(t):
 Influx_client = InfluxDBClient(host='10.20.5.158',port=8086,username='hopp',password='hopp4321!',database='udp')
 
 #end time of 12:05:00PM for June 25,2022
-tend = datetime(2022,6,25,12,5,0)
+tend = datetime(2022,7,25,12,5,0)
 #start time will be 5 minutes before end time
 tstart = tend - timedelta(minutes=5)
 
