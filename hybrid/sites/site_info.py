@@ -2,6 +2,11 @@ import matplotlib.pyplot as plt
 from shapely.geometry import *
 from shapely.geometry.base import *
 import pandas as pd
+from shapely.validation import make_valid
+from fastkml import kml
+from shapely.ops import transform
+import pyproj
+import utm
 
 from hybrid.resource import (
     SolarResource,
@@ -88,6 +93,7 @@ class SiteInfo:
                 * ``verts``: list of list [x,y], site boundary vertices [m]
                 * ``verts_simple``: list of list [x,y], simple site boundary vertices [m]
 
+            #. ``kml_file``: string (optional), filepath to KML with "Boundary" and "Exclusion" Placemarks
             #. ``urdb_label``: string (optional), `Link Utility Rate DataBase <https://openei.org/wiki/Utility_Rate_Database>`_ label for REopt runs
 
             .. TODO: Can we get rid of verts_simple and simplify site_boundaries
@@ -103,7 +109,10 @@ class SiteInfo:
         if 'site_boundaries' in data:
             self.vertices = np.array([np.array(v) for v in data['site_boundaries']['verts']])
             self.polygon: Polygon = Polygon(self.vertices)
-            self.valid_region = self.polygon.buffer(1e-8)
+            self.polygon = self.polygon.buffer(1e-8)
+        if 'kml_file' in data:
+            self.kml_data, self.polygon, data['lat'], data['lon'] = self.kml_read(data['kml_file'])
+            self.polygon = self.polygon.buffer(1e-8)
         if 'lat' not in data or 'lon' not in data:
             raise ValueError("SiteInfo requires lat and lon")
         self.lat = data['lat']
@@ -139,6 +148,8 @@ class SiteInfo:
         # Desired load schedule for the system to dispatch against
         self.desired_schedule = desired_schedule
         self.follow_desired_schedule = len(desired_schedule) == self.n_timesteps
+        if len(desired_schedule) > 0 and len(desired_schedule) != self.n_timesteps:
+            raise ValueError('The provided desired schedule does not match length of the simulation horizon.')
 
             # FIXME: this a hack
         if 'no_wind' in data:
@@ -171,7 +182,7 @@ class SiteInfo:
              axes=None,
              border_color=(0, 0, 0),
              alpha=0.95,
-             linewidth=4.0
+             linewidth=1.0
              ):
         bounds = self.polygon.bounds
         site_sw_bound = np.array([bounds[0], bounds[1]])
@@ -189,12 +200,74 @@ class SiteInfo:
         axes.set_aspect('equal')
         axes.set(xlim=(min_plot_bound[0], max_plot_bound[0]), ylim=(min_plot_bound[1], max_plot_bound[1]))
         plot_shape(figure, axes, self.polygon, '--', color=border_color, alpha=alpha, linewidth=linewidth / 2)
+        if isinstance(self.polygon, Polygon):
+            shape = [self.polygon]
+        elif isinstance(self.polygon, MultiPolygon):
+            shape = self.polygon.geoms
+        for geom in shape:    
+            xs, ys = geom.exterior.xy    
+            plt.fill(xs, ys, alpha=0.3, fc='g', ec='none')
 
         plt.tick_params(which='both', labelsize=15)
         plt.xlabel('x (m)', fontsize=15)
         plt.ylabel('y (m)', fontsize=15)
 
         return figure, axes
+
+    def kml_write(self, filepath, turb_coords=None, solar_region=None, wind_radius=200):
+        if turb_coords is not None:
+            turb_coords = np.atleast_2d(turb_coords)
+            for n, (x, y) in enumerate(turb_coords):
+                self.append_kml_data(self.kml_data, Point(x, y).buffer(wind_radius), f"Wind Turbine {n + 1}")
+        if solar_region is not None:
+            if isinstance(solar_region, Polygon):
+                solar_region = [solar_region]
+            elif isinstance(solar_region, MultiPolygon):
+                solar_region = solar_region.geoms
+            for n, poly in enumerate(solar_region):
+                self.append_kml_data(self.kml_data, poly, f"Solar Region {n + 1}")
+        with open(filepath, 'w') as kml_file:
+            kml_str = self.kml_data.to_string(prettyprint=True)
+            kml_file.write(kml_str)
+
+    @staticmethod
+    def kml_read(filepath):
+        k = kml.KML()
+        with open(filepath) as kml_file:
+            k.from_string(kml_file.read().encode("utf-8"))
+        features = list(k.features())[0]
+        placemarks = list(list(features.features())[0].features())
+        
+        gmaps_epsg = pyproj.CRS("EPSG:4326")
+        project = None
+
+        valid_region = None
+        for pm in placemarks:
+            if "boundary" in pm.name.lower():
+                valid_region = make_valid(pm.geometry)
+                lon, lat = valid_region.centroid.x, valid_region.centroid.y
+                if project is None:
+                    zone_num = utm.from_latlon(lat, lon)[2]
+                    utm_proj= pyproj.CRS(f'EPSG:326{zone_num}')
+                    project = pyproj.Transformer.from_crs(gmaps_epsg, utm_proj, always_xy=True).transform
+                valid_region = transform(project, valid_region)
+                break
+        if valid_region is None:
+            raise ValueError("KML file needs to have a placemark with a name containing 'Boundary'")
+        for pm in placemarks:
+            if 'exclusion' in pm.name.lower():
+                try:
+                    valid_region = valid_region.difference(transform(project, pm.geometry.buffer(0)))
+                except:
+                    valid_region = valid_region.difference(transform(project, make_valid(pm.geometry)))
+        return k, valid_region, lat, lon
+
+    @staticmethod
+    def append_kml_data(kml_data, polygon, name):
+        folder = kml_data._features[0]._features[0]
+        new_pm = kml.Placemark(name=name)
+        new_pm.geometry = polygon
+        folder.append(new_pm)
 
     def resample_data(self, frequency_mins: int):
         """
