@@ -26,7 +26,7 @@ from hybrid.resource import (
     )
 
 # Change run ID to start from scratch (leave the same to load previously generated results)
-run_id = 'run005'
+run_id = 'run006'
 
 target_firm_power_mw = 0.3
 frequency_mins = 30 # MUST BE A FACTOR OF 60

@@ -144,3 +144,4 @@ hybrid/validation/wind/iessGE15/status/*
 hybrid/validation/wind/iessGE15/*wind 10 min
 hybrid/validation/wind/iessGE15/*mismatch*
 hybrid/validation/wind/iessGE15/M5 unformatted*
+hybrid/validation/results/weeklong_sim/run*
