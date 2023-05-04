@@ -35,7 +35,8 @@ class HybridDispatchOptions:
                 'use_clustering' : bool (default = False), if True, the simulation will be run for a selected set of "exemplar" days
                 'n_clusters': int (default = 30)
                 'clustering_weights' : dict (default = {}). Custom weights used for classification metrics for data clustering.  If empty, default weights will be used.  
-                'clustering_divisions' : dict (default = {}).  Custom number of averaging periods for classification metrics for data clustering.  If empty, default values will be used.  
+                'clustering_divisions' : dict (default = {}).  Custom number of averaging periods for classification metrics for data clustering.  If empty, default values will be used.
+                'skip_dispatch' : bool (default = False), if True, the simulation will skip the battery dispatch for the whoel year even if the battery technology is present  
                 }
         """
         self.solver: str = 'cbc'
@@ -54,6 +55,7 @@ class HybridDispatchOptions:
         self.n_clusters: int = 30
         self.clustering_weights: dict = {}
         self.clustering_divisions: dict = {}
+        self.skip_dispatch: bool = False
 
         if dispatch_options is not None:
             for key, value in dispatch_options.items():
