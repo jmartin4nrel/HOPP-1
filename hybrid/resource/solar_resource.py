@@ -154,7 +154,7 @@ class SolarResource(Resource):
         cols_to_resample = [k for k in ('dn', 'df', 'gh', 'wspd', 'tdry', 'pres', 'tdew') if k in self._data.keys()]
         data = np.array([self._data[k] + [self._data[k][0]] for k in cols_to_resample]).T
         df = pd.DataFrame(data, index=ix, columns=cols_to_resample)
-        df = df.resample(frequency_mins).mean().interpolate(method='linear').head(-1)
+        df = df.resample(pd.Timedelta(frequency_mins,'min')).mean().interpolate(method='linear').head(-1)
         for k in cols_to_resample:
             self._data[k] = df[k].values.tolist()
         self._data['year'] = [self._data['year'][0]] * len(df)

@@ -56,6 +56,8 @@ class HybridDispatchOptions:
         self.clustering_weights: dict = {}
         self.clustering_divisions: dict = {}
         self.skip_dispatch: bool = False
+        self.limit_dispatch: bool = False
+        self.limit_dispatch_idxs: dict = {}
 
         if dispatch_options is not None:
             for key, value in dispatch_options.items():

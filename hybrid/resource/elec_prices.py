@@ -68,6 +68,6 @@ class ElectricityPrices(Resource):
                     + pd.offsets.DateOffset(hours=8761),
                     freq=f'{cur_freq}H')[0:n_recs]
         df = pd.DataFrame(self._data, index=ix)
-        df = df.resample(frequency_mins).mean().interpolate(method='linear').head(-1)
+        df = df.resample(pd.Timedelta(frequency_mins,'min')).mean().interpolate(method='linear').head(-1)
         self._data = df.to_numpy().ravel().tolist()
         self.n_timesteps = len(self._data)
