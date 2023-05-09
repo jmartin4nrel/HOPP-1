@@ -4,7 +4,7 @@ from pathlib import Path
 
 current_dir = Path(__file__).parent.absolute()
 years = np.arange(2020,2055,5)#[2050,]#
-years = [2050]
+years = [2020]
 
 # sites = ['IA01','TX01']##
 site = 'TX01'

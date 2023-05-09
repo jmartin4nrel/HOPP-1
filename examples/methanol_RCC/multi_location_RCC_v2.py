@@ -110,7 +110,7 @@ def run_hopp_calc(site, sim_tech, technologies, sim_cost, on_land, sim_power):
     # Calculate lcoe before grid exchange for H2
     pv_toc_kwyr = sim_cost['pv']['total_annual_cost_kw']
     wind_toc_kwyr = sim_cost['wind']['total_annual_cost_kw']
-    pv_size_kw = sim_tech['pv']['system_capacity_kw']
+    pv_size_kw = sim_tech['pv']['system_capacity_kw']/sim_power['PV']['dc_ac_ratio']
     num_turbines = sim_tech['wind']['num_turbines']
     turbine_rating_kw = sim_tech['wind']['turbine_rating_kw']                                   
     wind_size_kw = num_turbines*turbine_rating_kw
@@ -126,7 +126,7 @@ def run_hopp_calc(site, sim_tech, technologies, sim_cost, on_land, sim_power):
     orig_ghg_kg = copy.deepcopy(ghg_kg)
     orig_CI = np.sum(orig_ghg_kg)/np.sum(gen_kw)*1000
 
-     # plt.plot(np.arange(0,8760),gen_kw,label='Initial hybrid plant output')
+    # plt.plot(np.arange(0,8760),gen_kw,label='Initial hybrid plant output')
 
     # Find excess generation above electrolyzer capcity and sell to grid
     ppa_lcoe_ratio = technologies['interconnection']['ppa_lcoe_ratio']
@@ -153,6 +153,9 @@ def run_hopp_calc(site, sim_tech, technologies, sim_cost, on_land, sim_power):
     while np.sum(purchase) < purchase_needed and shortfall_change < len(shortfall_changes):
         purchase[shortfall_inds[:(1+shortfall_changes[shortfall_change])]] += diff_shortfall[shortfall_changes[shortfall_change-1]]
         shortfall_change += 1
+    extra_purchase = sum(purchase)-purchase_needed
+    avg_extra_purchase = extra_purchase/(1+shortfall_changes[shortfall_change-1])
+    purchase[shortfall_inds[:(1+shortfall_changes[shortfall_change])]] -= avg_extra_purchase
     for i in range(len(gen_kw)):
         gen_kw[i] += purchase[i]
     for year_idx in range(min(len(buy_price),plant_lifespan)):
@@ -404,7 +407,7 @@ if __name__ == '__main__':
         sim_years = scenario_info['sim_years']
         plant_size_pcts = np.arange(60,160,20)
         wind_pcts = np.arange(10,110,20)
-        site_name_list = list(locations.keys())[:2]
+        site_name_list = list(locations.keys())[1:2]
         sites_per_location = 1
         
         resource_dir = current_dir/'..'/'..'/'resource_files'
@@ -629,20 +632,23 @@ if __name__ == '__main__':
                 if not os.path.exists(year_results_dir/'kWsell'):
                     os.mkdir(year_results_dir/'kWsell')
 
-                # # Run hybrid calculation for all sites
-                # tic = time.time()
-                # run_all_hybrid_calcs(site_name, site_details, technologies_lols, costs,
-                #                         year_results_dir, plant_size_pcts, wind_pcts, power_factors)
-                # toc = time.time()
-                # print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
+                # Run hybrid calculation for all sites
+                tic = time.time()
+                run_all_hybrid_calcs(site_name, site_details, technologies_lols, costs,
+                                        year_results_dir, plant_size_pcts, wind_pcts, power_factors)
+                toc = time.time()
+                print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
                 
                 for site_num in site_nums:
                 
-                    for plant in ['HCO2','HPSR']:
+                    for k, plant in enumerate(['HCO2','HPSR']):
                         
                         min_lcoe = np.inf
+                        min_CI = np.inf
                         opt_pv = np.inf
                         opt_wind = np.inf
+
+                        elyzer_input_kw = elyzer_inputs_kw[k]
 
                         for i, plant_pct in enumerate(plant_size_pcts):
                             if locations[site_name]['on_land'][0] == 'false':
@@ -652,8 +658,10 @@ if __name__ == '__main__':
                             for j, wind_pct in enumerate(final_wind_pcts):
                                 fn = '{}{:02d}_plant{:03d}_wind{:02d}_{}.txt'.format(site_name,site_num,plant_pct,wind_pct,plant)
                                 new_lcoe = float(np.loadtxt(year_results_dir/'LCOE'/fn))
+                                new_CI = float(np.loadtxt(year_results_dir/'CI'/fn))
                                 if new_lcoe < min_lcoe:
                                     min_lcoe = copy.copy(new_lcoe)
+                                    min_CI = copy.copy(new_CI)
                                     
                                     osw_input_kw = elyzer_input_kw*plant_pct/100
                                     lbw_input_kw = elyzer_input_kw*plant_pct/100*wind_pct/100
@@ -662,6 +670,12 @@ if __name__ == '__main__':
                                     osw_size_kw = osw_input_kw/osw_cap
                                     lbw_size_kw = lbw_input_kw/lbw_cap
                                     pv_size_kw = pv_input_kw/pv_cap
+
+                                    num_turbines = round(lbw_size_kw/lbw_turb_rating_kw)
+                                    lbw_size_kw = num_turbines*lbw_turb_rating_kw
+
+                                    num_osw_turbines = round(osw_size_kw/osw_turb_rating_kw)
+                                    osw_size_kw = num_osw_turbines*osw_turb_rating_kw
 
                                     orig_lcoe = float(np.loadtxt(year_results_dir/'OrigLCOE'/fn))
                                     orig_CI = float(np.loadtxt(year_results_dir/'OrigCI'/fn))

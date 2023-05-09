@@ -74,7 +74,7 @@ if __name__ == '__main__':
     # Commodity prices
     orig_NG_price_mmbtu = 4.56 # 2020 $/MMBTU TODO: make variable NG price scenarios
     H2O_price_tgal = 2.56 # 2020 $/Tgal
-    CO2_TS_price_kg = 0.1092 # CO2 transmission and storage costs - DOE/NETL-2019/2044
+    CO2_TS_price_kg = 0.01092 # CO2 transmission and storage costs - DOE/NETL-2019/2044
 
     # Locations
     select_locations = False # TODO: Switch to True to only analyze locations listed below
@@ -100,7 +100,7 @@ if __name__ == '__main__':
     MeOH_scenarios = ['Great','Good','OK']
     cambium_scenarios = ['MidCase','HighNGPrice','LowNGPrice']
     # Set specific scenarios to size with
-    cambium_scenario = 'HighNGPrice'
+    cambium_scenario = 'MidCase'
     plant_scenarios =  {'NGCC':'Advanced',
                         'CCS': 'Advanced',
                         'PV':  'Advanced',
@@ -373,6 +373,7 @@ if __name__ == '__main__':
         engin[plant]['output_kw'] = NGCC_cap[plant]*NGCC_Cf*1000
         engin[plant]['CO2_out_kg_mwh'] = CO2_kg_mwh[plant]
         engin[plant]['H2O_in_tgal_mwh'] = H2O_tgal_mwh[plant]
+        engin[plant]['capacity_factor'] = NGCC_Cf
 
     # Add items to finance nested dict
     VOM_comps =['VOM_H2O_$_mwh',
@@ -579,7 +580,7 @@ if __name__ == '__main__':
 
     # Nyari reactor performance
     nyari_mass_ratio_CO2_MeOH = 1.397 # kg CO2 in needed per kg of MeOH produced
-    nyari_mass_ratio_H2_MeOH = 0.199 # kg H2 in needed per kg of MeOH produced
+    nyari_mass_ratio_H2_MeOH = 0.192 # kg H2 in needed per kg of MeOH produced
     nyari_CO2_conv_pct = 98.37 # pct CO2 converted
     nyari_elec_usage = 0.175 # kWh/kg MeOH
 
@@ -589,15 +590,15 @@ if __name__ == '__main__':
     nyari_cat_price_kg = 10
 
     # Ruddy reactor performance - PLACEHOLDERS
-    ruddy_mass_ratio_CO2_MeOH = {'Great':   1.4,
+    ruddy_mass_ratio_CO2_MeOH = {'Great':   220462/25275,
                                 'Good':    1.6,
                                 'OK':      1.8} # kg CO2 in needed per kg of MeOH produced
-    ruddy_mass_ratio_H2_MeOH =  {'Great':   0.2,
+    ruddy_mass_ratio_H2_MeOH =  {'Great':   7388/25275,
                                 'Good':    0.25,
                                 'OK':      0.3} # kg H2 in needed per kg of MeOH produced
-    ruddy_CO2_conv_pct =   {'Great':    98,
+    ruddy_CO2_conv_pct =   {'Great':    25275/220462*(C_MW+O_MW*2)/(C_MW+O_MW+H_MW*4)*100,
                             'Good':     95,
-                            'OK':       90} # kg H2 in needed per kg of MeOH produced
+                            'OK':       90} # % CO2 converted to MeOH
     ruddy_elec_usage =     {'Great':    0.1,
                             'Good':     0.15,
                             'OK':       0.2} # kWh/kg MeOH
@@ -731,15 +732,15 @@ if __name__ == '__main__':
                 tc_base = 2007
                 foc_voc_base = 2011
                 if 'SMC' in plant:
-                    tc = 2171740
+                    tc = 2171740*1000
                     vom_other_yr = inflate(31389888+5371231-1349340,foc_voc_base,sim_basis_year)
                 else:
-                    tc = 2171740-299998
+                    tc = (2171740-299998)*1000
                     vom_other_yr = inflate(31389888+5371231-1349340-378799-192014,foc_voc_base,sim_basis_year)
                 tc = inflate(tc,tc_base,sim_basis_year)
                 capex = tc*toc_tc
                 fom_yr = inflate(75244327,foc_voc_base,sim_basis_year)
-                vom_other_mwh = vom_other_yr/kw
+                vom_other_mwh = vom_other_yr/mwh_yr
             else:
                 # From Nyari et al model
                 a = finance[plant]['capex_mil_kt_y_A']

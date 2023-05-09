@@ -5,29 +5,36 @@ import pandas as pd
 from pathlib import Path
 import matplotlib.pyplot as plt
 
-def calc_lcoe(OCC_kw, FOM_kwyr, VOM_mwh, TASC_multiplier, discount_rate):
+def calc_lcoe(OCC_kw, FOM_kwyr, VOM_mwh, Cf, TASC_multiplier, discount_rate):
     
-    for arg in [OCC_kw, FOM_kwyr, VOM_mwh, TASC_multiplier, discount_rate]:
+    for arg in [OCC_kw, FOM_kwyr, VOM_mwh, Cf, TASC_multiplier, discount_rate]:
         arg = np.array(arg)
     
     TCC_kw = np.multiply(OCC_kw,TASC_multiplier)
     TCC_recovery_kwyr = np.multiply(TCC_kw,discount_rate)
     TFC_kwyr = np.add(TCC_recovery_kwyr,FOM_kwyr)
     TFC_kwh = np.divide(TFC_kwyr,8760)
+    TFC_kwh = np.divide(TFC_kwh, Cf)
     VOM_kwh = np.divide(VOM_mwh,1000)
     lcoe_kwh = np.add(TFC_kwh,VOM_kwh)
 
     return lcoe_kwh
 
 
+Force_H2_1 = False
+Force_hyb_ems = False # Force hybrid emissions down to 0 gCO2e/MWh by 2050
+
 ## Load dicts from json dumpfiles
 
 current_dir = Path(__file__).parent.absolute()
 ax_list = []
 line_styles = ['-','--',':']
-cambium_scenarios = ['MidCase','HighNGPrice','LowNGPrice']
+cambium_scenarios = ['MidCase','HighNGPrice','HighNGPrice',]#]#'LowNGPrice',]#
 for l, cambium_scenario in enumerate(cambium_scenarios):
     style = line_styles[l]
+
+    if l == 2:
+        Force_H2_1 = True
     
     resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'
     results_dir = resource_dir/'HOPP_results'/cambium_scenario
@@ -70,26 +77,27 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
                 location[key][sub_key] = sub_value[site_num-1]
 
 
-    ## Size renewable plants using location data
+    # Size renewable plants using location data
 
-    # pv_out_kw = location['pv_output_kw']
-    # pv_cap_kw = location['pv_capacity_kw']
-    # wind_out_kw = location['wind_output_kw']
-    # wind_cap_kw = location['wind_capacity_kw']
-    # if location['on_land']:
-    #     engin['PV']['output_kw'] = {plant_scenarios['PV']:pv_out_kw}
-    #     engin['PV']['capacity_kw'] = {plant_scenarios['PV']:pv_cap_kw}
-    #     engin['LBW']['output_kw'] = {plant_scenarios['LBW']:wind_out_kw}
-    #     engin['LBW']['capacity_kw'] = {plant_scenarios['LBW']:wind_cap_kw}
-    #     engin['OSW']['output_kw'] = {plant_scenarios['OSW']:0}
-    #     engin['OSW']['capacity_kw'] = {plant_scenarios['OSW']:0}
-    # else:
-    #     engin['PV']['output_kw'] = {plant_scenarios['PV']:0}
-    #     engin['PV']['capacity_kw'] = {plant_scenarios['PV']:0}
-    #     engin['LBW']['output_kw'] = {plant_scenarios['LBW']:0}
-    #     engin['LBW']['capacity_kw'] = {plant_scenarios['LBW']:0}
-    #     engin['OSW']['output_kw'] = {plant_scenarios['OSW']:wind_out_kw}
-    #     engin['OSW']['capacity_kw'] = {plant_scenarios['OSW']:wind_cap_kw}
+    h_plant = 'HCO2'
+    pv_out_kw = location[h_plant]['pv_output_kw']
+    pv_cap_kw = location[h_plant]['pv_capacity_kw']
+    wind_out_kw = location[h_plant]['wind_output_kw']
+    wind_cap_kw = location[h_plant]['wind_capacity_kw']
+    if location['on_land']:
+        engin['PV']['output_kw'] = {plant_scenarios['PV']:pv_out_kw}
+        engin['PV']['capacity_kw'] = {plant_scenarios['PV']:pv_cap_kw}
+        engin['LBW']['output_kw'] = {plant_scenarios['LBW']:wind_out_kw}
+        engin['LBW']['capacity_kw'] = {plant_scenarios['LBW']:wind_cap_kw}
+        engin['OSW']['output_kw'] = {plant_scenarios['OSW']:0}
+        engin['OSW']['capacity_kw'] = {plant_scenarios['OSW']:0}
+    else:
+        engin['PV']['output_kw'] = {plant_scenarios['PV']:0}
+        engin['PV']['capacity_kw'] = {plant_scenarios['PV']:0}
+        engin['LBW']['output_kw'] = {plant_scenarios['LBW']:0}
+        engin['LBW']['capacity_kw'] = {plant_scenarios['LBW']:0}
+        engin['OSW']['output_kw'] = {plant_scenarios['OSW']:wind_out_kw}
+        engin['OSW']['capacity_kw'] = {plant_scenarios['OSW']:wind_cap_kw}
 
 
     ## Set the H2 variable costs using electricity cost
@@ -141,7 +149,8 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
         VOM_mwh = finance[NG_plant]['VOM_$_mwh'][NG_scenario]
         discount_rate = finance[NG_plant]['discount_rate']
         TASC_multiplier = finance[NG_plant]['TASC_multiplier']
-        ng_lcoe_kwh = calc_lcoe(OCC_kw,FOM_kwyr,VOM_mwh,TASC_multiplier,discount_rate)
+        Cf = engin[NG_plant]['capacity_factor']
+        ng_lcoe_kwh = calc_lcoe(OCC_kw,FOM_kwyr,VOM_mwh,Cf,TASC_multiplier,discount_rate)
         finance[NG_plant]['lcoe_$_kwh'] = {NG_scenario:ng_lcoe_kwh}
     lcoe_ngcc = list(finance['NGCC']['lcoe_$_kwh'][plant_scenarios['NGCC']])
     lcoe_ccs = list(finance['CCS']['lcoe_$_kwh'][plant_scenarios['CCS']])
@@ -163,7 +172,7 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
             finance[plant]['CO2_cost_$_kg'] = {MeOH_scenario:CO2_price_kg}
             CO2_kg_yr_in = engin[plant]['CO2_kg_yr_in'][MeOH_scenario]
             VOM_CO2_yr = [CO2_kg_yr_in*i for i in CO2_price_kg]
-            VOM_CO2_mwh = list(np.divide(VOM_CO2_yr,np.multiply(output_kw,8.67)))
+            VOM_CO2_mwh = list(np.divide(VOM_CO2_yr,np.multiply(output_kw,8.76)))
             if 'CO2' in plant:
                 finance[plant]['VOM_CO2_$_yr'] = {MeOH_scenario:VOM_CO2_yr}
                 finance[plant]['VOM_CO2_$_mwh'] = {MeOH_scenario:VOM_CO2_mwh}
@@ -179,7 +188,7 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
         VOM_mwh = finance[plant]['VOM_$_mwh'][h2_scenario]
         discount_rate = finance[plant]['discount_rate']
         TASC_multiplier = finance[plant]['TASC_multiplier']
-        lcoh_kwh = calc_lcoe(OCC_kw,FOM_kwyr,VOM_mwh,TASC_multiplier,discount_rate)
+        lcoh_kwh = calc_lcoe(OCC_kw,FOM_kwyr,VOM_mwh,1,TASC_multiplier,discount_rate)
         finance[plant]['lcoh_$_kwh'] = {h2_scenario:lcoh_kwh}
         H2_LHV_MJ_kg = engin[plant]['H2_LHV_MJ_kg']
         lcoh_kg = list(np.multiply(lcoh_kwh,H2_LHV_MJ_kg/3600*1000))
@@ -214,6 +223,10 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
             finance[plant]['VOM_elec_$_mwh'] = {MeOH_scenario:VOM_elec_mwh}
             H2_kg_yr = engin[plant]['H2_kg_yr_in'][MeOH_scenario]
             H2_price_kg = finance[plant]['VOM_H2_$_kgH2'][MeOH_scenario]
+            if Force_H2_1:
+                for i in range(len(H2_price_kg)):
+                    H2_price_kg[i] = (1/H2_price_kg[-1]*H2_price_kg[i]*i+H2_price_kg[i]*(len(H2_price_kg)-i-1))/(len(H2_price_kg)-1)
+                finance[plant]['VOM_H2_$_kgH2'][MeOH_scenario] = H2_price_kg
             VOM_H2_yr = list(np.multiply(H2_price_kg,H2_kg_yr))
             finance[plant]['VOM_H2_$_yr'] = {MeOH_scenario:VOM_H2_yr}
             VOM_H2_mwh = [i/mwh_yr for i in VOM_H2_yr]
@@ -244,7 +257,7 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
         VOM_mwh = finance[plant]['VOM_$_mwh'][MeOH_scenario]
         discount_rate = finance[plant]['discount_rate']
         TASC_multiplier = finance[plant]['TASC_multiplier']
-        lcom_kwh = calc_lcoe(OCC_kw,FOM_kwyr,VOM_mwh,TASC_multiplier,discount_rate)
+        lcom_kwh = calc_lcoe(OCC_kw,FOM_kwyr,VOM_mwh,1,TASC_multiplier,discount_rate)
         finance[plant]['lcom_$_kwh'] = {MeOH_scenario:lcom_kwh}
         lcom_kg = list(np.multiply(lcom_kwh,MeOH_LHV_MJ_kg/3600*1000))
         finance[plant]['lcom_$_kg'] = lcom_kg
@@ -324,9 +337,10 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
     lca['CO2'] = {}
     lca['H2'] = {}
     lca['MeOH'] = {}
+    lca['orig_elec'] = {}
     lca['elec'] = {}
     lca['stack'] = {}
-    plants = ['MSMR','MSMC','MCO2','MPSR']
+    plants = ['MSMR','MSMC','MCO2']#,'MPSR'
     for m, me_plant in enumerate(plants):
         lca[me_plant] = {}
         for unit in lca['MeNG'].keys():
@@ -364,10 +378,10 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
             # pv_kw_out = locations[site_name]['pv_output_kw'][site_num-1]
             # wind_kw_out = locations[site_name]['wind_output_kw'][site_num-1]
             wind_plant = 'LBW' if location['on_land'] else 'OSW'
-            for plant in ['PV',wind_plant,'Grid','elec','H2']:
+            for plant in ['PV',wind_plant,'Grid','elec','orig_elec','H2']:
                 lca[plant][unit[:-4]+'H2'] = []
                 lca[plant][unit] = []
-                if plant == 'elec':
+                if 'elec' in plant:
                     lca[plant][unit[:-6]+'MWh'] = []
             for i, year in enumerate(sim_years):
                 # pct_pv = 100*pv_kw_out[i]/(pv_kw_out[i]+wind_kw_out[i])
@@ -393,8 +407,25 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
                 if 'CO2' in unit:
                     if 'SM' not in me_plant:
                         elec_em_kg_MWh = location['H'+me_plant[1:]]['CI_g_kwh'][i]
+                        orig_elec_em_kg_MWh = location['H'+me_plant[1:]]['orig_CI_g_kwh'][i]
+                        if (l == 0) and Force_hyb_ems:
+                            max_elec_em = location['H'+me_plant[1:]]['CI_g_kwh'][-1]
+                            elec_em_kg_MWh = (0/max_elec_em*elec_em_kg_MWh*i+elec_em_kg_MWh*(len(sim_years)-i-1))/(len(sim_years)-1)
+                            orig_elec_em_kg_MWh = (0/max_elec_em*orig_elec_em_kg_MWh*i+orig_elec_em_kg_MWh*(len(sim_years)-i-1))/(len(sim_years)-1)
+                    elif 'SMC' in me_plant:
+                        # Adjust by carbon intensity of adding carbon capture to NGCC plant (adjusted for power)
+                        CCS_CO2_kgCO2 = lca['CCS'][unit[:-4]+'CO2']
+                        CCS_CO2_MWh = CCS_CO2_kgCO2*engin['CCS']['CO2_out_kg_mwh']
+                        NGCC_CO2_kgCO2 = lca['NGCC'][unit[:-4]+'CO2']
+                        NGCC_CO2_MWh = NGCC_CO2_kgCO2*engin['NGCC']['CO2_out_kg_mwh']
+                        elec_out_mwh_yr = engin[me_plant]['elec_out_mwh_yr'][MeOH_scenario]
+                        cc_increase_co2e_kg_yr = elec_out_mwh_yr*(CCS_CO2_MWh-NGCC_CO2_MWh)
+                        meoh_kg_yr = engin[me_plant]['MeOH_kg_yr'][MeOH_scenario]
+                        kg_co2_kg_meoh = cc_increase_co2e_kg_yr/meoh_kg_yr
+                        lca['CO2'][unit] += kg_co2_kg_meoh
                     else:
                         elec_em_kg_MWh = 0
+                        orig_elec_em_kg_MWh = 0
                     elec_em_kg_yr = elec_em_kg_MWh*H2_MWh_yr
                     if H2_kg_in > 0:
                         elec_em_kg_H2 = elec_em_kg_yr/H2_kg_in
@@ -402,9 +433,11 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
                         elec_em_kg_H2 = 0
                     lca['elec'][unit[:-6]+'MWh'].append(elec_em_kg_MWh)
                     lca['elec'][unit[:-4]+'H2'].append(elec_em_kg_H2)
+                    lca['orig_elec'][unit[:-6]+'MWh'].append(orig_elec_em_kg_MWh)
                 else:
                     lca['elec'][unit[:-6]+'MWh'].append(0)
                     lca['elec'][unit[:-4]+'H2'].append(0)
+                    lca['orig_elec'][unit[:-6]+'MWh'].append(0)
                 lca['H2'][unit[:-4]+'H2'].append(lca['elec'][unit[:-4]+'H2'][i] +
                                                 lca['H2St'][unit[:-4]+'H2'])
                 for plant in ['elec','H2']:
@@ -484,8 +517,8 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
 
 
         # Print absolute prices and parameters for specific scenarios
-        prices_to_check = ['OCC_$','FOM_$_yr','VOM_$_mwh','VOM_other_$_mwh','VOM_elec_$_mwh','VOM_H2_$_mwh','VOM_CO2_$_mwh','VOM_NG_$_mwh','VOM_H2O_$_mwh','VOM_cat_$_mwh']
-        params_to_check = ['output_kw','elec_out_mwh_yr','H2_kg_yr','CO2_kg_yr','MeOH_kg_yr','NG_kg_yr_in'] 
+        prices_to_check = ['OCC_$','FOM_$_yr','VOM_$_mwh','VOM_other_$_mwh','VOM_elec_$_mwh','VOM_H2_$_mwh','VOM_CO2_$_mwh','VOM_NG_$_mwh','VOM_TS_$_mwh','VOM_H2O_$_mwh','VOM_cat_$_mwh']
+        params_to_check = ['output_kw','elec_out_mwh_yr','H2_kg_yr','CO2_kg_yr','MeOH_kg_yr','NG_kg_yr'] 
         for plant in plants_to_check:
             scenario = plant_scenarios[plant]
             for price in prices_to_check:
@@ -518,6 +551,10 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
                 #     else:
                 #         param = param = product+'_kg_yr'
                 try:
+                    possible_params = list(engin[plant].keys())
+                    for possible_param in possible_params:
+                        if possible_param.find(param)>=0:
+                            param = possible_param
                     param_value = engin[plant][param]
                     if type(param_value) is dict:
                         param_value = param_value[scenario]
@@ -540,13 +577,13 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
         plots = [lcoe_ngcc,lcoe_ccs,orig_lcoe_kwh,lcoe_kwh]
 
         colors = [[0,0,0],
-                [1,0,0],
-                [0,0.5,0],
                 [0,0,1],
+                [0,0.5,0],
+                [1,0,0],
                 ]
 
         if l == 0:
-            ax = plt.subplot(2,2,1)
+            ax = plt.subplot(2,3,1)
             ax_list.append(ax)
         else:
             plt.sca(ax_list[0])
@@ -554,16 +591,25 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
             color = colors[i]
             if l>0:
                 label = None
-        if m == 0:
-            plt.plot(sim_years,plots[i],style,label=label,color=color)
-        plt.legend()
-        plt.xlabel('Year')
+            # if (m == 0) and (i > 1):
+            #     plt.plot(sim_years,plots[i],style,label=label,color=color)
+        # plt.legend()
+        plt.xlabel('Plant Startup Year')
         plt.ylabel('Levelized Cost [2020 $/kWh]')
         plt.title('Electricity Cost')
+        plt.ylim([0,0.06])
 
         labels = ['CO2 captured from NGCC plant',
                 'H2 produced from electrolyzer',
                 'Methanol produced by Nyari et al. plant']
+        
+        labels = ['Mid-case','High NG Price','High NG Price + $1 Green H2 by 2050']
+
+        label = labels[l]
+        if m>0:
+            label = None
+        plt.plot([0,1],[0,1],style,color=[0,0,0],label=label)
+        plt.legend()
 
         labels = ['Baseline #0: SMR without Carbon Capture',
                 'Baseline #1: SMR with Carbon Capture',
@@ -582,7 +628,7 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
         label = labels[m]
 
         if l == 0:
-            ax = plt.subplot(2,2,2)
+            ax = plt.subplot(2,3,2)
             ax_list.append(ax)
         else:
             plt.sca(ax_list[1])
@@ -590,42 +636,124 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
         if l>0:
             label = None
         lcom = finance[me_plant]['lcom_$_kg']
-        plt.plot(sim_years,lcom,style,label=label,color=color)
-        plt.legend()
-        plt.xlabel('Year')
+        if m > 0:
+            plt.plot(sim_years,lcom,style,label=label,color=color)
+        # plt.legend()
+        plt.xlabel('Plant Startup Year')
         plt.ylabel('Levelized Cost [2020 $/kg of Methanol]')
         plt.title('Methanol Cost')
+        plt.ylim([0,1])
+        plt.grid(axis='both')
+        
         if l == 0:
-            ax = plt.subplot(2,2,3)
+            ax = plt.subplot(2,3,3)
             ax_list.append(ax)
         else:
             plt.sca(ax_list[2])
         color = colors[m]
         if l>0:
             label = None
-        elec_em = copy.deepcopy(lca['elec']['kgCO2e_kgMeOH'])
-        if 'PSR' in me_plant:
-            plt.plot(sim_years,elec_em,style,label=label,color=color)
-        # plt.plot(sim_years,lca['MeOH']['kgCO2e_kgMeOH'],label='Methanol from NGCC-captured CO2 + Green Hydrogen')
-        plt.xlabel('Year')
-        plt.ylabel('kg CO2-equivalent / kg methanol')
-        plt.title('Electricity LCA')
-        plt.legend()
+        if m > 1:
+            lcoh = finance[me_plant]['VOM_H2_$_kgH2'][MeOH_scenario]
+            plt.plot(sim_years,lcoh,style,label=labels[m],color=colors[m])
+            # plt.legend()
+            plt.xlabel('Plant Startup Year')
+            plt.ylabel('Levelized Cost [2020 $/kg of Hydrogen]')
+            plt.title('Green Hydrogen Cost')
+        plt.ylim([0,4])
+        plt.grid(axis='both')
+
+        labels = ['NGCC w/o carbon capture',
+                'NGCC with carbon capture',
+                'Wind/solar w/o grid exchange',
+                'Wind/solar with grid exchange']
+
+        label = labels[m]
         
         if l == 0:
-            ax = plt.subplot(2,2,4)
+            ax = plt.subplot(2,3,4)
             ax_list.append(ax)
         else:
             plt.sca(ax_list[3])
+        for i, label in enumerate(labels):
+            color = colors[i]
+            if l>0:
+                label = None
+        elec_em = copy.deepcopy(lca['elec']['kgCO2e_MWh'])
+        orig_elec_em = copy.deepcopy(lca['orig_elec']['kgCO2e_MWh'])
+        if 'PSR' in me_plant:
+            plt.plot(sim_years,orig_elec_em,style,label=labels[m-1],color=colors[m-1])
+            plt.plot(sim_years,elec_em,style,label=labels[m],color=colors[m])
+        # plt.plot(sim_years,lca['MeOH']['kgCO2e_kgMeOH'],label='Methanol from NGCC-captured CO2 + Green Hydrogen')
+        plt.xlabel('Plant Startup Year')
+        plt.ylabel('kg CO2-equivalent / MWh_e')
+        plt.title('Electricity LCA')
+        # plt.legend()
+        plt.ylim([0,65])
+        # plt.grid(axis='both')
+        
+        labels = ['Baseline #0: SMR without Carbon Capture',
+                'Baseline #1: SMR with Carbon Capture',
+                'Baseline #2: CO2 Hydrogenation State of Art',
+                'Novel Technology: NREL PSRs']
+        
+        labels = ['Baseline #0: SMR without Carbon Capture',
+                'SMR with Carbon Capture',
+                'CO2 Hydrogenation w/Green H2',
+                'Novel Technology: NREL PSRs']
+        
+        label = labels[m]
+        if l>0:
+            label = None
+        if m>0:
+            plt.plot([0,1],[0,1],style,label=label,color=colors[m])
+        plt.legend()
+
+        if l == 0:
+            ax = plt.subplot(2,3,5)
+            ax_list.append(ax)
+        else:
+            plt.sca(ax_list[4])
         color = colors[m]
         if l>0:
             label = None
-        plt.plot(sim_years,lca[me_plant]['kgCO2e_kgMeOH'],style,label=label,color=color)
+        if m > 0:
+            plt.plot(sim_years,lca[me_plant]['kgCO2e_kgMeOH'],style,label=label,color=color)
         # plt.plot(sim_years,lca['MeOH']['kgCO2e_kgMeOH'],label='Methanol from NGCC-captured CO2 + Green Hydrogen')
-        plt.xlabel('Year')
+        plt.xlabel('Plant Startup Year')
         plt.ylabel('kg CO2-equivalent / kg methanol')
         plt.title('Methanol LCA')
-        plt.legend()
+        # plt.legend()
+        plt.ylim([0,1.2])
+        plt.grid(axis='both')
+
+        if l == 0:
+            ax = plt.subplot(2,3,6)
+            ax_list.append(ax)
+        else:
+            plt.sca(ax_list[5])
+        color = colors[m]
+        if l>0:
+            label = None
+        if m > 1:
+            lcom = finance[me_plant]['lcom_$_kg']
+            lcom_baseline = finance['MSMC']['lcom_$_kg']
+            ci = lca[me_plant]['kgCO2e_kgMeOH']
+            ci_baseline = lca['MSMC']['kgCO2e_kgMeOH']
+            breakeven_co2_price = np.divide((np.subtract(lcom,lcom_baseline)),(np.subtract(ci_baseline,ci)))
+            # if m == 2:
+            #     breakeven_co2_price[0] = np.nan
+            plt.plot(sim_years,breakeven_co2_price,style,label=labels[m],color=colors[m])
+            # plt.legend()
+            plt.xlabel('Plant Startup Year')
+            plt.ylabel('CO2 price [2020 $/kg of CO2e emitted]')
+            plt.title('Breakeven CO2 Emissions Price')
+        plt.ylim([0,1])
+        plt.grid(axis='both')
+
+        
+        
         plt.gcf().set_tight_layout(True)
+
 
 plt.show()
