@@ -373,7 +373,7 @@ if __name__ == '__main__':
     load_resource_from_file = True
 
     # Load dump files from data import
-    cambium_scenarios = ['MidCase','HighNGPrice','LowNGPrice']
+    cambium_scenarios = ['MidCase','HighNGPrice','LowNGPrice']#
     for l, cambium_scenario in enumerate(cambium_scenarios):   
         resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'
         results_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'/cambium_scenario
@@ -632,12 +632,12 @@ if __name__ == '__main__':
                 if not os.path.exists(year_results_dir/'kWsell'):
                     os.mkdir(year_results_dir/'kWsell')
 
-                # Run hybrid calculation for all sites
-                tic = time.time()
-                run_all_hybrid_calcs(site_name, site_details, technologies_lols, costs,
-                                        year_results_dir, plant_size_pcts, wind_pcts, power_factors)
-                toc = time.time()
-                print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
+                # # Run hybrid calculation for all sites
+                # tic = time.time()
+                # run_all_hybrid_calcs(site_name, site_details, technologies_lols, costs,
+                #                         year_results_dir, plant_size_pcts, wind_pcts, power_factors)
+                # toc = time.time()
+                # print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
                 
                 for site_num in site_nums:
                 

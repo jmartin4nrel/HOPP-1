@@ -100,7 +100,7 @@ if __name__ == '__main__':
     MeOH_scenarios = ['Great','Good','OK']
     cambium_scenarios = ['MidCase','HighNGPrice','LowNGPrice']
     # Set specific scenarios to size with
-    cambium_scenario = 'MidCase'
+    cambium_scenario = 'HighNGPrice'
     plant_scenarios =  {'NGCC':'Advanced',
                         'CCS': 'Advanced',
                         'PV':  'Advanced',

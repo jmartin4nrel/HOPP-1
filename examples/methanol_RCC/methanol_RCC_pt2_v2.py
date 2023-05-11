@@ -22,6 +22,7 @@ def calc_lcoe(OCC_kw, FOM_kwyr, VOM_mwh, Cf, TASC_multiplier, discount_rate):
 
 
 Force_H2_1 = False
+Forced_H2_Price = -.32
 Force_hyb_ems = False # Force hybrid emissions down to 0 gCO2e/MWh by 2050
 
 ## Load dicts from json dumpfiles
@@ -29,7 +30,7 @@ Force_hyb_ems = False # Force hybrid emissions down to 0 gCO2e/MWh by 2050
 current_dir = Path(__file__).parent.absolute()
 ax_list = []
 line_styles = ['-','--',':']
-cambium_scenarios = ['MidCase','HighNGPrice','HighNGPrice',]#]#'LowNGPrice',]#
+cambium_scenarios = ['MidCase']#,'HighNGPrice','HighNGPrice',]#'LowNGPrice',]#
 for l, cambium_scenario in enumerate(cambium_scenarios):
     style = line_styles[l]
 
@@ -225,7 +226,7 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
             H2_price_kg = finance[plant]['VOM_H2_$_kgH2'][MeOH_scenario]
             if Force_H2_1:
                 for i in range(len(H2_price_kg)):
-                    H2_price_kg[i] = (1/H2_price_kg[-1]*H2_price_kg[i]*i+H2_price_kg[i]*(len(H2_price_kg)-i-1))/(len(H2_price_kg)-1)
+                    H2_price_kg[i] = (Forced_H2_Price/H2_price_kg[-1]*H2_price_kg[i]*i+H2_price_kg[i]*(len(H2_price_kg)-i-1))/(len(H2_price_kg)-1)
                 finance[plant]['VOM_H2_$_kgH2'][MeOH_scenario] = H2_price_kg
             VOM_H2_yr = list(np.multiply(H2_price_kg,H2_kg_yr))
             finance[plant]['VOM_H2_$_yr'] = {MeOH_scenario:VOM_H2_yr}
@@ -340,7 +341,7 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
     lca['orig_elec'] = {}
     lca['elec'] = {}
     lca['stack'] = {}
-    plants = ['MSMR','MSMC','MCO2']#,'MPSR'
+    plants = ['MSMR','MSMC','MCO2','MPSR']#
     for m, me_plant in enumerate(plants):
         lca[me_plant] = {}
         for unit in lca['MeNG'].keys():
@@ -449,7 +450,7 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
                 if 'SM' in me_plant:
                     lca[me_plant][unit].append(lca['CO2'][unit] + lca['MeNG'][unit])
                 else:
-                    lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['stack'][unit] + lca['MeRe'][unit])
+                    lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['MeRe'][unit]) # + lca['stack'][unit]
 
 
         # Print prices per unit for ALL scenarios
@@ -643,7 +644,7 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
         plt.ylabel('Levelized Cost [2020 $/kg of Methanol]')
         plt.title('Methanol Cost')
         plt.ylim([0,1])
-        plt.grid(axis='both')
+        plt.grid('on',axis='both')
         
         if l == 0:
             ax = plt.subplot(2,3,3)
@@ -661,7 +662,7 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
             plt.ylabel('Levelized Cost [2020 $/kg of Hydrogen]')
             plt.title('Green Hydrogen Cost')
         plt.ylim([0,4])
-        plt.grid(axis='both')
+        plt.grid('on',axis='both')
 
         labels = ['NGCC w/o carbon capture',
                 'NGCC with carbon capture',
@@ -681,9 +682,9 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
                 label = None
         elec_em = copy.deepcopy(lca['elec']['kgCO2e_MWh'])
         orig_elec_em = copy.deepcopy(lca['orig_elec']['kgCO2e_MWh'])
-        if 'PSR' in me_plant:
-            plt.plot(sim_years,orig_elec_em,style,label=labels[m-1],color=colors[m-1])
-            plt.plot(sim_years,elec_em,style,label=labels[m],color=colors[m])
+        # if 'PSR' in me_plant:
+        #     plt.plot(sim_years,orig_elec_em,style,label=labels[m-1],color=colors[m-1])
+        #     plt.plot(sim_years,elec_em,style,label=labels[m],color=colors[m])
         # plt.plot(sim_years,lca['MeOH']['kgCO2e_kgMeOH'],label='Methanol from NGCC-captured CO2 + Green Hydrogen')
         plt.xlabel('Plant Startup Year')
         plt.ylabel('kg CO2-equivalent / MWh_e')
@@ -698,8 +699,8 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
                 'Novel Technology: NREL PSRs']
         
         labels = ['Baseline #0: SMR without Carbon Capture',
-                'SMR with Carbon Capture',
-                'CO2 Hydrogenation w/Green H2',
+                'Baseline #1: SMR with Carbon Capture',
+                'Baseline #2: CO2 Hydrogenation w/Green H2',
                 'Novel Technology: NREL PSRs']
         
         label = labels[m]
@@ -725,7 +726,7 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
         plt.title('Methanol LCA')
         # plt.legend()
         plt.ylim([0,1.2])
-        plt.grid(axis='both')
+        plt.grid('on',axis='both')
 
         if l == 0:
             ax = plt.subplot(2,3,6)
@@ -749,11 +750,14 @@ for l, cambium_scenario in enumerate(cambium_scenarios):
             plt.ylabel('CO2 price [2020 $/kg of CO2e emitted]')
             plt.title('Breakeven CO2 Emissions Price')
         plt.ylim([0,1])
-        plt.grid(axis='both')
+        plt.grid('on',axis='both')
 
         
         
         plt.gcf().set_tight_layout(True)
 
+
+print(finance['MCO2']['lcom_$_kg'])
+print(finance['MPSR']['lcom_$_kg'])
 
 plt.show()
