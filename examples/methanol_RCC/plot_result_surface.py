@@ -4,7 +4,7 @@ from pathlib import Path
 
 current_dir = Path(__file__).parent.absolute()
 years = np.arange(2020,2055,5)#[2050,]#
-years = [2050]
+# years = [2040]
 
 # sites = ['IA01','TX01']##
 site = 'TX01'
@@ -19,10 +19,10 @@ n_winds = len(wind_pcts)
 
 X, Y = np.meshgrid(plant_size_pcts,wind_pcts)
 
-cambium_scenarios = ['HighNGPrice','MidCase','LowNGPrice']
+cambium_scenarios = ['HighNGPrice','MidCase','HighNGPrice']
 
 
-plt.clf()
+# plt.clf()
 plt.set_cmap('inferno')
 # for i, site in enumerate(sites):
 for i, year in enumerate(years):
@@ -36,7 +36,10 @@ for i, year in enumerate(years):
         for j, plant_pct in enumerate(plant_size_pcts):
             for k, wind_pct in enumerate(wind_pcts):
 
-                filename = '{}_plant{:03d}_wind{:02d}_HCO2.txt'.format(site,plant_pct,wind_pct)
+                if l == 2:
+                    filename = '{}_plant{:03d}_wind{:02d}_HPSR.txt'.format(site,plant_pct,wind_pct)
+                else:
+                    filename = '{}_plant{:03d}_wind{:02d}_HCO2.txt'.format(site,plant_pct,wind_pct)
                 
                 read_dir = results_dir/'OrigLCOE'
                 with open(Path(read_dir/filename),'r') as file:
@@ -51,22 +54,22 @@ for i, year in enumerate(years):
                 with open(Path(read_dir/filename),'r') as file:
                     CI[k][j] = np.loadtxt(file)
         
-        # plt.subplot(n_sites,2,i*2+1)
-        # if j == 0:
-        ax = plt.subplot(len(cambium_scenarios),4,1+l*4)
-        #     ax_list.append(ax)
-        # else:
-        #     plt.sca(ax_list[0])
-        plt.contourf(X,Y,orig_lcoe, vmin=0.015, vmax=0.05)
-        plt.xlabel('Plant size, % of original estimate')
-        plt.ylabel('% wind')
-        plt.colorbar(label='$/kWh')
+        # # plt.subplot(n_sites,2,i*2+1)
+        # # if j == 0:
+        # ax = plt.subplot(len(cambium_scenarios),4,1+l*4)
+        # #     ax_list.append(ax)
+        # # else:
+        # #     plt.sca(ax_list[0])
+        # plt.contourf(X,Y,orig_lcoe, vmin=0.015, vmax=0.05)
+        # plt.xlabel('Plant size, % of original estimate')
+        # plt.ylabel('% wind')
+        # plt.colorbar(label='$/kWh')
 
         # lcoe = lcoe*0+.02
         # lcoe[3,3] = 0.0495
         # plt.subplot(n_sites,2,i*2+2)
         # if j == 0:
-        ax = plt.subplot(len(cambium_scenarios),4,2+l*4)
+        ax = plt.subplot(len(cambium_scenarios),7,i+1+l*7)
         #     ax_list.append(ax)
         # else:
         #     plt.sca(ax_list[1])
@@ -75,25 +78,25 @@ for i, year in enumerate(years):
         plt.ylabel('% wind')
         plt.colorbar(label='$/kWh')
 
-        # if j == 0:
-        ax = plt.subplot(len(cambium_scenarios),4,3+l*4)
-        #     ax_list.append(ax)
-        # else:
-        #     plt.sca(ax_list[2])
-        plt.contourf(X,Y,orig_CI, vmin=0, vmax=50)
-        plt.xlabel('Plant size, % of original estimate')
-        plt.ylabel('% wind')
-        plt.colorbar(label='gCO2e/kWh')
+        # # if j == 0:
+        # ax = plt.subplot(len(cambium_scenarios),4,3+l*4)
+        # #     ax_list.append(ax)
+        # # else:
+        # #     plt.sca(ax_list[2])
+        # plt.contourf(X,Y,orig_CI, vmin=0, vmax=50)
+        # plt.xlabel('Plant size, % of original estimate')
+        # plt.ylabel('% wind')
+        # plt.colorbar(label='gCO2e/kWh')
 
-         # if j == 0:
-        ax = plt.subplot(len(cambium_scenarios),4,4+l*4)
-        #     ax_list.append(ax)
-        # else:
-        #     plt.sca(ax_list[2])
-        plt.contourf(X,Y,CI, vmin=0, vmax=50)
-        plt.xlabel('Plant size, % of original estimate')
-        plt.ylabel('% wind')
-        plt.colorbar(label='gCO2e/kWh')
+        #  # if j == 0:
+        # ax = plt.subplot(len(cambium_scenarios),4,4+l*4)
+        # #     ax_list.append(ax)
+        # # else:
+        # #     plt.sca(ax_list[2])
+        # plt.contourf(X,Y,CI, vmin=0, vmax=50)
+        # plt.xlabel('Plant size, % of original estimate')
+        # plt.ylabel('% wind')
+        # plt.colorbar(label='gCO2e/kWh')
 
 plt.gcf().set_tight_layout(True)
 plt.show()

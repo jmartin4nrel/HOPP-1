@@ -82,7 +82,7 @@ if __name__ == '__main__':
                 'TX': {'on_land':[True ,], 'lat':[32.337679,], 'lon':[-97.734610,]},
                 'NJ': {'on_land':[False ,], 'lat':[39.600000,], 'lon':[-73.400000,]},
                 }
-    site_choice = 'IA' # Choose NGCC site to analyze all years/scenarios with HOPP
+    site_choice = 'TX' # Choose NGCC site to analyze all years/scenarios with HOPP
     site_num_choice = 1 # Choose site number (of 19 surrounding survey sites) to analyze
     min_plant_dist = 120 # km, minimum distance between NGCC plants in survey
     land_rad = 60 # km radius of survey area around NGCC plant on land
@@ -100,7 +100,7 @@ if __name__ == '__main__':
     MeOH_scenarios = ['Great','Good','OK']
     cambium_scenarios = ['MidCase','HighNGPrice','LowNGPrice']
     # Set specific scenarios to size with
-    cambium_scenario = 'MidNGPrice'
+    cambium_scenario = 'MidCase'
     plant_scenarios =  {'NGCC':'Advanced',
                         'CCS': 'Advanced',
                         'PV':  'Advanced',
