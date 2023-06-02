@@ -373,7 +373,7 @@ if __name__ == '__main__':
     load_resource_from_file = True
 
     # Load dump files from data import
-    cambium_scenarios = ['MidCase','HighNGPrice','LowNGPrice']#
+    cambium_scenarios = ['MidCase']#,'HighNGPrice','LowNGPrice'
     for l, cambium_scenario in enumerate(cambium_scenarios):   
         resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'
         results_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'/cambium_scenario

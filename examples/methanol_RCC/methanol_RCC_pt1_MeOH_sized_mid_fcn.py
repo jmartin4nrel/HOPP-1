@@ -127,7 +127,7 @@ def try_H2_ratio(H2_ratio):
     NGCC_Cf = 0.85 # capacity factor of NGCC plant to scale results to
     ''' NGCC_cap*NGCC_Cf must be <170 MW for H2A model scaling to stay valid!
         (H2 output needs to stay below 200,000 kg H2/day'''
-    MeOH_cap_mt_yr = 1e5 # Methanol capacity to scale results to, metric tons / yr
+    MeOH_cap_mt_yr = 115104 # Methanol capacity to scale results to, metric tons / yr
 
     resource_dir = Path(__file__).parent.absolute()/'..'/'resource_files'/'methanol_RCC'
     cambium_dir = Path(__file__).parent.absolute()/'..'/'..'/'..'/'..'/'..'/'Projects'/'22 CO2 to Methanol'/'Cambium Data'
@@ -403,9 +403,9 @@ def try_H2_ratio(H2_ratio):
     labor_person_year = inflate(labor_person_year, Nyari_basis_year, basis_year)
 
     # Nyari reactor performance
-    nyari_mass_ratio_CO2_MeOH = 1.397 # kg CO2 in needed per kg of MeOH produced
-    nyari_mass_ratio_H2_MeOH = 0.192 # kg H2 in needed per kg of MeOH produced
-    nyari_CO2_conv_pct = 98.37 # pct CO2 converted
+    nyari_mass_ratio_CO2_MeOH = 1.423#1.397 # kg CO2 in needed per kg of MeOH produced
+    nyari_mass_ratio_H2_MeOH = 0.195#0.192 # kg H2 in needed per kg of MeOH produced
+    nyari_CO2_conv_pct = 96.49#98.37 # pct CO2 converted
     nyari_elec_usage = 0.175 # kWh/kg MeOH
 
     # Nyari H2O/catalyst usage - ESTIMATED (reported in Euros/year, euros/kg)
@@ -423,7 +423,7 @@ def try_H2_ratio(H2_ratio):
     ruddy_CO2_conv_pct =   {'Great':    25275/220462*(C_MW+O_MW*2)/(C_MW+O_MW+H_MW*4)*100,
                             'Good':     95,
                             'OK':       90} # % CO2 converted to MeOH
-    ruddy_elec_usage =     {'Great':    0.1,
+    ruddy_elec_usage =     {'Great':    0.0,
                             'Good':     0.15,
                             'OK':       0.2} # kWh/kg MeOH
     ruddy_cat_mg_kg_MeOH = {'Great':    25,
@@ -567,16 +567,23 @@ def try_H2_ratio(H2_ratio):
                 capex = tc*toc_tc
                 fom_yr = inflate(75244327,foc_voc_base,sim_basis_year)
                 vom_other_mwh = vom_other_yr/mwh_yr
-            else:
+            elif 'MC' in plant:
                 # From Nyari et al model
                 a = finance[plant]['capex_mil_kt_y_A']
                 b = finance[plant]['capex_mil_kt_y_B']
-                capex = a*kt_yr**(-b) * kt_yr * 1e6
+                capex = 1.5e6*kt_yr#a*kt_yr**(-b) * kt_yr * 1e6
                 labor_yr = labor_person_year*workers_kt_y*kt_yr
                 overhead_yr = overhead_capex_ratio*capex
                 fom_yr = labor_yr + overhead_yr
                 vom_other_yr = 0
-                vom_other_mwh = 0    
+                vom_other_mwh = 0
+            else:
+                # From ASPEN model
+                capex = 27283412#inflate(32802887, 2016, 2020)
+                vom_other_mt = -0.55#inflate(212.50, 2016, 2020)
+                fom_yr = 11.95*kt_yr*1000#inflate(11.11, 2016, 2020)*kt_yr*1000
+                vom_other_yr = vom_other_mt*kt_yr*1000
+                vom_other_mwh = vom_other_yr/mwh_yr
             capex_kw = capex/kw
             fom_yr_kw = fom_yr/kw
             vom_h2o_yr = [engin[plant]['H2O_kg_yr_in'][scenario]*i/L_gal/1000 for i in H2O_price_tgal]
@@ -598,6 +605,15 @@ def try_H2_ratio(H2_ratio):
                 lcon /= plant_lifespan
                 vom_ng_yr.append(ng_kg_yr*lcon/kJ_btu/1000*NG_LHV_MJ_kg)
             vom_ng_mwh = [i/mwh_yr for i in vom_ng_yr]
+            if 'MP' in plant:
+                vom_ng_mwh = 0
+                vom_ng_yr = 0
+                vom_h2o_mwh = 0
+                vom_h2o_yr = 0
+                vom_cat_yr = 223.79*kt_yr*1000
+                vom_cat_mwh = vom_cat_yr/mwh_yr
+                vom_ts_mwh = 0
+                vom_ts_yr = 0
             finance[plant]['OCC_$_kw'][scenario] = capex_kw
             finance[plant]['OCC_$'][scenario] = capex
             finance[plant]['FOM_$_kwyr'][scenario] = fom_yr_kw
@@ -877,25 +893,25 @@ def try_H2_ratio(H2_ratio):
         json.dump(out_locations, file)
 
 
-    ## RUN HOPP HERE - multi_location_RCC.py
+    # # RUN HOPP HERE - multi_location_RCC.py
 
-    # %% Check imports and conversions
+    # # %% Check imports and conversions
 
-    # Load imported dicts from json dumpfiles
-    with open(Path(resource_dir/'engin.json'),'r') as file:
-        engin = json.load(file)
-    with open(Path(resource_dir/'finance.json'),'r') as file:
-        finance = json.load(file)
-    with open(Path(resource_dir/'scenario.json'),'r') as file:
-        scenario_info = json.load(file)
-        plant_scenarios = scenario_info['plant_scenarios']
-        cambium_scenarios = scenario_info['cambium_scenarios']
-        cambium_scenario = scenario_info['cambium_scenario']
-        atb_scenarios = scenario_info['atb_scenarios']
-        H2A_scenarios = scenario_info['H2A_scenarios']
-        MeOH_scenarios = scenario_info['MeOH_scenarios']
-    with open(Path(resource_dir/'locations.json'),'r') as file:
-        locations = json.load(file)
+    # # Load imported dicts from json dumpfiles
+    # with open(Path(resource_dir/'engin.json'),'r') as file:
+    #     engin = json.load(file)
+    # with open(Path(resource_dir/'finance.json'),'r') as file:
+    #     finance = json.load(file)
+    # with open(Path(resource_dir/'scenario.json'),'r') as file:
+    #     scenario_info = json.load(file)
+    #     plant_scenarios = scenario_info['plant_scenarios']
+    #     cambium_scenarios = scenario_info['cambium_scenarios']
+    #     cambium_scenario = scenario_info['cambium_scenario']
+    #     atb_scenarios = scenario_info['atb_scenarios']
+    #     H2A_scenarios = scenario_info['H2A_scenarios']
+    #     MeOH_scenarios = scenario_info['MeOH_scenarios']
+    # with open(Path(resource_dir/'locations.json'),'r') as file:
+    #     locations = json.load(file)
 
 
 

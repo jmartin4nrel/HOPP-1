@@ -100,7 +100,7 @@ def try_H2_ratio(H2_ratio):
     MeOH_scenarios = ['Great','Good','OK']
     cambium_scenarios = ['MidCase','HighNGPrice','LowNGPrice']
     # Set specific scenarios to size with
-    cambium_scenario = 'HighNGPrice'
+    cambium_scenario = 'LowNGPrice'
     plant_scenarios =  {'NGCC':'Advanced',
                         'CCS': 'Advanced',
                         'PV':  'Advanced',
@@ -127,7 +127,7 @@ def try_H2_ratio(H2_ratio):
     NGCC_Cf = 0.85 # capacity factor of NGCC plant to scale results to
     ''' NGCC_cap*NGCC_Cf must be <170 MW for H2A model scaling to stay valid!
         (H2 output needs to stay below 200,000 kg H2/day'''
-    MeOH_cap_mt_yr = 1e5 # Methanol capacity to scale results to, metric tons / yr
+    MeOH_cap_mt_yr = 104403 # Methanol capacity to scale results to, metric tons / yr
 
     resource_dir = Path(__file__).parent.absolute()/'..'/'resource_files'/'methanol_RCC'
     cambium_dir = Path(__file__).parent.absolute()/'..'/'..'/'..'/'..'/'..'/'Projects'/'22 CO2 to Methanol'/'Cambium Data'
@@ -567,7 +567,7 @@ def try_H2_ratio(H2_ratio):
                 capex = tc*toc_tc
                 fom_yr = inflate(75244327,foc_voc_base,sim_basis_year)
                 vom_other_mwh = vom_other_yr/mwh_yr
-            else:
+            elif 'MCO2' in plant:
                 # From Nyari et al model
                 a = finance[plant]['capex_mil_kt_y_A']
                 b = finance[plant]['capex_mil_kt_y_B']
@@ -576,7 +576,16 @@ def try_H2_ratio(H2_ratio):
                 overhead_yr = overhead_capex_ratio*capex
                 fom_yr = labor_yr + overhead_yr
                 vom_other_yr = 0
-                vom_other_mwh = 0    
+                vom_other_mwh = 0
+            else:
+                # From ASPEN model
+                capex = 32802887
+                vom_other_mt = 212.50
+                labor_yr = labor_person_year*workers_kt_y*kt_yr
+                overhead_yr = overhead_capex_ratio*capex
+                fom_yr = labor_yr + overhead_yr
+                vom_other_yr = vom_other_mt*kt_yr*1000
+                vom_other_mwh = vom_other_yr/mwh_yr
             capex_kw = capex/kw
             fom_yr_kw = fom_yr/kw
             vom_h2o_yr = [engin[plant]['H2O_kg_yr_in'][scenario]*i/L_gal/1000 for i in H2O_price_tgal]
@@ -598,6 +607,15 @@ def try_H2_ratio(H2_ratio):
                 lcon /= plant_lifespan
                 vom_ng_yr.append(ng_kg_yr*lcon/kJ_btu/1000*NG_LHV_MJ_kg)
             vom_ng_mwh = [i/mwh_yr for i in vom_ng_yr]
+            if 'MPSR' in plant:
+                vom_ng_mwh = 0
+                vom_ng_yr = 0
+                vom_h2o_mwh = 0
+                vom_h2o_yr = 0
+                vom_cat_mwh = 0
+                vom_cat_yr = 0
+                vom_ts_mwh = 0
+                vom_ts_yr = 0
             finance[plant]['OCC_$_kw'][scenario] = capex_kw
             finance[plant]['OCC_$'][scenario] = capex
             finance[plant]['FOM_$_kwyr'][scenario] = fom_yr_kw

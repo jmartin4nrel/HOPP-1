@@ -14,13 +14,14 @@ from methanol_RCC_pt1_MeOH_sized_hi_fcn import try_H2_ratio as try_H2_ratio_hi
 from methanol_RCC_pt2_NGCC_sized import try_H2_price
 
 plt.clf
-H2_ratios = [0.29,0.25,0.21]
+H2_ratios = [0.238756] #0.29,0.25,0.21
 H2_prices = [1,1,1,1.08,0.92,0.8,0.71,0.64,0.58]#1.80615878
 for H2_idx, H2_ratio in enumerate(H2_ratios):
     # for file in [pt1a,pt1b,pt1c,multi]:#,pt2]:
     try_H2_ratio(H2_ratio)
     # try_H2_ratio_lo(H2_ratio)
     # try_H2_ratio_hi(H2_ratio)
+    
     with open(multi) as f:
         exec(f.read())
 

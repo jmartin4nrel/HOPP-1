@@ -25,18 +25,20 @@ def try_H2_price(Forced_H2_Price, index, plotting=False):
 
     Force_H2_1 = False
     Force_hyb_ems = False # Force hybrid emissions down to 0 gCO2e/MWh by 2050
+    DAC_cost_mt = 0
+    add_DAC = True
 
     ## Load dicts from json dumpfiles
 
     current_dir = Path(__file__).parent.absolute()
     ax_list = []
     line_styles = ['-','--',':']
-    cambium_scenarios = ['MidCase']#,'MidCase',]#'LowNGPrice',]#
+    cambium_scenarios = ['MidCase',]#'LowNGPrice','HighNGPrice']#
     for l, cambium_scenario in enumerate(cambium_scenarios):
-        style = line_styles[index]
+        style = line_styles[l]
 
-        if l == 0:
-            Force_H2_1 = False
+        if l == 1:
+            Force_H2_1 = True
         
         resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'
         results_dir = resource_dir/'HOPP_results'/cambium_scenario
@@ -180,7 +182,7 @@ def try_H2_price(Forced_H2_Price, index, plotting=False):
                     finance[plant]['VOM_CO2_$_mwh'] = {MeOH_scenario:VOM_CO2_mwh}
                 else:
                     finance[plant]['VOM_CO2_$_yr'] = {MeOH_scenario:0}
-                    finance[plant]['VOM_CO2_$_mwh'] = {MeOH_scenario:0}
+                    finance[plant]['VOM_CO2_$_mwh'] = {MeOH_scenario:list(np.zeros(finance[plant]['plant_lifespan']))}
 
         ## Get H2 production cost
 
@@ -196,78 +198,15 @@ def try_H2_price(Forced_H2_Price, index, plotting=False):
             lcoh_kg = list(np.multiply(lcoh_kwh,H2_LHV_MJ_kg/3600*1000))
             finance[plant]['lcoh_$_kg'] = lcoh_kg
             finance['M'+plant[1:]]['VOM_H2_$_kgH2'] = {MeOH_scenario:lcoh_kg}
-
-
-        ## Calculate MeOH production cost
-
-        for plant in ['MSMR','MSMC','MCO2','MPSR']:
-            sim_years = scenario_info['sim_years']
-            MeOH_LHV_MJ_kg = engin[plant]['MeOH_LHV_MJ_kg']
-            output_kw = engin[plant]['output_kw'][MeOH_scenario]
-            mwh_yr = output_kw*8.76
-            if 'SM' in plant:
-                VOM_comps = ['VOM_elec_$_mwh',
-                            'VOM_NG_$_mwh',
-                            'VOM_H2O_$_mwh',
-                            'VOM_cat_$_mwh',
-                            'VOM_TS_$_mwh',
-                            'VOM_other_$_mwh']
-            else:
-                cambium_aeo_multiplier = state_multipliers[site_name[:2]]
-                cambium_price = list(cambium_prices.loc[site_name[:2],sim_years[0]:].values)
-                cambium_price.extend([cambium_price[-1]]*(len(sim_years)-
-                                                        len(cambium_prices.loc[site_name[:2]].values)))
-                elec_price_kwh = np.mean([i*cambium_aeo_multiplier/1000 for i in cambium_price])
-                elec_in_mwh_yr = engin[plant]['elec_in_mwh_yr'][MeOH_scenario]
-                VOM_elec_yr = elec_price_kwh*1000*elec_in_mwh_yr
-                VOM_elec_mwh = VOM_elec_yr/mwh_yr
-                finance[plant]['VOM_elec_$_yr'] = {MeOH_scenario:VOM_elec_yr}
-                finance[plant]['VOM_elec_$_mwh'] = {MeOH_scenario:VOM_elec_mwh}
-                H2_kg_yr = engin[plant]['H2_kg_yr_in'][MeOH_scenario]
-                H2_price_kg = finance[plant]['VOM_H2_$_kgH2'][MeOH_scenario]
-                if plant == 'MPSR':
-                    Plant_Forced_H2_Price = Forced_H2_Price
-                else:
-                    Plant_Forced_H2_Price = Forced_H2_Price-finance['MPSR']['VOM_H2_$_kgH2'][MeOH_scenario][-1]+\
-                                                            finance[plant]['VOM_H2_$_kgH2'][MeOH_scenario][-1]
-                if Force_H2_1:
-                    for i in range(len(H2_price_kg)):
-                        H2_price_kg[i] = (Plant_Forced_H2_Price/H2_price_kg[-1]*H2_price_kg[i]*i+H2_price_kg[i]*(len(H2_price_kg)-i-1))/(len(H2_price_kg)-1)
-                    finance[plant]['VOM_H2_$_kgH2'][MeOH_scenario] = H2_price_kg
-                VOM_H2_yr = list(np.multiply(H2_price_kg,H2_kg_yr))
-                finance[plant]['VOM_H2_$_yr'] = {MeOH_scenario:VOM_H2_yr}
-                VOM_H2_mwh = [i/mwh_yr for i in VOM_H2_yr]
-                finance[plant]['VOM_H2_$_mwh'] = {MeOH_scenario:VOM_H2_mwh}
-                VOM_comps = ['VOM_elec_$_mwh',
-                            'VOM_H2_$_mwh',
-                            'VOM_CO2_$_mwh',
-                            'VOM_H2O_$_mwh',
-                            'VOM_cat_$_mwh',
-                            'VOM_other_$_mwh']
-            finance[plant]['VOM_$_mwh'] = {MeOH_scenario:[]}
-            finance[plant]['VOM_$_yr'] = {MeOH_scenario:[]}
-            for i, year in enumerate(sim_years):
-                VOM_mwh = 0
-                for VOM_comp in VOM_comps:
-                    if type(finance[plant][VOM_comp]) is dict:
-                        if type(finance[plant][VOM_comp][MeOH_scenario]) is list:
-                            VOM_mwh += finance[plant][VOM_comp][MeOH_scenario][i]
-                        else:
-                            VOM_mwh += finance[plant][VOM_comp][MeOH_scenario]
-                    else:
-                        VOM_mwh += finance[plant][VOM_comp]
-                year_VOM = copy.copy(VOM_mwh)
-                finance[plant]['VOM_$_mwh'][MeOH_scenario].append(year_VOM)
-                finance[plant]['VOM_$_yr'][MeOH_scenario].append(year_VOM*mwh_yr)
-            OCC_kw = finance[plant]['OCC_$_kw'][MeOH_scenario]
-            FOM_kwyr = finance[plant]['FOM_$_kwyr'][MeOH_scenario]
-            VOM_mwh = finance[plant]['VOM_$_mwh'][MeOH_scenario]
-            discount_rate = finance[plant]['discount_rate']
-            TASC_multiplier = finance[plant]['TASC_multiplier']
-            lcom_kwh = calc_lcoe(OCC_kw,FOM_kwyr,VOM_mwh,1,TASC_multiplier,discount_rate)
-            finance[plant]['lcom_$_kwh'] = {MeOH_scenario:lcom_kwh}
-            lcom_kg = list(np.multiply(lcom_kwh,MeOH_LHV_MJ_kg/3600*1000))
-            finance[plant]['lcom_$_kg'] = lcom_kg
+            finance['M'+plant[1:]]['VOM_NG_$_mwh'] = {}
+            for meoh_scenario in MeOH_scenarios:
+                finance['M'+plant[1:]]['VOM_NG_$_mwh'][meoh_scenario] = list(np.zeros(finance[plant]['plant_lifespan']))
+        for plant in ['MSMR','MSMC']:
+            finance[plant]['VOM_H2_$_mwh'] = {}
+            finance[plant]['VOM_CO2_$_mwh'] = {}
+            for meoh_scenario in MeOH_scenarios:
+                finance[plant]['VOM_H2_$_mwh'][meoh_scenario] = list(np.zeros(finance[plant]['plant_lifespan']))
+                finance[plant]['VOM_CO2_$_mwh'][meoh_scenario] = list(np.zeros(finance[plant]['plant_lifespan']))
 
 
         # Import TRACI impact analysis results for individual plants
@@ -458,7 +397,120 @@ def try_H2_price(Forced_H2_Price, index, plotting=False):
                     else:
                         lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['MeRe'][unit]) # + lca['stack'][unit]
 
+        
+        
+        ## Calculate MeOH production cost
 
+        for plant in ['MSMR','MSMC','MCO2','MPSR']:
+            sim_years = scenario_info['sim_years']
+            MeOH_LHV_MJ_kg = engin[plant]['MeOH_LHV_MJ_kg']
+            output_kw = engin[plant]['output_kw'][MeOH_scenario]
+            mwh_yr = output_kw*8.76
+            if 'SM' in plant:
+                VOM_comps = ['VOM_elec_$_mwh',
+                            'VOM_NG_$_mwh',
+                            'VOM_H2O_$_mwh',
+                            'VOM_cat_$_mwh',
+                            'VOM_TS_$_mwh',
+                            'VOM_other_$_mwh']
+            else:
+                cambium_aeo_multiplier = state_multipliers[site_name[:2]]
+                cambium_price = list(cambium_prices.loc[site_name[:2],sim_years[0]:].values)
+                cambium_price.extend([cambium_price[-1]]*(len(sim_years)-
+                                                        len(cambium_prices.loc[site_name[:2]].values)))
+                elec_price_kwh = np.mean([i*cambium_aeo_multiplier/1000 for i in cambium_price])
+                elec_in_mwh_yr = engin[plant]['elec_in_mwh_yr'][MeOH_scenario]
+                VOM_elec_yr = elec_price_kwh*1000*elec_in_mwh_yr
+                VOM_elec_mwh = VOM_elec_yr/mwh_yr
+                finance[plant]['VOM_elec_$_yr'] = {MeOH_scenario:VOM_elec_yr}
+                finance[plant]['VOM_elec_$_mwh'] = {MeOH_scenario:VOM_elec_mwh}
+                H2_kg_yr = engin[plant]['H2_kg_yr_in'][MeOH_scenario]
+                H2_price_kg = finance[plant]['VOM_H2_$_kgH2'][MeOH_scenario]
+                if plant == 'MPSR':
+                    Plant_Forced_H2_Price = Forced_H2_Price
+                else:
+                    Plant_Forced_H2_Price = Forced_H2_Price-finance['MPSR']['VOM_H2_$_kgH2'][MeOH_scenario][-1]+\
+                                                            finance[plant]['VOM_H2_$_kgH2'][MeOH_scenario][-1]
+                if Force_H2_1:
+                    for i in range(len(H2_price_kg)):
+                        H2_price_kg[i] = (Plant_Forced_H2_Price/H2_price_kg[-1]*H2_price_kg[i]*i+H2_price_kg[i]*(len(H2_price_kg)-i-1))/(len(H2_price_kg)-1)
+                    finance[plant]['VOM_H2_$_kgH2'][MeOH_scenario] = H2_price_kg
+                VOM_H2_yr = list(np.multiply(H2_price_kg,H2_kg_yr))
+                finance[plant]['VOM_H2_$_yr'] = {MeOH_scenario:VOM_H2_yr}
+                VOM_H2_mwh = [i/mwh_yr for i in VOM_H2_yr]
+                finance[plant]['VOM_H2_$_mwh'] = {MeOH_scenario:VOM_H2_mwh}
+                VOM_comps = ['VOM_elec_$_mwh',
+                            'VOM_H2_$_mwh',
+                            'VOM_CO2_$_mwh',
+                            'VOM_H2O_$_mwh',
+                            'VOM_cat_$_mwh',
+                            'VOM_other_$_mwh']
+            finance[plant]['VOM_$_mwh'] = {MeOH_scenario:[]}
+            finance[plant]['VOM_$_yr'] = {MeOH_scenario:[]}
+            finance[plant]['OCC_kg'] = {}
+            finance[plant]['FOM_kg'] = {}
+            finance[plant]['VOM_H2_kg'] = {}
+            finance[plant]['VOM_CO2_kg'] = {}
+            finance[plant]['VOM_NG_kg'] = {}
+            finance[plant]['VOM_cat_kg'] = {}
+            finance[plant]['VOM_kg'] = {}
+            finance[plant]['VOM_other_kg'] = {}
+            finance[plant]['VOM_DAC_kg'] = {}
+            for i, year in enumerate(sim_years):
+                VOM_mwh = 0
+                for VOM_comp in VOM_comps:
+                    if type(finance[plant][VOM_comp]) is dict:
+                        if type(finance[plant][VOM_comp][MeOH_scenario]) is list:
+                            VOM_mwh += finance[plant][VOM_comp][MeOH_scenario][i]
+                        else:
+                            VOM_mwh += finance[plant][VOM_comp][MeOH_scenario]
+                    else:
+                        VOM_mwh += finance[plant][VOM_comp]
+                year_VOM = copy.copy(VOM_mwh)
+                finance[plant]['VOM_$_mwh'][MeOH_scenario].append(year_VOM)
+                finance[plant]['VOM_$_yr'][MeOH_scenario].append(year_VOM*mwh_yr)
+            OCC_kw = finance[plant]['OCC_$_kw'][MeOH_scenario]
+            FOM_kwyr = finance[plant]['FOM_$_kwyr'][MeOH_scenario]
+            VOM_mwh = finance[plant]['VOM_$_mwh'][MeOH_scenario]
+            VOM_NG_mwh = finance[plant]['VOM_NG_$_mwh'][MeOH_scenario]
+            VOM_H2_mwh = finance[plant]['VOM_H2_$_mwh'][MeOH_scenario]
+            VOM_CO2_mwh = finance[plant]['VOM_CO2_$_mwh'][MeOH_scenario]
+            VOM_cat_mwh = finance[plant]['VOM_cat_$_mwh'][MeOH_scenario]
+            discount_rate = finance[plant]['discount_rate']
+            TASC_multiplier = finance[plant]['TASC_multiplier']
+            lcom_kwh = calc_lcoe(OCC_kw,FOM_kwyr,VOM_mwh,1,TASC_multiplier,discount_rate)
+            finance[plant]['lcom_$_kwh'] = {MeOH_scenario:lcom_kwh}
+            lcom_kg = list(np.multiply(lcom_kwh,MeOH_LHV_MJ_kg/3600*1000))
+            VOM_DAC_kg = [i*DAC_cost_mt/1000 for i in lca[plant]['kgCO2e_kgMeOH']]
+            finance[plant]['VOM_DAC_kg'][MeOH_scenario] = VOM_DAC_kg
+            if add_DAC:
+                lcom_kg = list(np.add(lcom_kg,VOM_DAC_kg))
+            finance[plant]['lcom_$_kg'] = lcom_kg
+            meoh_kg_yr = engin[plant]['MeOH_kg_yr'][MeOH_scenario]
+            OCC_kg = list(np.multiply(calc_lcoe(OCC_kw,0,[0]*len(VOM_mwh),1,TASC_multiplier,discount_rate),MeOH_LHV_MJ_kg/3600*1000))
+            FOM_kg = list(np.multiply(calc_lcoe(0,FOM_kwyr,[0]*len(VOM_mwh),1,TASC_multiplier,discount_rate),MeOH_LHV_MJ_kg/3600*1000))
+            VOM_H2_kg = list(np.multiply(calc_lcoe(0,0,VOM_H2_mwh,1,TASC_multiplier,discount_rate),MeOH_LHV_MJ_kg/3600*1000))
+            VOM_CO2_kg = list(np.multiply(calc_lcoe(0,0,VOM_CO2_mwh,1,TASC_multiplier,discount_rate),MeOH_LHV_MJ_kg/3600*1000))
+            VOM_NG_kg = list(np.multiply(calc_lcoe(0,0,VOM_NG_mwh,1,TASC_multiplier,discount_rate),MeOH_LHV_MJ_kg/3600*1000))
+            VOM_cat_kg = list(np.multiply(calc_lcoe(0,0,[VOM_cat_mwh]*len(VOM_mwh),1,TASC_multiplier,discount_rate),MeOH_LHV_MJ_kg/3600*1000))
+            VOM_kg = list(np.multiply(calc_lcoe(0,0,VOM_mwh,1,TASC_multiplier,discount_rate),MeOH_LHV_MJ_kg/3600*1000))
+            if add_DAC:
+                VOM_kg = list(np.add(VOM_kg,VOM_DAC_kg))
+            VOM_other_kg = [VOM_kg[i]-VOM_H2_kg[i]-VOM_CO2_kg[i]-VOM_NG_kg[i]-VOM_cat_kg[i] for i in range(len(VOM_kg))]
+            if add_DAC:
+                VOM_other_kg = [VOM_other_kg[i]-VOM_DAC_kg[i] for i in range(len(VOM_kg))]
+            finance[plant]['OCC_kg'][MeOH_scenario] = OCC_kg
+            finance[plant]['FOM_kg'][MeOH_scenario] = FOM_kg
+            finance[plant]['VOM_H2_kg'][MeOH_scenario] = VOM_H2_kg
+            finance[plant]['VOM_CO2_kg'][MeOH_scenario] = VOM_CO2_kg
+            finance[plant]['VOM_NG_kg'][MeOH_scenario] = VOM_NG_kg
+            finance[plant]['VOM_cat_kg'][MeOH_scenario] = VOM_cat_kg
+            finance[plant]['VOM_kg'][MeOH_scenario] = VOM_kg
+            finance[plant]['VOM_other_kg'][MeOH_scenario] = VOM_other_kg
+
+
+        for m, me_plant in enumerate(plants):
+            
             # Print prices per unit for ALL scenarios
             prices_to_check = ['OCC_$_kw','FOM_$_kwyr','VOM_$_mwh']
             plants_to_check = plant_scenarios.keys()
@@ -591,34 +643,34 @@ def try_H2_price(Forced_H2_Price, index, plotting=False):
                         [1,0,0],
                         ]
 
-                # if l == 0:
-                #     ax = plt.subplot(2,3,1)
-                #     ax_list.append(ax)
-                # else:
-                #     plt.sca(ax_list[0])
-                # for i, label in enumerate(labels):
-                #     color = colors[i]
-                #     if l>0:
-                #         label = None
-                #     # if (m == 0) and (i > 1):
-                #     #     plt.plot(sim_years,plots[i],style,label=label,color=color)
-                # # plt.legend()
-                # plt.xlabel('Plant Startup Year')
-                # plt.ylabel('Levelized Cost [2020 $/kWh]')
-                # plt.title('Electricity Cost')
-                # plt.ylim([0,0.06])
-
-                # labels = ['CO2 captured from NGCC plant',
-                #         'H2 produced from electrolyzer',
-                #         'Methanol produced by Nyari et al. plant']
-                
-                # labels = ['Mid-case','High NG Price','High NG Price + $1 Green H2 by 2050']
-
-                # label = labels[l]
-                # if m>0:
-                #     label = None
-                # plt.plot([0,1],[0,1],style,color=[0,0,0],label=label)
+                if l == 0:
+                    ax = plt.subplot(2,3,1)
+                    ax_list.append(ax)
+                else:
+                    plt.sca(ax_list[0])
+                for i, label in enumerate(labels):
+                    color = colors[i]
+                    if l>0:
+                        label = None
+                    # if (m == 0) and (i > 1):
+                    #     plt.plot(sim_years,plots[i],style,label=label,color=color)
                 # plt.legend()
+                plt.xlabel('Plant Startup Year')
+                plt.ylabel('Levelized Cost [2020 $/kWh]')
+                plt.title('Electricity Cost')
+                plt.ylim([0,0.06])
+
+                labels = ['CO2 captured from NGCC plant',
+                        'H2 produced from electrolyzer',
+                        'Methanol produced by Nyari et al. plant']
+                
+                labels = ['Mid-case','High NG Price','High NG Price + $1 Green H2 by 2050']
+
+                label = labels[l]
+                if m>0:
+                    label = None
+                plt.plot([0,1],[0,1],style,color=[0,0,0],label=label)
+                plt.legend()
 
                 labels = ['Baseline #0: SMR without Carbon Capture',
                         'Baseline #1: SMR with Carbon Capture',
@@ -638,142 +690,158 @@ def try_H2_price(Forced_H2_Price, index, plotting=False):
                 if m==3:
                     label = label.format(0.29-0.04*index)
 
-                # if l == 0:
-                #     ax = plt.subplot(2,3,2)
-                #     ax_list.append(ax)
-                # else:
-                #     plt.sca(ax_list[1])
+                if l == 0:
+                    ax = plt.subplot(2,3,2)
+                    ax_list.append(ax)
+                else:
+                    plt.sca(ax_list[1])
                 color = colors[m]
                 if l>0:
                     label = None
                 lcom = finance[me_plant]['lcom_$_kg']
                 if m > 0:
-                    if (index == 0) or (m == 3):
-                        plt.plot(sim_years,lcom,style,label=label,color=color)
+                    # if (index == 0) or (m == 3):
+                    plt.plot(sim_years,lcom,style,label=label,color=color)
                 # plt.legend()
                 plt.xlabel('Plant Startup Year')
                 plt.ylabel('Levelized Cost [2020 $/kg of Methanol]')
                 plt.title('Methanol Cost')
-                plt.ylim([0,1])
+                plt.ylim([0,2])
                 plt.grid('on',axis='both')
                 # if index == 2:
                 #     plt.legend()
                 
-                # if l == 0:
-                #     ax = plt.subplot(2,3,3)
-                #     ax_list.append(ax)
-                # else:
-                #     plt.sca(ax_list[2])
-                # color = colors[m]
-                # if l>0:
-                #     label = None
-                # if m > 1:
-                #     lcoh = finance[me_plant]['VOM_H2_$_kgH2'][MeOH_scenario]
-                #     plt.plot(sim_years,lcoh,style,label=labels[m],color=colors[m])
-                #     # plt.legend()
-                #     plt.xlabel('Plant Startup Year')
-                #     plt.ylabel('Levelized Cost [2020 $/kg of Hydrogen]')
-                #     plt.title('Green Hydrogen Cost')
-                # plt.ylim([0,4])
-                # plt.grid('on',axis='both')
+                if l == 0:
+                    ax = plt.subplot(2,3,3)
+                    ax_list.append(ax)
+                else:
+                    plt.sca(ax_list[2])
+                color = colors[m]
+                if l>0:
+                    label = None
+                if m > 2:
+                    lcoh = finance[me_plant]['VOM_H2_$_kgH2'][MeOH_scenario]
+                    plt.plot(sim_years,lcoh,style,label=labels[m],color=[0,0,0])#colors[m])
+                    # plt.legend()
+                    plt.xlabel('Plant Startup Year')
+                    plt.ylabel('Levelized Cost [2020 $/kg of Hydrogen]')
+                    plt.title('Green Hydrogen Cost')
+                plt.ylim([0,4])
+                plt.grid('on',axis='both')
 
-                # labels = ['NGCC w/o carbon capture',
-                #         'NGCC with carbon capture',
-                #         'Wind/solar w/o grid exchange',
-                #         'Wind/solar with grid exchange']
+                labels = ['NGCC w/o carbon capture',
+                        'NGCC with carbon capture',
+                        'Wind/solar w/o grid exchange',
+                        'Wind/solar with grid exchange']
 
-                # label = labels[m]
+                label = labels[m]
                 
-                # if l == 0:
-                #     ax = plt.subplot(2,3,4)
-                #     ax_list.append(ax)
-                # else:
-                #     plt.sca(ax_list[3])
-                # for i, label in enumerate(labels):
-                #     color = colors[i]
-                #     if l>0:
-                #         label = None
-                # elec_em = copy.deepcopy(lca['elec']['kgCO2e_MWh'])
-                # orig_elec_em = copy.deepcopy(lca['orig_elec']['kgCO2e_MWh'])
-                # # if 'PSR' in me_plant:
-                # #     plt.plot(sim_years,orig_elec_em,style,label=labels[m-1],color=colors[m-1])
-                # #     plt.plot(sim_years,elec_em,style,label=labels[m],color=colors[m])
-                # # plt.plot(sim_years,lca['MeOH']['kgCO2e_kgMeOH'],label='Methanol from NGCC-captured CO2 + Green Hydrogen')
-                # plt.xlabel('Plant Startup Year')
-                # plt.ylabel('kg CO2-equivalent / MWh_e')
-                # plt.title('Electricity LCA')
-                # # plt.legend()
-                # plt.ylim([0,65])
-                # # plt.grid(axis='both')
-                
-                # labels = ['Baseline #0: SMR without Carbon Capture',
-                #         'Baseline #1: SMR with Carbon Capture',
-                #         'Baseline #2: CO2 Hydrogenation State of Art',
-                #         'Novel Technology: NREL PSRs']
-                
-                # labels = ['Baseline #0: SMR without Carbon Capture',
-                #         'Baseline #1: SMR with Carbon Capture',
-                #         'Baseline #2: CO2 Hydrogenation w/Green H2',
-                #         'Novel Technology: NREL PSRs']
-                
-                # label = labels[m]
-                # if l>0:
-                #     label = None
-                # if m>0:
-                #     plt.plot([0,1],[0,1],style,label=label,color=colors[m])
+                if l == 0:
+                    ax = plt.subplot(2,3,4)
+                    ax_list.append(ax)
+                else:
+                    plt.sca(ax_list[3])
+                for i, label in enumerate(labels):
+                    color = colors[i]
+                    if l>0:
+                        label = None
+                elec_em = copy.deepcopy(lca['elec']['kgCO2e_MWh'])
+                orig_elec_em = copy.deepcopy(lca['orig_elec']['kgCO2e_MWh'])
+                # if 'PSR' in me_plant:
+                #     plt.plot(sim_years,orig_elec_em,style,label=labels[m-1],color=colors[m-1])
+                #     plt.plot(sim_years,elec_em,style,label=labels[m],color=colors[m])
+                # plt.plot(sim_years,lca['MeOH']['kgCO2e_kgMeOH'],label='Methanol from NGCC-captured CO2 + Green Hydrogen')
+                plt.xlabel('Plant Startup Year')
+                plt.ylabel('kg CO2-equivalent / MWh_e')
+                plt.title('Electricity LCA')
                 # plt.legend()
+                plt.ylim([0,65])
+                # plt.grid(axis='both')
+                
+                labels = ['Baseline #0: SMR without Carbon Capture',
+                        'Baseline #1: SMR with Carbon Capture',
+                        'Baseline #2: CO2 Hydrogenation State of Art',
+                        'Novel Technology: NREL PSRs']
+                
+                labels = ['Baseline #0: SMR without Carbon Capture',
+                        'Baseline #1: SMR with Carbon Capture',
+                        'Baseline #2: CO2 Hydrogenation w/Green H2',
+                        'Novel Technology: NREL PSRs']
+                
+                label = labels[m]
+                if l>0:
+                    label = None
+                if m>0:
+                    plt.plot([0,1],[0,1],style,label=label,color=colors[m])
+                plt.legend()
 
-                # if l == 0:
-                #     ax = plt.subplot(2,3,5)
-                #     ax_list.append(ax)
-                # else:
-                #     plt.sca(ax_list[4])
-                # color = colors[m]
-                # if l>0:
-                #     label = None
-                # if m > 0:
-                #     plt.plot(sim_years,lca[me_plant]['kgCO2e_kgMeOH'],style,label=label,color=color)
-                # # plt.plot(sim_years,lca['MeOH']['kgCO2e_kgMeOH'],label='Methanol from NGCC-captured CO2 + Green Hydrogen')
-                # plt.xlabel('Plant Startup Year')
-                # plt.ylabel('kg CO2-equivalent / kg methanol')
-                # plt.title('Methanol LCA')
-                # # plt.legend()
-                # plt.ylim([0,1.2])
-                # plt.grid('on',axis='both')
+                if l == 0:
+                    ax = plt.subplot(2,3,5)
+                    ax_list.append(ax)
+                else:
+                    plt.sca(ax_list[4])
+                color = colors[m]
+                if l>0:
+                    label = None
+                if m > 0:
+                    plt.plot(sim_years,lca[me_plant]['kgCO2e_kgMeOH'],style,label=label,color=color)
+                # plt.plot(sim_years,lca['MeOH']['kgCO2e_kgMeOH'],label='Methanol from NGCC-captured CO2 + Green Hydrogen')
+                plt.xlabel('Plant Startup Year')
+                plt.ylabel('kg CO2-equivalent / kg methanol')
+                plt.title('Methanol LCA')
+                # plt.legend()
+                plt.ylim([0,1.2])
+                plt.grid('on',axis='both')
 
-                # if l == 0:
-                #     ax = plt.subplot(2,3,6)
-                #     ax_list.append(ax)
-                # else:
-                #     plt.sca(ax_list[5])
-                # color = colors[m]
-                # if l>0:
-                #     label = None
-                # if m > 1:
-                #     lcom = finance[me_plant]['lcom_$_kg']
-                #     lcom_baseline = finance['MSMC']['lcom_$_kg']
-                #     ci = lca[me_plant]['kgCO2e_kgMeOH']
-                #     ci_baseline = lca['MSMC']['kgCO2e_kgMeOH']
-                #     breakeven_co2_price = np.divide((np.subtract(lcom,lcom_baseline)),(np.subtract(ci_baseline,ci)))
-                #     # if m == 2:
-                #     #     breakeven_co2_price[0] = np.nan
-                #     plt.plot(sim_years,breakeven_co2_price,style,label=labels[m],color=colors[m])
-                #     # plt.legend()
-                #     plt.xlabel('Plant Startup Year')
-                #     plt.ylabel('CO2 price [2020 $/kg of CO2e emitted]')
-                #     plt.title('Breakeven CO2 Emissions Price')
-                # plt.ylim([0,1])
-                # plt.grid('on',axis='both')
+                if l == 0:
+                    ax = plt.subplot(2,3,6)
+                    ax_list.append(ax)
+                else:
+                    plt.sca(ax_list[5])
+                color = colors[m]
+                if l>0:
+                    label = None
+                if m > 1:
+                    lcom = finance[me_plant]['lcom_$_kg']
+                    lcom_baseline = finance['MSMC']['lcom_$_kg']
+                    ci = lca[me_plant]['kgCO2e_kgMeOH']
+                    ci_baseline = lca['MSMC']['kgCO2e_kgMeOH']
+                    breakeven_co2_price = np.divide((np.subtract(lcom,lcom_baseline)),(np.subtract(ci_baseline,ci)))
+                    # if m == 2:
+                    #     breakeven_co2_price[0] = np.nan
+                    plt.plot(sim_years,breakeven_co2_price,style,label=labels[m],color=colors[m])
+                    # plt.legend()
+                    plt.xlabel('Plant Startup Year')
+                    plt.ylabel('CO2 price [2020 $/kg of CO2e emitted]')
+                    plt.title('Breakeven CO2 Emissions Price')
+                plt.ylim([0,1])
+                plt.grid('on',axis='both')
 
                 
                 
                 plt.gcf().set_tight_layout(True)
 
-    # if plotting:
-    #     plt.show()
+    if plotting:
+        plt.show()
 
     print(finance['MCO2']['lcom_$_kg'])
     print(finance['MPSR']['lcom_$_kg'])
     print(finance['MPSR']['VOM_H2_$_kgH2'][MeOH_scenario])
+
+    out_name = input("Name of output file:")
+
+    out_plants = ['MSMC','MCO2','MPSR']
+    out_rows = ['lcom_$_kg','OCC_kg','FOM_kg','VOM_kg','VOM_H2_kg','VOM_CO2_kg','VOM_NG_kg','VOM_cat_kg','VOM_DAC_kg','VOM_other_kg']
+    for i, year in enumerate(sim_years):
+        out_frame = pd.DataFrame(np.zeros((len(out_rows),len(out_plants))),index=out_rows,columns=out_plants)
+        for plant in out_plants:
+            for row in out_rows:
+                data = finance[plant][row]
+                if type(data) is dict:
+                    data = data[MeOH_scenario]
+                if type(data) is list:
+                    data = data[i]
+                out_frame.loc[row,plant] = data
+        out_frame.to_csv(Path('C:/Users/jmartin4/Documents/Projects/22 CO2 to Methanol')/(out_name+str(year)+'.csv'))
 
     return (finance['MCO2']['lcom_$_kg'][-1]-finance['MPSR']['lcom_$_kg'][-1])
