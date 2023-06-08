@@ -398,7 +398,10 @@ class HybridDispatchBuilderSolver:
                 else:
                     if (i % int(len(ti) / 5)) == 0:
                         print("\t {:.0f} % complete".format(i*20/int(len(ti) / 5)))
-                    self.simulate_with_dispatch(t)
+                    if i != 0:
+                        initial_soc = self.power_sources['battery'].Outputs.SOC[t-1]
+                    self.simulate_with_dispatch(t, initial_soc=initial_soc)
+
         else:
 
             initial_states = {tech:{'day':[], 'soc':[], 'load':[]} for tech in ['trough', 'tower', 'battery'] if tech in self.power_sources.keys()}  # List of known charge states at 12 am from completed simulations
@@ -498,6 +501,7 @@ class HybridDispatchBuilderSolver:
             if 'battery' in self.power_sources.keys():
                 self.power_sources['battery'].simulate_with_dispatch(self.options.n_roll_periods,
                                                                      sim_start_time=battery_sim_start_time)
+                # initial_soc = self.power_sources['battery']._system_model.StatePack.SOC
 
             if 'trough' in self.power_sources.keys():
                 self.power_sources['trough'].simulate_with_dispatch(self.options.n_roll_periods,
