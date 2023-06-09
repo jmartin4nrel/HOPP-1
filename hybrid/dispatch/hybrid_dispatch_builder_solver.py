@@ -383,6 +383,7 @@ class HybridDispatchBuilderSolver:
         print("Number of periods to optimize: {:.0f}".format(len(ti)))
         if self.clustering is None:
             # Solving the year in series
+            prev_pct_complete = 0
             for i, t in enumerate(ti):
                 if self.options.is_test_start_year or self.options.is_test_end_year:
                     if (self.options.is_test_start_year and i < 5) or (self.options.is_test_end_year and i > 359):
@@ -396,8 +397,10 @@ class HybridDispatchBuilderSolver:
                         # TODO: can we make the csp and battery model run with heuristic dispatch here?
                         #  Maybe calling a simulate_with_heuristic() method
                 else:
-                    if (i % int(len(ti) / 5)) == 0:
-                        print("\t {:.0f} % complete".format(i*20/int(len(ti) / 5)))
+                    pct_complete = int(i/len(ti)*100)
+                    if (i == 0) or (pct_complete > prev_pct_complete):
+                        print("\t {:.0f} % complete".format(pct_complete))
+                        prev_pct_complete = pct_complete
                     if i != 0:
                         initial_soc = self.power_sources['battery'].Outputs.SOC[t-1]
                     self.simulate_with_dispatch(t, initial_soc=initial_soc)
