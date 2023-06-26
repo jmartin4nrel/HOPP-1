@@ -11,7 +11,7 @@ with open(os.path.join(here, "hybrid", "version.py"), encoding="utf-8") as f:
 version = version.split('=')[-1].strip().strip('"').strip("'")
 
 # copy over packages
-directories = ['hybrid', "tools", 'alt_dev']
+directories = ['hybrid', "tools", 'alt_dev', 'resource_files']
 
 pkg_dirs = []
 
@@ -30,6 +30,7 @@ recursive_directories(directories)
 # copy over package data
 
 package_data = {"tools": [str(Path("analysis") / "bos" / "BOSLookup.csv")],
+                "resource_files": [str(Path("grid") / "dispatch_factors_ts.csv")],
                 "hybrid": []}
 
 hybrid_path = Path("hybrid")
