@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import copy
 
 # Import HOPP results
-filepath = 'results/' + 'yearlong_outputs_no_batt_m5.json'
+filepath = 'results/' + 'yearlong_outputs_no_batt_m2.json'
 hopp_results = pd.read_json(filepath)
 hopp_solar = hopp_results.loc[:,'pv generation (kW)']
 hopp_wind = hopp_results.loc[:,'wind generation (kW)']
@@ -144,7 +144,7 @@ start = '2022-06-05'
 end = '2022-06-18'
 start_dt = pd.to_datetime(start)
 end_dt = pd.to_datetime(end)
-hopp_label = 'HOPP - Actual (Residual)'
+hopp_label = 'HOPP Modeled Output'
 homer_label = 'HOMER Modeled Output'
 act_label = 'Actual Power Output'
 label_mod = ', M2 Tower'
@@ -181,101 +181,25 @@ examples_dir = Path(__file__).parent.absolute()
 filename = 'yearlong_outputs_selected_and_corrected.csv'
 short_df.to_csv(str(examples_dir) + '/results/' + filename)
 
-# Get daily avg residual
-hopp_solar_residual = hopp_solar.loc[start_dt:end_dt].values-aries_solar.loc[start_dt:end_dt].values
-hopp_day_solar_residual = np.reshape(hopp_solar_residual[0:312],(13,24))
-avg_solar_residual = np.mean(hopp_day_solar_residual,0)
-std_solar_residual = np.std(hopp_day_solar_residual,0)
-hopp_wind_residual = hopp_wind.loc[start_dt:end_dt].values-aries_wind.loc[start_dt:end_dt].values
-hopp_day_wind_residual = np.reshape(hopp_wind_residual[0:312],(13,24))
-avg_wind_residual = np.mean(hopp_day_wind_residual,0)
-std_wind_residual = np.std(hopp_day_wind_residual,0)
-res_idx = hopp_wind[start_dt:end_dt].index.strftime('%H:%M')[0:24]
-# res_idx = pd.to_datetime(res_idx.values[0:24])
-# res_time = [date.time() for date in res_idx]
-
-# Get power avg residual
-solar_power_bins = np.arange(0,400,50)
-wind_power_bins = np.arange(0,1100,100)
-bin_avg_solar_residual = np.zeros([len(solar_power_bins)-1])
-bin_std_solar_residual = np.zeros([len(solar_power_bins)-1])
-bin_avg_wind_residual = np.zeros([len(wind_power_bins)-1])
-bin_std_wind_residual = np.zeros([len(wind_power_bins)-1])
-for i, bin in enumerate(solar_power_bins[0:-1]):
-    min = bin
-    max = solar_power_bins[i+1]
-    hopp_values = []
-    actual_values = []
-    for j, power in enumerate(hopp_solar[start_dt:end_dt].values):
-        if power > min and power <= max:
-            hopp_values.append(power)
-            actual_values.append(aries_solar[start_dt:end_dt].values[j])
-    bin_avg_solar_residual[i] = np.mean(np.array(hopp_values)-np.array(actual_values))
-    bin_std_solar_residual[i] = np.std(np.array(hopp_values)-np.array(actual_values))
-for i, bin in enumerate(wind_power_bins[0:-1]):
-    min = bin
-    max = wind_power_bins[i+1]
-    hopp_values = []
-    actual_values = []
-    for j, power in enumerate(hopp_wind[start_dt:end_dt].values):
-        if power > min and power <= max:
-            hopp_values.append(power)
-            actual_values.append(aries_wind[start_dt:end_dt].values[j])
-    bin_avg_wind_residual[i] = np.mean(np.array(hopp_values)-np.array(actual_values))
-    bin_std_wind_residual[i] = np.std(np.array(hopp_values)-np.array(actual_values))
-
 plt.subplot(2,1,1)
-plt.plot((solar_power_bins[0:-1]+solar_power_bins[1:])/2,bin_avg_solar_residual,label=hopp_label,color='C0',linewidth=3)
-plt.plot((solar_power_bins[0:-1]+solar_power_bins[1:])/2,bin_avg_solar_residual+bin_std_solar_residual,'--',label='+/- 1 Std. Dev.',color='C0')
-plt.plot((solar_power_bins[0:-1]+solar_power_bins[1:])/2,bin_avg_solar_residual-bin_std_solar_residual,'--',label=None,color='C0')
+plt.plot(hopp_solar.index,hopp_solar.values,label=hopp_label,color='C0',linewidth=3)
+plt.plot(hopp_solar.index,hopp_solar_comparison.values,'--',label=hopp_label+', no inverter correction',color='C0')
 # plt.plot(homer_solar.index,homer_solar.values,label=homer_label,color='C2')
-# plt.plot(aries_solar.index,aries_solar.values,label=act_label,color='C1')
+plt.plot(aries_solar.index,aries_solar.values,label=act_label,color='C1')
 plt.ylabel("First Solar 430 kW PV [kW]")
 plt.legend(ncol=4)
-plt.xlim([0,400])
-plt.xlabel('HOPP Output Level [kW]')
-plt.grid('on')
-# plt.xlim([start_dt,end_dt])
+plt.ylim([0,400])
+plt.xlim([start_dt,end_dt])
 
 plt.subplot(2,1,2)
-plt.plot((wind_power_bins[0:-1]+wind_power_bins[1:])/2,bin_avg_wind_residual,label=hopp_label,color='C0',linewidth=3)
-plt.plot((wind_power_bins[0:-1]+wind_power_bins[1:])/2,bin_avg_wind_residual+bin_std_wind_residual,'--',label='+/- 1 Std. Dev.',color='C0')
-plt.plot((wind_power_bins[0:-1]+wind_power_bins[1:])/2,bin_avg_wind_residual-bin_std_wind_residual,'--',label=None,color='C0')
+plt.plot(hopp_wind.index,hopp_wind.values,label=hopp_label,color='C0',linewidth=3)
+plt.plot(hopp_wind.index,hopp_wind_comparison.values,'--',label=hopp_label+', no status correction',color='C0')
 # plt.plot(homer_wind.index,homer_wind.values,label=homer_label,color='C2')
-# plt.plot(aries_wind.index,aries_wind.values,label=act_label,color='C1')
+plt.plot(aries_wind.index,aries_wind.values,label=act_label,color='C1')
 plt.ylabel("GE 1.5 MW Turbine [kW]")
 plt.legend(ncol=3)
-plt.xlim([0,1000])
-plt.xlabel('HOPP Output Level [kW]')
-plt.grid('on')
-# plt.xlim([start_dt,end_dt])
-
-# plt.subplot(2,1,1)
-# plt.plot(res_idx,avg_solar_residual,label=hopp_label,color='C0',linewidth=3)
-# plt.plot(res_idx,avg_solar_residual+std_solar_residual,'--',label='+/- 1 Std. Dev.',color='C0')
-# plt.plot(res_idx,avg_solar_residual-std_solar_residual,'--',label=None,color='C0')
-# # plt.plot(homer_solar.index,homer_solar.values,label=homer_label,color='C2')
-# # plt.plot(aries_solar.index,aries_solar.values,label=act_label,color='C1')
-# plt.ylabel("First Solar 430 kW PV [kW]")
-# plt.legend(ncol=4)
-# plt.xlabel('Time of day')
-# plt.grid('on')
-# # plt.ylim([0,400])
-# # plt.xlim([start_dt,end_dt])
-
-# plt.subplot(2,1,2)
-# plt.plot(res_idx,avg_wind_residual,label=hopp_label,color='C0',linewidth=3)
-# plt.plot(res_idx,avg_wind_residual+std_wind_residual,'--',label='+/- 1 Std. Dev.',color='C0')
-# plt.plot(res_idx,avg_wind_residual-std_wind_residual,'--',label=None,color='C0')
-# # plt.plot(hopp_wind.index,hopp_wind_comparison.values,'--',label=hopp_label+', no status correction',color='C0')
-# # plt.plot(homer_wind.index,homer_wind.values,label=homer_label,color='C2')
-# # plt.plot(aries_wind.index,aries_wind.values,label=act_label,color='C1')
-# plt.ylabel("GE 1.5 MW Turbine [kW]")
-# plt.legend(ncol=3)
-# plt.xlabel('Time of day')
-# plt.grid('on')
-# # plt.ylim([0,1200])
-# # plt.xlim([start_dt,end_dt])
+plt.ylim([0,1200])
+plt.xlim([start_dt,end_dt])
 
 # plt.subplot(4,1,3)
 
