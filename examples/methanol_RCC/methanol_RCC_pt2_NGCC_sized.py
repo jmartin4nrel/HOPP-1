@@ -21,11 +21,10 @@ def calc_lcoe(OCC_kw, FOM_kwyr, VOM_mwh, Cf, TASC_multiplier, discount_rate):
     return lcoe_kwh
 
 
-def try_H2_price(Forced_H2_Price, index, plotting=False):
+def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=0):
 
     Force_H2_1 = False
     Force_hyb_ems = False # Force hybrid emissions down to 0 gCO2e/MWh by 2050
-    DAC_cost_mt = 0
     add_DAC = True
 
     ## Load dicts from json dumpfiles
@@ -828,15 +827,18 @@ def try_H2_price(Forced_H2_Price, index, plotting=False):
     print(finance['MPSR']['lcom_$_kg'])
     print(finance['MPSR']['VOM_H2_$_kgH2'][MeOH_scenario])
 
-    out_name = input("Name of output file:")
+    out_name = 'output_{}_{}_'.format(DAC_cost_mt,run_idx)#input("Name of output file:")
 
     out_plants = ['MSMC','MCO2','MPSR']
-    out_rows = ['lcom_$_kg','OCC_kg','FOM_kg','VOM_kg','VOM_H2_kg','VOM_CO2_kg','VOM_NG_kg','VOM_cat_kg','VOM_DAC_kg','VOM_other_kg']
+    out_rows = ['lcom_$_kg','OCC_kg','FOM_kg','VOM_kg','VOM_H2_kg','VOM_CO2_kg','VOM_NG_kg','VOM_cat_kg','VOM_DAC_kg','VOM_other_kg','kgCO2e_kgMeOH']
     for i, year in enumerate(sim_years):
         out_frame = pd.DataFrame(np.zeros((len(out_rows),len(out_plants))),index=out_rows,columns=out_plants)
         for plant in out_plants:
             for row in out_rows:
-                data = finance[plant][row]
+                if 'CO2e' in row:
+                    data = lca[plant][row]
+                else:
+                    data = finance[plant][row]
                 if type(data) is dict:
                     data = data[MeOH_scenario]
                 if type(data) is list:

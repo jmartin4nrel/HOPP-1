@@ -54,7 +54,7 @@ def inflate(dollars, original_year, new_year):
     
 #endregion    
 
-def try_H2_ratio(H2_ratio):
+def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115104, ASPEN_capex=33339802, ASPEN_Fopex=14.62, ASPEN_Vopex_cat=410.94, ASPEN_Vopex_other=-90.4):
 
     ## ALL CHANGES HERE - SELECT SCENARIO COMBOS, MANUALLY OVERRIDE PRICING ASSUMPTIONS
     #region
@@ -127,7 +127,7 @@ def try_H2_ratio(H2_ratio):
     NGCC_Cf = 0.85 # capacity factor of NGCC plant to scale results to
     ''' NGCC_cap*NGCC_Cf must be <170 MW for H2A model scaling to stay valid!
         (H2 output needs to stay below 200,000 kg H2/day'''
-    MeOH_cap_mt_yr = 62784#115104#62784 # Methanol capacity to scale results to, metric tons / yr
+    MeOH_cap_mt_yr = ASPEN_MeOH_cap_mt_yr # Methanol capacity to scale results to, metric tons / yr
 
     resource_dir = Path(__file__).parent.absolute()/'..'/'resource_files'/'methanol_RCC'
     cambium_dir = Path(__file__).parent.absolute()/'..'/'..'/'..'/'..'/'..'/'Projects'/'22 CO2 to Methanol'/'Cambium Data'
@@ -414,13 +414,13 @@ def try_H2_ratio(H2_ratio):
     nyari_cat_price_kg = 10
 
     # Ruddy reactor performance
-    ruddy_mass_ratio_CO2_MeOH = {'Great':   220462/25275,
+    ruddy_mass_ratio_CO2_MeOH = {'Great':   CO2_feed_mt_yr/MeOH_cap_mt_yr,
                                 'Good':    1.6,
                                 'OK':      1.8} # kg CO2 in needed per kg of MeOH produced
     ruddy_mass_ratio_H2_MeOH =  {'Great':   H2_ratio,
                                 'Good':    0.25,
                                 'OK':      0.3} # kg H2 in needed per kg of MeOH produced
-    ruddy_CO2_conv_pct =   {'Great':    25275/220462*(C_MW+O_MW*2)/(C_MW+O_MW+H_MW*4)*100,
+    ruddy_CO2_conv_pct =   {'Great':    MeOH_cap_mt_yr/CO2_feed_mt_yr*(C_MW+O_MW*2)/(C_MW+O_MW+H_MW*4)*100,
                             'Good':     95,
                             'OK':       90} # % CO2 converted to MeOH
     ruddy_elec_usage =     {'Great':    0.0,
@@ -579,9 +579,9 @@ def try_H2_ratio(H2_ratio):
                 vom_other_mwh = 0
             else:
                 # From ASPEN model
-                capex = 33339802*62784/115104#23525040#24107589#25090441#27283412#33339802*62784/115104#inflate(32802887, 2016, 2020)
-                vom_other_mt = -90.4#-0.55#-90.4
-                fom_yr = 14.62*kt_yr*1000#11.42#11.50#11.64#11.95#14.62
+                capex = ASPEN_capex
+                vom_other_mt = ASPEN_Vopex_other
+                fom_yr = ASPEN_Fopex*kt_yr*1000
                 vom_other_yr = vom_other_mt*kt_yr*1000
                 vom_other_mwh = vom_other_yr/mwh_yr
             capex_kw = capex/kw
@@ -610,7 +610,7 @@ def try_H2_ratio(H2_ratio):
                 vom_ng_yr = 0
                 vom_h2o_mwh = 0
                 vom_h2o_yr = 0
-                vom_cat_yr = 410.94*kt_yr*1000#55.95#74.60#111.90#223.79#410.94
+                vom_cat_yr = ASPEN_Vopex_cat*kt_yr*1000
                 vom_cat_mwh = vom_cat_yr/mwh_yr
                 vom_ts_mwh = 0
                 vom_ts_yr = 0

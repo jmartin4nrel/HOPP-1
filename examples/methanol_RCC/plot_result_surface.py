@@ -19,7 +19,7 @@ n_winds = len(wind_pcts)
 
 X, Y = np.meshgrid(plant_size_pcts,wind_pcts)
 
-cambium_scenarios = ['HighNGPrice','MidCase','HighNGPrice']
+cambium_scenarios = ['MidCase',]#'HighNGPrice','HighNGPrice'
 
 
 # plt.clf()
@@ -69,11 +69,11 @@ for i, year in enumerate(years):
         # lcoe[3,3] = 0.0495
         # plt.subplot(n_sites,2,i*2+2)
         # if j == 0:
-        ax = plt.subplot(len(cambium_scenarios),7,i+1+l*7)
+        ax = plt.subplot(2,7,i+1)
         #     ax_list.append(ax)
         # else:
         #     plt.sca(ax_list[1])
-        plt.contourf(X,Y,lcoe, vmin=0.015, vmax=0.05) #
+        plt.contourf(X,Y,lcoe, vmin=0.025,  vmax=0.06) #
         plt.xlabel('Plant size, % of original estimate')
         plt.ylabel('% wind')
         plt.colorbar(label='$/kWh')
@@ -88,15 +88,15 @@ for i, year in enumerate(years):
         # plt.ylabel('% wind')
         # plt.colorbar(label='gCO2e/kWh')
 
-        #  # if j == 0:
-        # ax = plt.subplot(len(cambium_scenarios),4,4+l*4)
-        # #     ax_list.append(ax)
-        # # else:
-        # #     plt.sca(ax_list[2])
-        # plt.contourf(X,Y,CI, vmin=0, vmax=50)
-        # plt.xlabel('Plant size, % of original estimate')
-        # plt.ylabel('% wind')
-        # plt.colorbar(label='gCO2e/kWh')
+         # if j == 0:
+        ax = plt.subplot(2,7,i+1+7)
+        #     ax_list.append(ax)
+        # else:
+        #     plt.sca(ax_list[2])
+        plt.contourf(X,Y,CI, vmin=0, vmax=50)
+        plt.xlabel('Plant size, % of original estimate')
+        plt.ylabel('% wind')
+        plt.colorbar(label='gCO2e/kWh')
 
 plt.gcf().set_tight_layout(True)
 plt.show()
