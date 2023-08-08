@@ -145,3 +145,7 @@ hybrid/validation/wind/iessGE15/*wind 10 min
 hybrid/validation/wind/iessGE15/*mismatch*
 hybrid/validation/wind/iessGE15/M5 unformatted*
 hybrid/validation/results/weeklong_sim/run*
+
+examples/analysis/All_Runs*
+resource_files/solar/*_psmv3*
+resource_files/wind/*_windtoolkit*
