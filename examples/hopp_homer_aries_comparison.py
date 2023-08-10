@@ -140,8 +140,8 @@ zero_inds = aries_wind.values<0
 aries_wind.iloc[zero_inds] = 0
 
 # Plot results
-start = '2022-06-05'
-end = '2022-06-18'
+start = '2022-06-15'
+end = '2022-06-17'
 start_dt = pd.to_datetime(start)
 end_dt = pd.to_datetime(end)
 hopp_label = 'HOPP Modeled Output'
@@ -183,8 +183,8 @@ short_df.to_csv(str(examples_dir) + '/results/' + filename)
 
 plt.subplot(2,1,1)
 plt.plot(hopp_solar.index,hopp_solar.values,label=hopp_label,color='C0',linewidth=3)
-plt.plot(hopp_solar.index,hopp_solar_comparison.values,'--',label=hopp_label+', no inverter correction',color='C0')
-# plt.plot(homer_solar.index,homer_solar.values,label=homer_label,color='C2')
+# plt.plot(hopp_solar.index,hopp_solar_comparison.values,'--',label=hopp_label+', no inverter correction',color='C0')
+plt.plot(homer_solar.index,homer_solar.values,label=homer_label,color='C2')
 plt.plot(aries_solar.index,aries_solar.values,label=act_label,color='C1')
 plt.ylabel("First Solar 430 kW PV [kW]")
 plt.legend(ncol=4)
@@ -193,8 +193,8 @@ plt.xlim([start_dt,end_dt])
 
 plt.subplot(2,1,2)
 plt.plot(hopp_wind.index,hopp_wind.values,label=hopp_label,color='C0',linewidth=3)
-plt.plot(hopp_wind.index,hopp_wind_comparison.values,'--',label=hopp_label+', no status correction',color='C0')
-# plt.plot(homer_wind.index,homer_wind.values,label=homer_label,color='C2')
+# plt.plot(hopp_wind.index,hopp_wind_comparison.values,'--',label=hopp_label+', no status correction',color='C0')
+plt.plot(homer_wind.index,homer_wind.values,label=homer_label,color='C2')
 plt.plot(aries_wind.index,aries_wind.values,label=act_label,color='C1')
 plt.ylabel("GE 1.5 MW Turbine [kW]")
 plt.legend(ncol=3)
