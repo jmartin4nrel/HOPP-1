@@ -12,7 +12,8 @@
             "console": "integratedTerminal",
             "cwd": "${fileDirname}",
             "env" : {"PYTHONPATH": "${workspaceFolder}"},
-            "justMyCode": false
+            "justMyCode": false,
+            "subProcess": true
         }
     ]
 }

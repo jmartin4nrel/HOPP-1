@@ -1,3 +1,4 @@
+from time import sleep
 import csv
 from collections import defaultdict
 import numpy as np
@@ -59,6 +60,7 @@ class SolarResource(Resource):
             attr=self.solar_attributes)
 
         success = self.call_api(url, filename=self.filename)
+        sleep(5)
 
         return success
 

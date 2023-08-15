@@ -1,3 +1,4 @@
+from time import sleep
 import csv
 from collections import defaultdict
 import numpy as np
@@ -103,6 +104,7 @@ class WindResource(Resource):
                     year=self.year, lat=self.latitude, lon=self.longitude, hubheight=height, api_key=get_developer_nrel_gov_key(), email=self.email)
 
                 success = self.call_api(url, filename=f)
+                sleep(5)
 
             if not success:
                 # raise ValueError('Unable to download wind data')
