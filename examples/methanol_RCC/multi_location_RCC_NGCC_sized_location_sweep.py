@@ -669,6 +669,37 @@ if __name__ == '__main__':
                                 1885.27459	,
                                 1871.118359	,
                                 1856.962128]
+                all_grid_wcs = [1718.605915	,
+                                1576.131286	,
+                                1433.656658	,
+                                1291.182029	,
+                                1148.707401	,
+                                1006.232772	,
+                                877.3949737	,
+                                748.5571751	,
+                                619.7193766	,
+                                490.881578	,
+                                362.0437794	,
+                                331.9507828	,
+                                301.8577862	,
+                                271.7647896	,
+                                241.671793	,
+                                211.5787964	,
+                                204.5211937	,
+                                197.463591	,
+                                190.4059883	,
+                                183.3483856	,
+                                176.2907829	,
+                                175.0760655	,
+                                173.861348	,
+                                172.6466306	,
+                                171.4319132	,
+                                170.2171957	,
+                                167.6368848	,
+                                165.0565739	,
+                                162.476263	,
+                                159.8959522	,
+                                157.3156413]
                 grid_wc_kg_mwh = all_grid_wcs[(sim_year-2020):]
                 ppa_buy_price_kwh = cambium_price*cambium_aeo_multiplier/1000
                 
@@ -833,7 +864,7 @@ if __name__ == '__main__':
                 if not os.path.exists(year_results_dir/'kWsell'):
                     os.mkdir(year_results_dir/'kWsell')
 
-                # # Run hybrid calculation for all sites
+                # Run hybrid calculation for all sites
                 # tic = time.time()
                 # run_all_hybrid_calcs(site_name, site_details, technologies_lols, costs,
                 #                         year_results_dir, plant_size_pcts, wind_pcts, power_factors)

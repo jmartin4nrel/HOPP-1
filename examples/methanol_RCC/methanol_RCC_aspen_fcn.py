@@ -54,7 +54,7 @@ def inflate(dollars, original_year, new_year):
     
 #endregion    
 
-def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115104, ASPEN_capex=33339802, ASPEN_Fopex=14.62, ASPEN_Vopex_cat=410.94, ASPEN_Vopex_other=-90.4):
+def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115104, ASPEN_capex=33339802, ASPEN_Fopex=14.62, ASPEN_Vopex_cat=410.94, ASPEN_Vopex_other=-90.4, ASPEN_elec_use=0.89):
 
     ## ALL CHANGES HERE - SELECT SCENARIO COMBOS, MANUALLY OVERRIDE PRICING ASSUMPTIONS
     #region
@@ -413,7 +413,7 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
     nyari_mass_ratio_CO2_MeOH = 1.423#1.397 # kg CO2 in needed per kg of MeOH produced
     nyari_mass_ratio_H2_MeOH = 0.195#0.192 # kg H2 in needed per kg of MeOH produced
     nyari_CO2_conv_pct = 96.49#98.37 # pct CO2 converted
-    nyari_elec_usage = 0.175 # kWh/kg MeOH
+    nyari_elec_usage = 0.172 # kWh/kg MeOH
 
     # Nyari H2O/catalyst usage - ESTIMATED (reported in Euros/year, euros/kg)
     nyari_H2O_gal_kg_MeOH = 0.3
@@ -430,7 +430,7 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
     ruddy_CO2_conv_pct =   {'Great':    MeOH_cap_mt_yr/CO2_feed_mt_yr*(C_MW+O_MW*2)/(C_MW+O_MW+H_MW*4)*100,
                             'Good':     95,
                             'OK':       90} # % CO2 converted to MeOH
-    ruddy_elec_usage =     {'Great':    0.0,
+    ruddy_elec_usage =     {'Great':    ASPEN_elec_use,
                             'Good':     0.15,
                             'OK':       0.2} # kWh/kg MeOH
     ruddy_cat_mg_kg_MeOH = {'Great':    25,

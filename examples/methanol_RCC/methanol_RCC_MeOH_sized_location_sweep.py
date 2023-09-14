@@ -22,6 +22,7 @@ ASPEN_capexs = [33303653,60397722,31680188,31680188,30677975,32392895,31415107,3
 ASPEN_Fopexs = [13.28,23.36,13.05,13.05,12.91,13.11,12.94,12.76,13.28,13.28,13.28] 
 ASPEN_Vopex_cats = [102.35,400.78,71.86,55.37,45.03,101.02,99.66,98.35,102.35,102.35,102.35]
 ASPEN_Vopex_others = [-22.19,-300.24,-22.19,-22.19,-22.19,-20.20,-18.23,-16.31,-22.19,-22.19,-22.19]
+ASPEN_elec_uses = [0.89,1.10,0.89,0.89,0.89,0.83,0.77,0.71,0.89,0.89,0.89]
 H2_prices = [1,1,1,1,1,1,1,1,1,1,1]#1.80615878
 for DAC_cost_mt in [0]:
     for H2_idx, H2_ratio in enumerate(H2_ratios[:1]):
@@ -32,7 +33,8 @@ for DAC_cost_mt in [0]:
                                 ASPEN_capexs[H2_idx],
                                 ASPEN_Fopexs[H2_idx],
                                 ASPEN_Vopex_cats[H2_idx],
-                                ASPEN_Vopex_others[H2_idx])
+                                ASPEN_Vopex_others[H2_idx],
+                                ASPEN_elec_uses[H2_idx])
         # try_H2_ratio_lo(H2_ratio)
         # try_H2_ratio_hi(H2_ratio)
         

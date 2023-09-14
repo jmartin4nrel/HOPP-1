@@ -33,6 +33,6 @@ CCS,9.46E-05,1.38E-03,2.64E-05,4.83E-02,3.92E-01,1.34E-11,1.57E+01,CO2 inputs: O
 H2St,0.0000025,0.00325,0.0001675,0.000929625,0.045,0.00000005,3.78,"All but H2O: Zhao et al., doi.org/10.1016/j.ijhydene.2020.05.282, H2O: H2A model"
 H2NG,0.00077,0.01087,-7.70E-05,0.31804,8.0341,3.62E-11,-6.72425,"NETL 2008 report ""Development of Baseline Data and Analysis of Life Cycle Greenhouse Gas Emissions of Petroleum-Based Fuels."" DOE/NETL-2009/1346"
 ,kgNe_kgMeOH,kgSO2e_kgMeOH,kgPM2pt5e_kgMeOH,kgO3e_kgMeOH,kgCO2e_kgMeOH,kgCFC11e_kgMeOH,kgH2O_kgMeOH,
-MeRe,0,0,0,0,0.3431,0,0.988456343,Methanol reactor - waiting for ASPEN model
+MeRe,0,0,0,0,0.020296,0,0.988456343,Methanol reactor - waiting for ASPEN model
 MeNG,0.0002,0.00259,3.05E-05,0.09113,1.13442,8.37E-12,0.43725,https://netl.doe.gov/projects/VueConnection/download.aspx?id=61c3c189-f669-44ac-a56d-b71c8a5c5221&filename=DF_Stage3_O_Methanol_from_NG_2013-01.pdf
-MeHy,0,0,0,0,0.3431,0,0.988456343,"CO2: Adnan, Applied Energy 278 (2020) 115614; H2O: Nyari, Journal of CO? Utilization 39 (2020) 101166"
+MeHy,0,0,0,0,0.020296,0,0.988456343,"CO2: Adnan, Applied Energy 278 (2020) 115614; H2O: Nyari, Journal of CO? Utilization 39 (2020) 101166"

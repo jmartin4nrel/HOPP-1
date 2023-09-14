@@ -356,6 +356,16 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
                         if 'CO2' in unit:
                             em_power_unit = 'CI_g_kwh'
                             orig_em_power_unit = 'orig_CI_g_kwh'
+                            if 'CO2' in me_plant:
+                                if i == 0:
+                                    lca['MeHy'][unit] = []
+                                grid_ghgs_kg_mwh = [118.3726,69.42419,50.95484,46.73548,45.39355,44.86129,44.6]
+                                lca['MeHy'][unit].append(engin[me_plant]['elec_in_kw'][MeOH_scenario]*8.76*grid_ghgs_kg_mwh[i]/MeOH_out)
+                            elif 'PSR' in me_plant:
+                                if i == 0:
+                                    lca['MeRe'][unit] = []
+                                grid_ghgs_kg_mwh = [118.3726,69.42419,50.95484,46.73548,45.39355,44.86129,44.6]
+                                lca['MeRe'][unit].append(engin[me_plant]['elec_in_kw'][MeOH_scenario]*8.76*grid_ghgs_kg_mwh[i]/MeOH_out)
                         else:
                             em_power_unit = 'WC_g_kwh'
                             orig_em_power_unit = 'orig_WC_g_kwh'
@@ -403,27 +413,39 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
                     if 'SM' in me_plant:
                         lca[me_plant][unit].append(lca['CO2'][unit] + lca['MeNG'][unit])
                     elif 'CO2' in me_plant:
-                        lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['MeHy'][unit]) # + lca['stack'][unit]
+                        if 'CO2' in unit:
+                            lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['MeHy'][unit][i]) # + lca['stack'][unit]
+                        else:
+                            lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['MeHy'][unit])
                     else:
-                        lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['MeRe'][unit]) # + lca['stack'][unit]
+                        if 'CO2' in unit:
+                            lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['MeRe'][unit][i]) # + lca['stack'][unit]
+                        else:
+                            lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['MeRe'][unit])
                 # Break down lca into components:
                 if ('CO2' in unit) or ('H2O' in unit):
                     lca[me_plant][unit+'_hyb_elec'] = []
                     lca[me_plant][unit+'_grid_elec_disp'] = []
                     lca[me_plant][unit+'_elyzer'] = []
                     lca[me_plant][unit+'_reactor'] = []
-                    if 'CO2' in me_plant:
-                        lca[me_plant][unit+'_ccs'] = []
+                    lca[me_plant][unit+'_ccs'] = []
                     for i, year in enumerate(sim_years):
                         if 'SM' not in me_plant:
                             lca[me_plant][unit+'_hyb_elec'].append(lca['orig_elec'][unit[:-6]+'MWh'][i]/MeOH_out*H2_MWh_yr)
                             lca[me_plant][unit+'_grid_elec_disp'].append((lca['orig_elec'][unit[:-6]+'MWh'][i]-lca['elec'][unit[:-6]+'MWh'][i])/MeOH_out*H2_MWh_yr)
                             lca[me_plant][unit+'_elyzer'].append(lca['H2St'][unit[:-4]+'H2']/MeOH_out*H2_kg_in)
                             if 'CO2' in me_plant:
-                                lca[me_plant][unit+'_reactor'].append(lca['MeHy'][unit])
+                                if 'CO2' in unit:
+                                    lca[me_plant][unit+'_reactor'].append(lca['MeHy'][unit][i])
+                                else:
+                                    lca[me_plant][unit+'_reactor'].append(lca['MeHy'][unit])
                                 lca[me_plant][unit+'_ccs'].append(lca['CCS'][unit])
                             else:
-                                lca[me_plant][unit+'_reactor'].append(lca['MeRe'][unit])
+                                if 'CO2' in unit:
+                                    lca[me_plant][unit+'_reactor'].append(lca['MeRe'][unit][i])
+                                else:
+                                    lca[me_plant][unit+'_reactor'].append(lca['MeRe'][unit])
+                                lca[me_plant][unit+'_ccs'].append(0)
         
         ## Calculate MeOH production cost
 
@@ -856,8 +878,10 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
 
     out_name = 'output_{}_{}_'.format(DAC_cost_mt,run_idx)#input("Name of output file:")
 
-    out_plants = ['MSMC','MCO2','MPSR']
-    out_rows = ['lcom_$_kg','OCC_kg','FOM_kg','VOM_kg','VOM_H2_kg','VOM_CO2_kg','VOM_NG_kg','VOM_cat_kg','VOM_DAC_kg','VOM_other_kg','kgCO2e_kgMeOH','kgH2O_kgMeOH','kgH2O_kgH2']
+    out_plants = ['MCO2','MPSR']
+    out_rows = ['lcom_$_kg','OCC_kg','FOM_kg','VOM_kg','VOM_H2_kg','VOM_CO2_kg','VOM_NG_kg','VOM_cat_kg','VOM_DAC_kg','VOM_other_kg',
+                'kgCO2e_kgMeOH','kgCO2e_kgMeOH_hyb_elec','kgCO2e_kgMeOH_grid_elec_disp','kgCO2e_kgMeOH_elyzer','kgCO2e_kgMeOH_reactor','kgCO2e_kgMeOH_ccs',
+                'kgH2O_kgMeOH','kgH2O_kgMeOH_hyb_elec','kgH2O_kgMeOH_grid_elec_disp','kgH2O_kgMeOH_elyzer','kgH2O_kgMeOH_reactor','kgH2O_kgMeOH_ccs']
     for i, year in enumerate(sim_years):
         out_frame = pd.DataFrame(np.zeros((len(out_rows),len(out_plants))),index=out_rows,columns=out_plants)
         for plant in out_plants:
