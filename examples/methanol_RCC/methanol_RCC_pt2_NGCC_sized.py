@@ -68,8 +68,8 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
 
         ## Downselect locations dict to one location
 
-        site_name = 'TX'#scenario_info['site_selection']['site_name']
-        site_num = scenario_info['site_selection']['site_num']
+        site_name = 'TX09'#scenario_info['site_selection']['site_name']
+        site_num = 1#scenario_info['site_selection']['site_num']
         location = {}
         for key, value in locations[site_name].items():
             if type(value) is not dict:
@@ -210,11 +210,11 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
 
         # Import TRACI impact analysis results for individual plants
         elec_rows = [0]
-        elec_rows.extend(list(np.arange(28,37)))
+        elec_rows.extend(list(np.arange(28,38)))
         co2_rows = list(np.arange(0,28))
-        co2_rows.extend(list(np.arange(31,37)))
+        co2_rows.extend(list(np.arange(31,38)))
         h2_rows = list(np.arange(0,31))
-        h2_rows.extend(list(np.arange(34,37)))
+        h2_rows.extend(list(np.arange(34,38)))
         methanol_rows = list(np.arange(0,34))
         elec_lca_df = pd.read_csv(resource_dir/'LCA_Inputs.csv', index_col=0, skiprows=elec_rows)
         elec_lca_df = elec_lca_df.iloc[:,:7]
@@ -240,9 +240,9 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
 
         # Interpolate grid LCA for site over 2020-2050 from 5 year intervals
         grid_lca = pd.DataFrame(np.zeros((31,7)),index=np.arange(2020,2051),columns=traci_units)
-        five_yrs = np.arange(20,55,5)
+        five_yrs = np.arange(20,sim_years[-1]+5-2000,5)
         for five_yr in five_yrs:
-            df_index = site_name+str(five_yr)
+            df_index = site_name[:2]+str(five_yr)
             grid_lca.loc[five_yr+2000] = elec_lca_df.loc[df_index]
             if five_yr > 20:
                 for i, year in enumerate(np.arange(five_yr-4,five_yr)):
@@ -272,19 +272,19 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
             lca[plant] = {}
             for unit in h2_lca_df.columns.values:
                 lca[plant][unit] = h2_lca_df.loc[plant,unit]
-        for plant in ['MeRe','MeNG']:
+        for plant in ['MeRe','MeNG','MeHy']:
             lca[plant] = {}
             for unit in methanol_lca_df.columns.values:
                 lca[plant][unit] = methanol_lca_df.loc[plant,unit]
 
 
-        # Calculate impact factors per unit methanol
         lca['CO2'] = {}
         lca['H2'] = {}
         lca['MeOH'] = {}
         lca['orig_elec'] = {}
         lca['elec'] = {}
         lca['stack'] = {}
+        # Calculate impact factors per unit methanol
         plants = ['MSMR','MSMC','MCO2','MPSR']#
         for m, me_plant in enumerate(plants):
             lca[me_plant] = {}
@@ -297,7 +297,8 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
                 CO2_in = engin[me_plant]['CO2_kg_yr_in'][MeOH_scenario]
                 if 'SMC' in me_plant:
                     no_cc_CO2 = engin[me_plant]['TS_CO2_kg_yr'][MeOH_scenario]
-                    lca['CO2'][unit] = -no_cc_CO2/MeOH_out
+                    if 'CO2e' in unit:
+                        lca['CO2'][unit] = -no_cc_CO2/MeOH_out
                 elif 'CO2' in me_plant:
                     CCS_CO2_kgMeOH = lca['CCS'][unit[:-4]+'CO2']*CO2_in/MeOH_out
                     NGCC_CO2_kgMeOH = lca['NGCC'][unit[:-4]+'CO2']*CO2_in/MeOH_out
@@ -320,6 +321,8 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
                 H2_kg_in = engin[me_plant]['H2_kg_yr_in'][MeOH_scenario]
                 H2st_kgMeOH = lca['H2St'][unit[:-4]+'H2']*H2_kg_in/MeOH_out
                 lca['H2St'][unit] = H2st_kgMeOH
+                if ('CO2' in unit) and ('PSR' in me_plant):
+                    print(H2_kg_in)
                 # pv_kw_out = locations[site_name]['pv_output_kw'][site_num-1]
                 # wind_kw_out = locations[site_name]['wind_output_kw'][site_num-1]
                 wind_plant = 'LBW' if location['on_land'] else 'OSW'
@@ -334,7 +337,7 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
                     if 'SM' in me_plant:
                         H2_MWh_yr = 0
                     else:
-                        H2_MWh_yr = location['H'+me_plant[1:]]['electrolyzer_input_kw'][i]*8.76
+                        H2_MWh_yr = H2_kg_in*engin['H'+me_plant[1:]]['elec_use_kwh_kgH2']['Future'][i]/1000   #location['H'+me_plant[1:]]['electrolyzer_input_kw'][i]*8.76
                     # pv_em_MWh = lca['PV'][unit[:-6]+'MWh']*pct_pv/100
                     # wind_em_MWh = lca[wind_plant][unit[:-6]+'MWh']*pct_wind/100
                     # hyb_em_MWh = pv_em_MWh+wind_em_MWh
@@ -349,12 +352,18 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
                     # lca['PV'][unit[:-4]+'H2'].append(elyzer_hyb_MWh_yr*pct_pv/100*hyb_em_MWh/H2_kg_in)
                     # lca[wind_plant][unit[:-4]+'H2'].append(elyzer_hyb_MWh_yr*pct_wind/100*hyb_em_MWh/H2_kg_in)
                     # lca['Grid'][unit[:-4]+'H2'].append((buy_em_kg_yr+sell_em_kg_yr)/H2_kg_in)
-                    if 'CO2' in unit:
+                    if ('CO2' in unit) or ('H2O' in unit):
+                        if 'CO2' in unit:
+                            em_power_unit = 'CI_g_kwh'
+                            orig_em_power_unit = 'orig_CI_g_kwh'
+                        else:
+                            em_power_unit = 'WC_g_kwh'
+                            orig_em_power_unit = 'orig_WC_g_kwh'
                         if 'SM' not in me_plant:
-                            elec_em_kg_MWh = location['H'+me_plant[1:]]['CI_g_kwh'][i]
-                            orig_elec_em_kg_MWh = location['H'+me_plant[1:]]['orig_CI_g_kwh'][i]
+                            elec_em_kg_MWh = location['H'+me_plant[1:]][em_power_unit][i]
+                            orig_elec_em_kg_MWh = location['H'+me_plant[1:]][orig_em_power_unit][i]
                             if (l == 0) and Force_hyb_ems:
-                                max_elec_em = location['H'+me_plant[1:]]['CI_g_kwh'][-1]
+                                max_elec_em = location['H'+me_plant[1:]][em_power_unit][-1]
                                 elec_em_kg_MWh = (0/max_elec_em*elec_em_kg_MWh*i+elec_em_kg_MWh*(len(sim_years)-i-1))/(len(sim_years)-1)
                                 orig_elec_em_kg_MWh = (0/max_elec_em*orig_elec_em_kg_MWh*i+orig_elec_em_kg_MWh*(len(sim_years)-i-1))/(len(sim_years)-1)
                         elif 'SMC' in me_plant:
@@ -393,10 +402,28 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
                 for i, year in enumerate(sim_years):
                     if 'SM' in me_plant:
                         lca[me_plant][unit].append(lca['CO2'][unit] + lca['MeNG'][unit])
+                    elif 'CO2' in me_plant:
+                        lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['MeHy'][unit]) # + lca['stack'][unit]
                     else:
                         lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['MeRe'][unit]) # + lca['stack'][unit]
-
-        
+                # Break down lca into components:
+                if ('CO2' in unit) or ('H2O' in unit):
+                    lca[me_plant][unit+'_hyb_elec'] = []
+                    lca[me_plant][unit+'_grid_elec_disp'] = []
+                    lca[me_plant][unit+'_elyzer'] = []
+                    lca[me_plant][unit+'_reactor'] = []
+                    if 'CO2' in me_plant:
+                        lca[me_plant][unit+'_ccs'] = []
+                    for i, year in enumerate(sim_years):
+                        if 'SM' not in me_plant:
+                            lca[me_plant][unit+'_hyb_elec'].append(lca['orig_elec'][unit[:-6]+'MWh'][i]/MeOH_out*H2_MWh_yr)
+                            lca[me_plant][unit+'_grid_elec_disp'].append((lca['orig_elec'][unit[:-6]+'MWh'][i]-lca['elec'][unit[:-6]+'MWh'][i])/MeOH_out*H2_MWh_yr)
+                            lca[me_plant][unit+'_elyzer'].append(lca['H2St'][unit[:-4]+'H2']/MeOH_out*H2_kg_in)
+                            if 'CO2' in me_plant:
+                                lca[me_plant][unit+'_reactor'].append(lca['MeHy'][unit])
+                                lca[me_plant][unit+'_ccs'].append(lca['CCS'][unit])
+                            else:
+                                lca[me_plant][unit+'_reactor'].append(lca['MeRe'][unit])
         
         ## Calculate MeOH production cost
 
@@ -830,13 +857,20 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
     out_name = 'output_{}_{}_'.format(DAC_cost_mt,run_idx)#input("Name of output file:")
 
     out_plants = ['MSMC','MCO2','MPSR']
-    out_rows = ['lcom_$_kg','OCC_kg','FOM_kg','VOM_kg','VOM_H2_kg','VOM_CO2_kg','VOM_NG_kg','VOM_cat_kg','VOM_DAC_kg','VOM_other_kg','kgCO2e_kgMeOH']
+    out_rows = ['lcom_$_kg','OCC_kg','FOM_kg','VOM_kg','VOM_H2_kg','VOM_CO2_kg','VOM_NG_kg','VOM_cat_kg','VOM_DAC_kg','VOM_other_kg','kgCO2e_kgMeOH','kgH2O_kgMeOH','kgH2O_kgH2']
     for i, year in enumerate(sim_years):
         out_frame = pd.DataFrame(np.zeros((len(out_rows),len(out_plants))),index=out_rows,columns=out_plants)
         for plant in out_plants:
             for row in out_rows:
-                if 'CO2e' in row:
-                    data = lca[plant][row]
+                if ('CO2e' in row) or ('H2O' in row):
+                    if '_kgH2' in row:
+                        if plant is 'MSMC':
+                            data = [0.0*i for i in lca[plant]['kgH2O_kgMeOH']]
+                        else:
+                            em_meoh = lca[plant]['kgH2O_kgMeOH']
+                            data = [i*engin[plant]['MeOH_kg_yr'][MeOH_scenario]/engin[plant]['H2_kg_yr_in'][MeOH_scenario] for i in em_meoh]
+                    else:
+                        data = lca[plant][row]
                 else:
                     data = finance[plant][row]
                 if type(data) is dict:

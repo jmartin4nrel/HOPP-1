@@ -27,11 +27,12 @@ NY40,0.09084872,1.2505415,0.048157168,41.94281697,625.5369277,1.94E-06,594.08641
 NY45,0.090838974,1.250242546,0.048153147,41.93115651,625.3622025,1.94E-06,593.9061809,
 NY50,0.090841846,1.250296071,0.048141244,41.93830909,625.4817453,1.94E-06,594.0548527,
 ,kgNe_kgCO2,kgSO2e_kgCO2,kgPM2pt5e_kgCO2,kgO3e_kgCO2,kgCO2e_kgCO2,kgCFC11e_kgCO2,kgH2O_kgCO2,
-NGCC,7.60E-05,0.00111,1.52E-05,0.02686,2.52E-01,1.44E-13,-4.44E+02,https://netl.doe.gov/energy-analysis/details?id=81822318-145b-445a-98db-79427bb699eb
-CCS,8.46E-05,0.00123,1.69E-05,0.02977,3.92E-01,1.78E-13,-7.82E+02,https://netl.doe.gov/energy-analysis/details?id=81822318-145b-445a-98db-79427bb699eb
+NGCC,8.31E-05,1.22E-03,1.81E-05,4.27E-02,2.52E-01,1.13E-11,9.15E+00,NETL Grid Mix Explorer 4.2 + CO2/MWh ratio from NETL NGCC report
+CCS,9.46E-05,1.38E-03,2.64E-05,4.83E-02,3.92E-01,1.34E-11,1.57E+01,CO2 inputs: OpenLCA
 ,kgNe_kgH2,kgSO2e_kgH2,kgPM2pt5e_kgH2,kgO3e_kgH2,kgCO2e_kgH2,kgCFC11e_kgH2,kgH2O_kgH2,
 H2St,0.0000025,0.00325,0.0001675,0.000929625,0.045,0.00000005,3.78,"All but H2O: Zhao et al., doi.org/10.1016/j.ijhydene.2020.05.282, H2O: H2A model"
 H2NG,0.00077,0.01087,-7.70E-05,0.31804,8.0341,3.62E-11,-6.72425,"NETL 2008 report ""Development of Baseline Data and Analysis of Life Cycle Greenhouse Gas Emissions of Petroleum-Based Fuels."" DOE/NETL-2009/1346"
 ,kgNe_kgMeOH,kgSO2e_kgMeOH,kgPM2pt5e_kgMeOH,kgO3e_kgMeOH,kgCO2e_kgMeOH,kgCFC11e_kgMeOH,kgH2O_kgMeOH,
-MeRe,0,0,0,0,0,0,0,Methanol reactor - waiting for ASPEN model
+MeRe,0,0,0,0,0.3431,0,0.988456343,Methanol reactor - waiting for ASPEN model
 MeNG,0.0002,0.00259,3.05E-05,0.09113,1.13442,8.37E-12,0.43725,https://netl.doe.gov/projects/VueConnection/download.aspx?id=61c3c189-f669-44ac-a56d-b71c8a5c5221&filename=DF_Stage3_O_Methanol_from_NG_2013-01.pdf
+MeHy,0,0,0,0,0.3431,0,0.988456343,"CO2: Adnan, Applied Energy 278 (2020) 115614; H2O: Nyari, Journal of CO? Utilization 39 (2020) 101166"

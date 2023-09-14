@@ -61,7 +61,7 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
 
     # Simulation duration
     sim_start_year = 2020
-    sim_end_year = 2020
+    sim_end_year = 2050
     sim_increment = 5
     sim_years = np.arange(sim_start_year,sim_end_year+sim_increment,sim_increment)
 
@@ -91,7 +91,7 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
         states_covered[state] += 1
         locations[state+'{:02}'.format(states_covered[state])] = {'on_land':[True,],'lat':[location['Latitude'],],'lon':[location['Longitude'],]}
     site_choice = 'TX09' # Choose NGCC site to analyze all years/scenarios with HOPP
-    site_num_choice = 1 # Choose site number (of 19 surrounding survey sites) to analyze
+    site_num_choice = 11 # Choose site number (of 19 surrounding survey sites) to analyze
     min_plant_dist = 120 # km, minimum distance between NGCC plants in survey
     land_rad = 50 # km radius of survey area around NGCC plant on land
     osw_rad = 20 # km radium of survey area around offshore wind location
@@ -842,53 +842,53 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
 
     #endregion
 
-    # Plot survey locations to check
-    #region
+    # # Plot survey locations to check
+    # #region
 
-    # Stolen from gis.stackexchange.com/questions/156035
-    def merc_x(lon):
-      r_major=6378137.000
-      return r_major*(lon*np.pi/180)
-    def merc_y(lat):
-      if lat>89.5:lat=89.5
-      if lat<-89.5:lat=-89.5
-      r_major=6378137.000
-      r_minor=6356752.3142
-      temp=r_minor/r_major
-      eccent=(1-temp**2)**.5
-      phi=(lat*np.pi/180)
-      sinphi=np.sin(phi)
-      con=eccent*sinphi
-      com=eccent/2
-      con=((1.0-con)/(1.0+con))**com
-      ts=np.tan((np.pi/2-phi)/2)/con
-      y=0-r_major*np.log(ts)
-      return y
+    # # Stolen from gis.stackexchange.com/questions/156035
+    # def merc_x(lon):
+    #   r_major=6378137.000
+    #   return r_major*(lon*np.pi/180)
+    # def merc_y(lat):
+    #   if lat>89.5:lat=89.5
+    #   if lat<-89.5:lat=-89.5
+    #   r_major=6378137.000
+    #   r_minor=6356752.3142
+    #   temp=r_minor/r_major
+    #   eccent=(1-temp**2)**.5
+    #   phi=(lat*np.pi/180)
+    #   sinphi=np.sin(phi)
+    #   con=eccent*sinphi
+    #   com=eccent/2
+    #   con=((1.0-con)/(1.0+con))**com
+    #   ts=np.tan((np.pi/2-phi)/2)/con
+    #   y=0-r_major*np.log(ts)
+    #   return y
 
-    # Set up background image
-    plt.clf
-    bg_img = 'bkg_small.png'
-    img = plt.imread(resource_dir/bg_img)
-    ax = plt.gca()
-    min_x = merc_x(-100)
-    max_x = merc_x(-67)
-    min_y = merc_y(25)
-    max_y = merc_y(46)
-    ax.imshow(img, extent=[min_x, max_x, min_y, max_y])
-    # Plot survey locations
-    for id, loc in locations.items():
-        for n in range(len(loc['lat'])):
-            lat = loc['lat'][n]
-            lon = loc['lon'][n]
-            color = [1*loc['on_land'][n],0,0]
-            x = merc_x(lon)
-            y = merc_y(lat)
-            ax.plot(x,y,'.',color=color)
-    plt.xlim([min_x,max_x])
-    plt.ylim([min_y,max_y])
-    plt.show()
+    # # Set up background image
+    # plt.clf
+    # bg_img = 'bkg_small.png'
+    # img = plt.imread(resource_dir/bg_img)
+    # ax = plt.gca()
+    # min_x = merc_x(-100)
+    # max_x = merc_x(-67)
+    # min_y = merc_y(25)
+    # max_y = merc_y(46)
+    # ax.imshow(img, extent=[min_x, max_x, min_y, max_y])
+    # # Plot survey locations
+    # for id, loc in locations.items():
+    #     for n in range(len(loc['lat'])):
+    #         lat = loc['lat'][n]
+    #         lon = loc['lon'][n]
+    #         color = [1*loc['on_land'][n],0,0]
+    #         x = merc_x(lon)
+    #         y = merc_y(lat)
+    #         ax.plot(x,y,'.',color=color)
+    # plt.xlim([min_x,max_x])
+    # plt.ylim([min_y,max_y])
+    # plt.show()
 
-    #endregion
+    # #endregion
 
     # Add universal financial params to each tech
 

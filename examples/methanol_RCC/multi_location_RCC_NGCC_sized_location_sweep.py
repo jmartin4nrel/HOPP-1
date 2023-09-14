@@ -39,7 +39,7 @@ pd.set_option("display.max_rows", None, "display.max_columns", None)
 
 set_nrel_key_dot_env()
 
-def run_hopp_calc(site, sim_tech, technologies, sim_cost, on_land, sim_power):
+def run_hopp_calc(site, sim_tech, technologies, sim_cost, on_land, sim_power, just_WC=False, prev_results_dir=None, prev_filename=None):
     """ run_hopp_calc Establishes sizing models, creates a wind or solar farm based on the desired sizes,
      and runs SAM model calculations for the specified inputs.
      save_outputs contains a dictionary of all results for the hopp calculation.
@@ -53,156 +53,210 @@ def run_hopp_calc(site, sim_tech, technologies, sim_cost, on_land, sim_power):
      plus wind and solar filenames used
     """
     
-    # TODO: make plant lifespan input
-    plant_lifespan = 30
+    if just_WC:
 
-    # Get interconnection size and pricing
-    iconn_kw = technologies['interconnection']['capacity_kw']
-    grid_co2e_kg_mwh = technologies['interconnection']['grid_co2e_kg_mwh']
-    buy_price = technologies['interconnection']['ppa_buy_price_kwh']
+        # Load original carbon intensities
+        hybrid_CI = technologies['interconnection']['hybrid_co2e_kg_mwh']
+        grid_CI = list(technologies['interconnection']['grid_co2e_kg_mwh'])
+        plant_lifespan = 30
+        if len(grid_CI)<plant_lifespan:
+            grid_CI.extend([grid_CI[-1]]*(plant_lifespan-len(grid_CI)))
+        grid_CI = np.mean(grid_CI)
+        Orig_CI_fp = prev_results_dir/'OrigCI'/prev_filename
+        CI_fp = prev_results_dir/'CI'/prev_filename
+        Orig_CI = np.loadtxt(Orig_CI_fp)
+        CI = np.loadtxt(CI_fp)
+        Orig_CI = float(Orig_CI)
+        CI = float(CI)
 
-    # Determine interconnection size based on whether on land or offshore
-    if on_land == 'true':
-        iconn_size_kw = iconn_kw[1]
+        # Find percent CI change from grid exchange
+        grid_hybrid_diff = grid_CI-hybrid_CI
+        new_orig_diff = CI-Orig_CI
+        change_ratio = new_orig_diff/grid_hybrid_diff
+
+        # Calculate water consumption ratios
+        hybrid_WC = technologies['interconnection']['hybrid_wc_kg_mwh']
+        grid_WC = list(technologies['interconnection']['grid_wc_kg_mwh'])
+        if len(grid_WC)<plant_lifespan:
+            grid_WC.extend([grid_WC[-1]]*(plant_lifespan-len(grid_WC)))
+        grid_WC = np.mean(grid_WC)
+        grid_hybrid_diff_WC = (grid_WC-hybrid_WC)
+        new_orig_diff = grid_hybrid_diff_WC*change_ratio
+        final_WC = hybrid_WC+new_orig_diff
+
+        outputs = dict()
+        outputs['Original WC [g H2O/kWh]'] = hybrid_WC
+        outputs['WC [g H2O/kWh]'] = final_WC
+
+        return outputs, site.wind_resource.filename, site.solar_resource.filename
+
     else:
-        iconn_size_kw = iconn_kw[0]
 
-    # Get electrolysis needs
-    elyzer_size_kw = technologies['pem']['capacity_kw']
-    elyzer_cf = technologies['pem']['capacity_factor']
+        # TODO: make plant lifespan input
+        plant_lifespan = 30
 
-    # Set up plant
-    hybrid_plant = HybridSimulation(sim_tech, site, iconn_size_kw)
-    
-    # Modify pvwatts model to reflect ATB technology
-    pv_factors = sim_power['PV']
-    for factor, value in pv_factors.items():
-        # Some factors have to be iterables even if constant - dumb!
-        if factor in ['albedo','dc_degradation']:
-            value = (value,)
-        hybrid_plant.pv._system_model.value(factor,value)
-    
+        # Get interconnection size and pricing
+        iconn_kw = technologies['interconnection']['capacity_kw']
+        buy_price = technologies['interconnection']['ppa_buy_price_kwh']
 
-    # Modify windpower model to reflect ATB technology
-    wind_factors = sim_power['wind']
-    for factor, value in wind_factors.items():
-        hybrid_plant.wind._system_model.value(factor,value)
-    
-    # # Check wind power curve
-    # x = hybrid_plant.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds
-    # y = hybrid_plant.wind._system_model.Turbine.wind_turbine_powercurve_powerout
-    # plt.clf()
-    # plt.plot(x,y)
-    # plt.show()
+        # Determine interconnection size based on whether on land or offshore
+        if on_land == 'true':
+            iconn_size_kw = iconn_kw[1]
+        else:
+            iconn_size_kw = iconn_kw[0]
 
-    # Simulate lifetime
-    hybrid_plant.simulate_power()
-    wind_kw = list(hybrid_plant.generation_profile.wind[0:8760])
-    pv_kw = list(hybrid_plant.generation_profile.pv[0:8760])
-    gen_kw = list(hybrid_plant.generation_profile.hybrid[0:8760])
-    
-    # # Check solar power curve
-    # pv_poa = list(hybrid_plant.pv._system_model.Outputs.poa[0:8760])
-    # plt.clf()
-    # plt.plot(pv_poa,pv_kw,'.')
-    # plt.show()
-                  
-    # Calculate lcoe before grid exchange for H2
-    pv_toc_kwyr = sim_cost['pv']['total_annual_cost_kw']
-    wind_toc_kwyr = sim_cost['wind']['total_annual_cost_kw']
-    pv_size_kw = sim_tech['pv']['system_capacity_kw']/sim_power['PV']['dc_ac_ratio']
-    num_turbines = sim_tech['wind']['num_turbines']
-    turbine_rating_kw = sim_tech['wind']['turbine_rating_kw']                                   
-    wind_size_kw = num_turbines*turbine_rating_kw
-    toc_yr = pv_toc_kwyr*pv_size_kw + wind_toc_kwyr*wind_size_kw
-    lcoe = toc_yr/sum(gen_kw)
-    orig_lcoe = copy.copy(lcoe)
-    orig_total_cost = copy.deepcopy(toc_yr)
-    
-    # Calculate carbon intensity before grid exchange
-    hybrid_CI = technologies['interconnection']['hybrid_co2e_kg_mwh']
-    grid_CI = technologies['interconnection']['grid_co2e_kg_mwh']
-    ghg_kg = [i/1000*hybrid_CI for i in gen_kw]
-    orig_ghg_kg = copy.deepcopy(ghg_kg)
-    orig_CI = np.sum(orig_ghg_kg)/np.sum(gen_kw)*1000
+        # Get electrolysis needs
+        elyzer_size_kw = technologies['pem']['capacity_kw']
+        elyzer_cf = technologies['pem']['capacity_factor']
 
-    # plt.plot(np.arange(0,8760),gen_kw,label='Initial hybrid plant output')
+        # Set up plant
+        hybrid_plant = HybridSimulation(sim_tech, site, iconn_size_kw)
+        
+        # Modify pvwatts model to reflect ATB technology
+        pv_factors = sim_power['PV']
+        for factor, value in pv_factors.items():
+            # Some factors have to be iterables even if constant - dumb!
+            if factor in ['albedo','dc_degradation']:
+                value = (value,)
+            hybrid_plant.pv._system_model.value(factor,value)
+        
 
-    # Find excess generation above electrolyzer capcity and sell to grid
-    ppa_lcoe_ratio = technologies['interconnection']['ppa_lcoe_ratio']
-    sell_price = orig_lcoe*ppa_lcoe_ratio
-    profit_from_selling_to_grid = 0.0
-    excess_energy = [0]*8760    
-    for i in range(len(gen_kw)):
-        if gen_kw[i] > elyzer_size_kw:
-            excess_energy[i] = (gen_kw[i]-elyzer_size_kw)
-            profit_from_selling_to_grid += (gen_kw[i]-elyzer_size_kw)*sell_price
-            gen_kw[i] = elyzer_size_kw
-    
-    # plt.plot(np.arange(0,8760),gen_kw,label='After selling excess to grid')
+        # Modify windpower model to reflect ATB technology
+        wind_factors = sim_power['wind']
+        for factor, value in wind_factors.items():
+            hybrid_plant.wind._system_model.value(factor,value)
+        
+        # # Check wind power curve
+        # x = hybrid_plant.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds
+        # y = hybrid_plant.wind._system_model.Turbine.wind_turbine_powercurve_powerout
+        # plt.clf()
+        # plt.plot(x,y)
+        # plt.show()
 
-    # Buy grid electricity to meet electrolyzer capacity factor
-    cost_to_buy_from_grid = 0.0
-    purchase_needed = (elyzer_size_kw*elyzer_cf-np.mean(gen_kw))*8760
-    shortfall = np.subtract(elyzer_size_kw,gen_kw)
-    shortfall_inds = np.flip(np.argsort(shortfall))
-    diff_shortfall = -np.diff(shortfall[shortfall_inds])
-    shortfall_changes = np.squeeze(np.argwhere(diff_shortfall))
-    purchase = np.zeros(8760)
-    shortfall_change = 1
-    while np.sum(purchase) < purchase_needed and shortfall_change < len(shortfall_changes):
-        purchase[shortfall_inds[:(1+shortfall_changes[shortfall_change])]] += diff_shortfall[shortfall_changes[shortfall_change-1]]
-        shortfall_change += 1
-    extra_purchase = sum(purchase)-purchase_needed
-    avg_extra_purchase = extra_purchase/(1+shortfall_changes[shortfall_change-1])
-    purchase[shortfall_inds[:(1+shortfall_changes[shortfall_change])]] -= avg_extra_purchase
-    for i in range(len(gen_kw)):
-        gen_kw[i] += purchase[i]
-    for year_idx in range(min(len(buy_price),plant_lifespan)):
-        year_buy_price = buy_price[year_idx]
+        # Simulate lifetime
+        hybrid_plant.simulate_power()
+        wind_kw = list(hybrid_plant.generation_profile.wind[0:8760])
+        pv_kw = list(hybrid_plant.generation_profile.pv[0:8760])
+        gen_kw = list(hybrid_plant.generation_profile.hybrid[0:8760])
+        
+        # # Check solar power curve
+        # pv_poa = list(hybrid_plant.pv._system_model.Outputs.poa[0:8760])
+        # plt.clf()
+        # plt.plot(pv_poa,pv_kw,'.')
+        # plt.show()
+                    
+        # Calculate lcoe before grid exchange for H2
+        pv_toc_kwyr = sim_cost['pv']['total_annual_cost_kw']
+        wind_toc_kwyr = sim_cost['wind']['total_annual_cost_kw']
+        pv_size_kw = sim_tech['pv']['system_capacity_kw']/sim_power['PV']['dc_ac_ratio']
+        num_turbines = sim_tech['wind']['num_turbines']
+        turbine_rating_kw = sim_tech['wind']['turbine_rating_kw']                                   
+        wind_size_kw = num_turbines*turbine_rating_kw
+        toc_yr = pv_toc_kwyr*pv_size_kw + wind_toc_kwyr*wind_size_kw
+        lcoe = toc_yr/sum(gen_kw)
+        orig_lcoe = copy.copy(lcoe)
+        orig_total_cost = copy.deepcopy(toc_yr)
+        
+        # Calculate carbon intensity/water consumption before grid exchange
+        hybrid_CI = technologies['interconnection']['hybrid_co2e_kg_mwh']
+        grid_CI = technologies['interconnection']['grid_co2e_kg_mwh']
+        hybrid_WC = technologies['interconnection']['hybrid_wc_kg_mwh']
+        grid_WC = technologies['interconnection']['grid_wc_kg_mwh']
+        ghg_kg = [i/1000*hybrid_CI for i in gen_kw]
+        wc_kg = [i/1000*hybrid_WC for i in gen_kw]
+        orig_ghg_kg = copy.deepcopy(ghg_kg)
+        orig_wc_kg = copy.deepcopy(wc_kg)
+        orig_gen_kw = copy.deepcopy(gen_kw)
+        orig_CI = np.sum(orig_ghg_kg)/np.sum(gen_kw)*1000
+        orig_WC = np.sum(orig_wc_kg)/np.sum(gen_kw)*1000
+
+        # plt.plot(np.arange(0,8760),gen_kw,label='Initial hybrid plant output')
+
+        # Find excess generation above electrolyzer capcity and sell to grid
+        ppa_lcoe_ratio = technologies['interconnection']['ppa_lcoe_ratio']
+        sell_price = orig_lcoe*ppa_lcoe_ratio
+        profit_from_selling_to_grid = 0.0
+        excess_energy = [0]*8760    
         for i in range(len(gen_kw)):
-            cost_to_buy_from_grid += purchase[i]*year_buy_price
-    for year_idx in range(plant_lifespan-len(buy_price)):
-        year_buy_price = buy_price[min(len(buy_price),plant_lifespan)-1]
+            if gen_kw[i] > elyzer_size_kw:
+                excess_energy[i] = (gen_kw[i]-elyzer_size_kw)
+                profit_from_selling_to_grid += (gen_kw[i]-elyzer_size_kw)*sell_price
+                gen_kw[i] = elyzer_size_kw
+        
+        # plt.plot(np.arange(0,8760),gen_kw,label='After selling excess to grid')
+
+        # Buy grid electricity to meet electrolyzer capacity factor
+        cost_to_buy_from_grid = 0.0
+        purchase_needed = (elyzer_size_kw*elyzer_cf-np.mean(gen_kw))*8760
+        shortfall = np.subtract(elyzer_size_kw,gen_kw)
+        shortfall_inds = np.flip(np.argsort(shortfall))
+        diff_shortfall = -np.diff(shortfall[shortfall_inds])
+        shortfall_changes = np.squeeze(np.argwhere(diff_shortfall))
+        purchase = np.zeros(8760)
+        shortfall_change = 1
+        while np.sum(purchase) < purchase_needed and shortfall_change < len(shortfall_changes):
+            purchase[shortfall_inds[:(1+shortfall_changes[shortfall_change])]] += diff_shortfall[shortfall_changes[shortfall_change-1]]
+            shortfall_change += 1
+        extra_purchase = sum(purchase)-purchase_needed
+        avg_extra_purchase = extra_purchase/(1+shortfall_changes[shortfall_change-1])
+        purchase[shortfall_inds[:(1+shortfall_changes[shortfall_change])]] -= avg_extra_purchase
         for i in range(len(gen_kw)):
-            cost_to_buy_from_grid += purchase[i]*year_buy_price
-    cost_to_buy_from_grid /= plant_lifespan
+            gen_kw[i] += purchase[i]
+        for year_idx in range(min(len(buy_price),plant_lifespan)):
+            year_buy_price = buy_price[year_idx]
+            for i in range(len(gen_kw)):
+                cost_to_buy_from_grid += purchase[i]*year_buy_price
+        for year_idx in range(plant_lifespan-len(buy_price)):
+            year_buy_price = buy_price[min(len(buy_price),plant_lifespan)-1]
+            for i in range(len(gen_kw)):
+                cost_to_buy_from_grid += purchase[i]*year_buy_price
+        cost_to_buy_from_grid /= plant_lifespan
 
-    new_total_cost = orig_total_cost+cost_to_buy_from_grid-profit_from_selling_to_grid
-    lcoe = new_total_cost/sum(gen_kw)
+        new_total_cost = orig_total_cost+cost_to_buy_from_grid-profit_from_selling_to_grid
+        lcoe = new_total_cost/sum(gen_kw)
 
-    # Find change in CI from net grid exchange
-    ghg_change_kg = [0]*8760 
-    net_exchange_kw = np.subtract(purchase,excess_energy)
-    for year_idx in range(min(len(buy_price),plant_lifespan)):
-        exchange_CI_kg_kwh = (grid_CI[year_idx]-hybrid_CI)/1000
-        ghg_change_kg = np.add(ghg_change_kg,np.multiply(exchange_CI_kg_kwh,net_exchange_kw))
-    for year_idx in range(plant_lifespan-len(buy_price)):
-        exchange_CI_kg_kwh = (grid_CI[min(len(buy_price),plant_lifespan)-1]-hybrid_CI)/1000
-        ghg_change_kg = np.add(ghg_change_kg,np.multiply(exchange_CI_kg_kwh,net_exchange_kw))
-    ghg_change_kg = [i/plant_lifespan for i in ghg_change_kg]
-    final_ghg_kg = np.add(orig_ghg_kg,ghg_change_kg)
-    final_CI = np.sum(final_ghg_kg)/np.sum(gen_kw)*1000
-    
-    # plt.plot(np.arange(0,8760),gen_kw,label='After buying from grid for H2')
-    # plt.xlabel('[hr]')
-    # plt.ylabel('[kW]')
-    # plt.legend()
-    # plt.show()
+        # Find change in CI and WC from net grid exchange
+        ghg_change_kg = [0]*8760 
+        wc_change_kg = [0]*8760 
+        net_exchange_kw = np.subtract(purchase,excess_energy)
+        for year_idx in range(min(len(buy_price),plant_lifespan)):
+            exchange_CI_kg_kwh = (grid_CI[year_idx]-hybrid_CI)/1000
+            exchange_WC_kg_kwh = (grid_WC[year_idx]-hybrid_WC)/1000
+            ghg_change_kg = np.add(ghg_change_kg,np.multiply(exchange_CI_kg_kwh,net_exchange_kw))
+            wc_change_kg = np.add(wc_change_kg,np.multiply(exchange_WC_kg_kwh,net_exchange_kw))
+        for year_idx in range(plant_lifespan-len(buy_price)):
+            exchange_CI_kg_kwh = (grid_CI[min(len(buy_price),plant_lifespan)-1]-hybrid_CI)/1000
+            exchange_WC_kg_kwh = (grid_WC[min(len(buy_price),plant_lifespan)-1]-hybrid_WC)/1000
+            ghg_change_kg = np.add(ghg_change_kg,np.multiply(exchange_CI_kg_kwh,net_exchange_kw))
+            wc_change_kg = np.add(wc_change_kg,np.multiply(exchange_WC_kg_kwh,net_exchange_kw))
+        ghg_change_kg = [i/plant_lifespan for i in ghg_change_kg]
+        wc_change_kg = [i/plant_lifespan for i in wc_change_kg]
+        final_ghg_kg = np.add(orig_ghg_kg,ghg_change_kg)
+        final_wc_kg = np.add(orig_wc_kg,wc_change_kg)
+        final_CI = np.sum(final_ghg_kg)/np.sum(orig_gen_kw)*1000
+        final_WC = np.sum(final_wc_kg)/np.sum(orig_gen_kw)*1000
+        
+        # plt.plot(np.arange(0,8760),gen_kw,label='After buying from grid for H2')
+        # plt.xlabel('[hr]')
+        # plt.ylabel('[kW]')
+        # plt.legend()
+        # plt.show()
 
-    # Save outputs
-    outputs = dict()
-    outputs['kW from wind'] = np.sum(wind_kw)/8760
-    outputs['kW from PV'] = np.sum(pv_kw)/8760
-    outputs['Original LCOE [$/kWh]'] = orig_lcoe
-    outputs['LCOE [$/kWh]'] = lcoe
-    outputs['Original CI [g CO2e/kWh]'] = orig_CI
-    outputs['CI [g CO2e/kWh]'] = final_CI
-    outputs['kW to H2 electrolysis'] = np.sum(gen_kw)/8760
-    outputs['kW bought from grid'] = np.sum(purchase)/8760
-    outputs['kW sold to grid'] = np.sum(excess_energy)/8760
-    
-    return outputs, site.wind_resource.filename, site.solar_resource.filename
+        # Save outputs
+        outputs = dict()
+        outputs['kW from wind'] = np.sum(wind_kw)/8760
+        outputs['kW from PV'] = np.sum(pv_kw)/8760
+        outputs['Original LCOE [$/kWh]'] = orig_lcoe
+        outputs['LCOE [$/kWh]'] = lcoe
+        outputs['Original CI [g CO2e/kWh]'] = orig_CI
+        outputs['CI [g CO2e/kWh]'] = final_CI
+        outputs['Original WC [g H2O/kWh]'] = orig_WC
+        outputs['WC [g H2O/kWh]'] = final_WC
+        outputs['kW to H2 electrolysis'] = np.sum(gen_kw)/8760
+        outputs['kW bought from grid'] = np.sum(purchase)/8760
+        outputs['kW sold to grid'] = np.sum(excess_energy)/8760
+        
+        return outputs, site.wind_resource.filename, site.solar_resource.filename
 
 
 def run_hybrid_calc_bruteforce(site_name, year, site_num, res_fn_wind, res_fn_solar, lat, lon, on_land,
@@ -281,11 +335,15 @@ def run_hybrid_calc_bruteforce(site_name, year, site_num, res_fn_wind, res_fn_so
         ppa_lcoe_ratio = (wind_ppa_lcoe_ratio*wind_pct+solar_ppa_lcoe_ratio*(100-wind_pct))/100
         technologies['interconnection']['ppa_lcoe_ratio'] = ppa_lcoe_ratio
 
-        # Get ghgs
+        # Get ghgs/water consumption
         wind_ghgs = 29.49369802
         solar_ghgs = 22.38638471
+        wind_wcs = 0.429207
+        solar_wcs = -0.02128 
         ghgs = (wind_ghgs*wind_pct+solar_ghgs*(100-wind_pct))/100
+        wcs = (wind_wcs*wind_pct+solar_wcs*(100-wind_pct))/100
         technologies['interconnection']['hybrid_co2e_kg_mwh'] = ghgs
+        technologies['interconnection']['hybrid_wc_kg_mwh'] = wcs
 
         # Run HOPP calculation
         hopp_outputs, res_fn_wind, res_fn_solar = run_hopp_calc(Site, sim_tech, technologies, sim_cost, on_land, sim_power)
@@ -310,6 +368,86 @@ def run_hybrid_calc_bruteforce(site_name, year, site_num, res_fn_wind, res_fn_so
         np.savetxt(results_filepath,[hopp_outputs['Original CI [g CO2e/kWh]']])
         results_filepath = results_dir/'CI'/filename
         np.savetxt(results_filepath,[hopp_outputs['CI [g CO2e/kWh]']])
+        results_filepath = results_dir/'OrigWC'/filename
+        np.savetxt(results_filepath,[hopp_outputs['Original WC [g H2O/kWh]']])
+        results_filepath = results_dir/'WC'/filename
+        np.savetxt(results_filepath,[hopp_outputs['WC [g H2O/kWh]']])
+
+    elif filename not in os.listdir(results_dir/'OrigWC'):
+
+        # Make reduced version of technologies dict that has just what HOPP uses to setup technologies dict
+        sim_tech = copy.deepcopy(technologies)
+        sim_cost = copy.deepcopy(costs)
+        sim_power = copy.deepcopy(power_factors)
+        if on_land == 'true':
+            sim_tech['wind'] = technologies['lbw']
+            sim_cost['wind'] = costs['lbw']
+            sim_power['wind'] = power_factors['LBW']
+        else:
+            sim_tech['wind'] = technologies['osw']
+            sim_cost['wind'] = costs['osw']
+            sim_power['wind'] = power_factors['OSW']
+        sim_tech.pop('lbw')
+        sim_tech.pop('osw')
+        sim_tech.pop('interconnection')
+        sim_cost.pop('lbw')
+        sim_cost.pop('osw')
+        sim_power.pop('LBW')
+        sim_power.pop('OSW')
+
+        # Establish site location
+        Site = {}
+        Site['lat'] = lat
+        Site['lon'] = lon
+        Site['year'] = year
+        # For site area: square with sides = sqrt of number of turbines times rotor diameter times ten
+        d = sim_tech['wind']['rotor_diameter']
+        n = sim_tech['wind']['num_turbines']
+        side = 10*d*n**.5
+        Site['site_boundaries'] = {'verts':[[0,0],[0,side],[side,side],[side,0]]}
+
+        # Get the Timezone offset value based on the lat/lon of the site
+        try:
+            location = {'lat': Site['lat'], 'long': Site['lon']}
+            tz_val = get_offset(**location)
+            Site['tz'] = (tz_val - 1)
+        except:
+            print('Timezone lookup failed for {}'.format(location))
+        
+        # Wait to de-synchronize api requests on multi-threaded analysis #TODO: get multiple api keys so this is not necessary
+        wait = 10+rng.integers(10)
+        time.sleep(wait)
+        
+        # Create site, downloading resource files if needed
+        Site = SiteInfo(Site, hub_height=sim_tech['wind']['hub_height'],
+                        solar_resource_file=res_fn_solar,
+                        wind_resource_file=res_fn_wind)
+
+        # Get ppa lcoe_ratio
+        wind_ppa_lcoe_ratio = technologies['interconnection']['wind_ppa_lcoe_ratio']
+        solar_ppa_lcoe_ratio = technologies['interconnection']['solar_ppa_lcoe_ratio']
+        ppa_lcoe_ratio = (wind_ppa_lcoe_ratio*wind_pct+solar_ppa_lcoe_ratio*(100-wind_pct))/100
+        technologies['interconnection']['ppa_lcoe_ratio'] = ppa_lcoe_ratio
+
+        # Get ghgs/water consumption
+        wind_ghgs = 29.49369802
+        solar_ghgs = 22.38638471
+        wind_wcs = 0.429207
+        solar_wcs = -0.02128 
+        ghgs = (wind_ghgs*wind_pct+solar_ghgs*(100-wind_pct))/100
+        wcs = (wind_wcs*wind_pct+solar_wcs*(100-wind_pct))/100
+        technologies['interconnection']['hybrid_co2e_kg_mwh'] = ghgs
+        technologies['interconnection']['hybrid_wc_kg_mwh'] = wcs
+
+        # Run HOPP calculation
+        hopp_outputs, res_fn_wind, res_fn_solar = run_hopp_calc(Site, sim_tech, technologies, sim_cost, on_land, sim_power, just_WC=True, prev_results_dir=results_dir, prev_filename=filename)
+        print('Finished site '+filename)
+
+        # Write resulst to text files #TODO make big .json
+        results_filepath = results_dir/'OrigWC'/filename
+        np.savetxt(results_filepath,[hopp_outputs['Original WC [g H2O/kWh]']])
+        results_filepath = results_dir/'WC'/filename
+        np.savetxt(results_filepath,[hopp_outputs['WC [g H2O/kWh]']])
 
 def run_all_hybrid_calcs(site_name, site_details, technologies_lols, costs, results_dir,
                         plant_size_pcts, wind_pcts, power_factors, optimize=False):
@@ -352,7 +490,7 @@ def run_all_hybrid_calcs(site_name, site_details, technologies_lols, costs, resu
                         all_args.append(all_arg)
         
 
-    # Run a multi-threaded analysis
+    # # Run a multi-threaded analysis
     with multiprocessing.Pool(8) as p:
         if optimize:
             p.starmap(run_hybrid_calc_optimize, all_args)
@@ -412,21 +550,35 @@ if __name__ == '__main__':
         site_name_list = list(locations.keys())#[1:2]
         site_name_list.reverse()
         sites_per_location = 19
-        
+        single_site = True
+
+        if single_site:
+            site_name_list = [scenario_info['site_selection']['site_name']]
+            site_nums = [scenario_info['site_selection']['site_num']]
+            sites_per_location = 1
+        else:
+            site_nums = np.arange(1,sites_per_location+1,1)
+
         resource_dir = current_dir/'..'/'..'/'resource_files'
 
         for site_name in site_name_list:
             
-            desired_lats = locations[site_name]['lat'][:sites_per_location]
-            desired_lons = locations[site_name]['lon'][:sites_per_location]
+            if single_site:
+                desired_lats = [locations[site_name]['lat'][site_nums[0]-1]]
+                desired_lons = [locations[site_name]['lon'][site_nums[0]-1]]
+            else:
+                desired_lats = locations[site_name]['lat'][:sites_per_location]
+                desired_lons = locations[site_name]['lon'][:sites_per_location]
 
-            for plant in ['HPSR']:#'HCO2',
+            for plant in ['HCO2','HPSR']:#
             
                 locations[site_name][plant] = {}
                 locations[site_name][plant]['orig_lcoe_$_kwh'] = [[] for i in range(len(desired_lats))]
                 locations[site_name][plant]['lcoe_$_kwh'] = [[] for i in range(len(desired_lats))]
                 locations[site_name][plant]['orig_CI_g_kwh'] = [[] for i in range(len(desired_lats))]
                 locations[site_name][plant]['CI_g_kwh'] = [[] for i in range(len(desired_lats))]
+                locations[site_name][plant]['orig_WC_g_kwh'] = [[] for i in range(len(desired_lats))]
+                locations[site_name][plant]['WC_g_kwh'] = [[] for i in range(len(desired_lats))]
                 locations[site_name][plant]['pv_capacity_kw'] = [[] for i in range(len(desired_lats))]
                 locations[site_name][plant]['wind_capacity_kw'] = [[] for i in range(len(desired_lats))]
                 locations[site_name][plant]['pv_output_kw'] = [[] for i in range(len(desired_lats))]
@@ -447,7 +599,11 @@ if __name__ == '__main__':
                     # Loads resource files in 'resource_files', finds nearest files to 'desired_lats' and 'desired_lons'
                     site_details = resource_loader_file(resource_dir, desired_lats, desired_lons, resource_year, not_rect=True,\
                                                         max_dist=.01)  # Return contains
-                    site_details.insert(3,'on_land',locations[site_name]['on_land'][:sites_per_location])
+                    if single_site:
+                        site_details.insert(3,'on_land',locations[site_name]['on_land'][site_nums[0]])
+                        site_details['site_nums'] = site_nums
+                    else:
+                        site_details.insert(3,'on_land',locations[site_name]['on_land'][:sites_per_location])
                     # site_details = filter_sites(site_details, location='usa only')
                     site_details.to_csv(os.path.join(resource_dir, 'site_details.csv'))#.format(site_name)))
                     # print(site_name,len(np.unique(site_details['solar_filenames']))-np.sum([i == '' for i in site_details['solar_filenames']]))
@@ -462,17 +618,17 @@ if __name__ == '__main__':
                         site_details = filter_sites(site_details, location='usa only')
                         site_details.to_csv(sitelist_name)
 
-                site_nums = site_details['site_nums'][:sites_per_location]
+                # site_nums = site_details['site_nums'][:sites_per_location]
 
                 # Constants needed by HOPP
                 correct_wind_speed_for_height = True
                 
                 # Get H2 elyzer size
-                H2_plants = ['HPSR']#'HCO2',
+                H2_plants = ['HCO2','HPSR']#
                 HCO2_scenario = plant_scenarios['HCO2']
                 HPSR_scenario = plant_scenarios['HPSR']
-                #engin['HCO2']['elec_in_kw'][HCO2_scenario][year_idx],
-                elyzer_inputs_kw = [engin['HPSR']['elec_in_kw'][HPSR_scenario][year_idx]]
+                
+                elyzer_inputs_kw = [engin['HCO2']['elec_in_kw'][HCO2_scenario][year_idx],engin['HPSR']['elec_in_kw'][HPSR_scenario][year_idx]]
                 elyzer_cf = 0.97 #TODO: variable electrolyzer capacity
                 elyzer_sizes_kw = [i/elyzer_cf for i in elyzer_inputs_kw]
 
@@ -482,6 +638,38 @@ if __name__ == '__main__':
                 cambium_aeo_multiplier = state_multipliers[site_name[:2]]
                 cambium_price = cambium_prices.loc[site_name[:2],sim_year:].values
                 grid_co2e_kg_mwh = cambium_ghgs.loc[site_name[:2],sim_year:].values
+                all_grid_wcs = [3237.82422	,
+                                3046.291736	,
+                                2854.759253	,
+                                2663.226769	,
+                                2471.694286	,
+                                2280.161802	,
+                                2312.016492	,
+                                2343.871183	,
+                                2375.725873	,
+                                2407.580564	,
+                                2439.435254	,
+                                2350.330575	,
+                                2261.225896	,
+                                2172.121216	,
+                                2083.016537	,
+                                1993.911858	,
+                                1981.843038	,
+                                1969.774217	,
+                                1957.705397	,
+                                1945.636576	,
+                                1933.567756	,
+                                1932.402861	,
+                                1931.237967	,
+                                1930.073072	,
+                                1928.908178	,
+                                1927.743283	,
+                                1913.587052	,
+                                1899.430821	,
+                                1885.27459	,
+                                1871.118359	,
+                                1856.962128]
+                grid_wc_kg_mwh = all_grid_wcs[(sim_year-2020):]
                 ppa_buy_price_kwh = cambium_price*cambium_aeo_multiplier/1000
                 
                 # Estimate wind/solar needed based on capacity factor
@@ -575,6 +763,7 @@ if __name__ == '__main__':
                                                 'wind_ppa_lcoe_ratio': wind_ppa_lcoe_ratio,
                                                 'solar_ppa_lcoe_ratio': solar_ppa_lcoe_ratio,
                                                 'grid_co2e_kg_mwh': grid_co2e_kg_mwh,
+                                                'grid_wc_kg_mwh': grid_wc_kg_mwh,
                                                 'H2_plant': H2_plants[i]
                                             }
                                             }
@@ -629,6 +818,10 @@ if __name__ == '__main__':
                     os.mkdir(year_results_dir/'OrigCI')
                 if not os.path.exists(year_results_dir/'CI'):
                     os.mkdir(year_results_dir/'CI')
+                if not os.path.exists(year_results_dir/'OrigWC'):
+                    os.mkdir(year_results_dir/'OrigWC')
+                if not os.path.exists(year_results_dir/'WC'):
+                    os.mkdir(year_results_dir/'WC')
                 if not os.path.exists(year_results_dir/'kWH2'):
                     os.mkdir(year_results_dir/'kWH2')
                 if not os.path.exists(year_results_dir/'kWwind'):
@@ -640,16 +833,16 @@ if __name__ == '__main__':
                 if not os.path.exists(year_results_dir/'kWsell'):
                     os.mkdir(year_results_dir/'kWsell')
 
-                # Run hybrid calculation for all sites
-                tic = time.time()
-                run_all_hybrid_calcs(site_name, site_details, technologies_lols, costs,
-                                        year_results_dir, plant_size_pcts, wind_pcts, power_factors)
-                toc = time.time()
-                print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
+                # # Run hybrid calculation for all sites
+                # tic = time.time()
+                # run_all_hybrid_calcs(site_name, site_details, technologies_lols, costs,
+                #                         year_results_dir, plant_size_pcts, wind_pcts, power_factors)
+                # toc = time.time()
+                # print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
                 
                 for site_num in site_nums:
                 
-                    for k, plant in enumerate(['HPSR']):#'HCO2',
+                    for k, plant in enumerate(['HCO2','HPSR']):#
                         
                         min_lcoe = np.inf
                         min_CI = np.inf
@@ -688,6 +881,8 @@ if __name__ == '__main__':
                                     orig_lcoe = float(np.loadtxt(year_results_dir/'OrigLCOE'/fn))
                                     orig_CI = float(np.loadtxt(year_results_dir/'OrigCI'/fn))
                                     CI = float(np.loadtxt(year_results_dir/'CI'/fn))
+                                    orig_WC = float(np.loadtxt(year_results_dir/'OrigWC'/fn))
+                                    WC = float(np.loadtxt(year_results_dir/'WC'/fn))
                                     pv_output = float(np.loadtxt(year_results_dir/'kWPV'/fn))
                                     wind_output = float(np.loadtxt(year_results_dir/'kWwind'/fn))
                                     elec_input = float(np.loadtxt(year_results_dir/'kWH2'/fn))
@@ -701,17 +896,34 @@ if __name__ == '__main__':
                                         opt_pv = copy.copy(pv_size_kw)
                                         opt_wind = copy.copy(lbw_size_kw)
 
-                        locations[site_name][plant]['lcoe_$_kwh'][site_num-1].append(min_lcoe)
-                        locations[site_name][plant]['orig_lcoe_$_kwh'][site_num-1].append(orig_lcoe)
-                        locations[site_name][plant]['CI_g_kwh'][site_num-1].append(CI)
-                        locations[site_name][plant]['orig_CI_g_kwh'][site_num-1].append(orig_CI)
-                        locations[site_name][plant]['pv_capacity_kw'][site_num-1].append(opt_pv)
-                        locations[site_name][plant]['pv_output_kw'][site_num-1].append(pv_output)
-                        locations[site_name][plant]['wind_capacity_kw'][site_num-1].append(opt_wind)
-                        locations[site_name][plant]['wind_output_kw'][site_num-1].append(wind_output)
-                        locations[site_name][plant]['electrolyzer_input_kw'][site_num-1].append(elec_input)
-                        locations[site_name][plant]['grid_bought_kw'][site_num-1].append(grid_bought)
-                        locations[site_name][plant]['grid_sold_kw'][site_num-1].append(grid_sold)
+                        if single_site:
+                            locations[site_name][plant]['lcoe_$_kwh'][0].append(min_lcoe)
+                            locations[site_name][plant]['orig_lcoe_$_kwh'][0].append(orig_lcoe)
+                            locations[site_name][plant]['CI_g_kwh'][0].append(CI)
+                            locations[site_name][plant]['orig_CI_g_kwh'][0].append(orig_CI)
+                            locations[site_name][plant]['WC_g_kwh'][0].append(WC)
+                            locations[site_name][plant]['orig_WC_g_kwh'][0].append(orig_WC)
+                            locations[site_name][plant]['pv_capacity_kw'][0].append(opt_pv)
+                            locations[site_name][plant]['pv_output_kw'][0].append(pv_output)
+                            locations[site_name][plant]['wind_capacity_kw'][0].append(opt_wind)
+                            locations[site_name][plant]['wind_output_kw'][0].append(wind_output)
+                            locations[site_name][plant]['electrolyzer_input_kw'][0].append(elec_input)
+                            locations[site_name][plant]['grid_bought_kw'][0].append(grid_bought)
+                            locations[site_name][plant]['grid_sold_kw'][0].append(grid_sold)
+                        else:
+                            locations[site_name][plant]['lcoe_$_kwh'][site_num-1].append(min_lcoe)
+                            locations[site_name][plant]['orig_lcoe_$_kwh'][site_num-1].append(orig_lcoe)
+                            locations[site_name][plant]['CI_g_kwh'][site_num-1].append(CI)
+                            locations[site_name][plant]['orig_CI_g_kwh'][site_num-1].append(orig_CI)
+                            locations[site_name][plant]['WC_g_kwh'][site_num-1].append(WC)
+                            locations[site_name][plant]['orig_WC_g_kwh'][site_num-1].append(orig_WC)
+                            locations[site_name][plant]['pv_capacity_kw'][site_num-1].append(opt_pv)
+                            locations[site_name][plant]['pv_output_kw'][site_num-1].append(pv_output)
+                            locations[site_name][plant]['wind_capacity_kw'][site_num-1].append(opt_wind)
+                            locations[site_name][plant]['wind_output_kw'][site_num-1].append(wind_output)
+                            locations[site_name][plant]['electrolyzer_input_kw'][site_num-1].append(elec_input)
+                            locations[site_name][plant]['grid_bought_kw'][site_num-1].append(grid_bought)
+                            locations[site_name][plant]['grid_sold_kw'][site_num-1].append(grid_sold)
 
 
         resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'/cambium_scenario
