@@ -277,6 +277,10 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
             for unit in methanol_lca_df.columns.values:
                 lca[plant][unit] = methanol_lca_df.loc[plant,unit]
 
+        # Workaround for getting ASPEN sweep CO2/WC values in
+        lca['MeRe']['kgCO2e_kgMeOH'] = engin['MPSR']['CO2_em_kg_MeOH']
+        lca['MeRe']['kgH2O_kgMeOH'] = engin['MPSR']['H2O_kg_yr_in'][MeOH_scenario]/engin['MPSR']['MeOH_kg_yr'][MeOH_scenario]
+
 
         lca['CO2'] = {}
         lca['H2'] = {}
@@ -356,16 +360,16 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
                         if 'CO2' in unit:
                             em_power_unit = 'CI_g_kwh'
                             orig_em_power_unit = 'orig_CI_g_kwh'
-                            if 'CO2' in me_plant:
-                                if i == 0:
-                                    lca['MeHy'][unit] = []
-                                grid_ghgs_kg_mwh = [118.3726,69.42419,50.95484,46.73548,45.39355,44.86129,44.6]
-                                lca['MeHy'][unit].append(engin[me_plant]['elec_in_kw'][MeOH_scenario]*8.76*grid_ghgs_kg_mwh[i]/MeOH_out)
-                            elif 'PSR' in me_plant:
-                                if i == 0:
-                                    lca['MeRe'][unit] = []
-                                grid_ghgs_kg_mwh = [118.3726,69.42419,50.95484,46.73548,45.39355,44.86129,44.6]
-                                lca['MeRe'][unit].append(engin[me_plant]['elec_in_kw'][MeOH_scenario]*8.76*grid_ghgs_kg_mwh[i]/MeOH_out)
+                            # if 'CO2' in me_plant:
+                            #     if i == 0:
+                            #         lca['MeHy'][unit] = []
+                            #     grid_ghgs_kg_mwh = [118.3726,69.42419,50.95484,46.73548,45.39355,44.86129,44.6]
+                            #     lca['MeHy'][unit].append(engin[me_plant]['elec_in_kw'][MeOH_scenario]*8.76*grid_ghgs_kg_mwh[i]/MeOH_out)
+                            # elif 'PSR' in me_plant:
+                            #     if i == 0:
+                            #         lca['MeRe'][unit] = []
+                            #     grid_ghgs_kg_mwh = [118.3726,69.42419,50.95484,46.73548,45.39355,44.86129,44.6]
+                            #     lca['MeRe'][unit].append(engin[me_plant]['elec_in_kw'][MeOH_scenario]*8.76*grid_ghgs_kg_mwh[i]/MeOH_out)
                         else:
                             em_power_unit = 'WC_g_kwh'
                             orig_em_power_unit = 'orig_WC_g_kwh'
@@ -414,12 +418,12 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
                         lca[me_plant][unit].append(lca['CO2'][unit] + lca['MeNG'][unit])
                     elif 'CO2' in me_plant:
                         if 'CO2' in unit:
-                            lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['MeHy'][unit][i]) # + lca['stack'][unit]
+                            lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['MeHy'][unit])#[i]) # + lca['stack'][unit]
                         else:
                             lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['MeHy'][unit])
                     else:
                         if 'CO2' in unit:
-                            lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['MeRe'][unit][i]) # + lca['stack'][unit]
+                            lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['MeRe'][unit])#[i]) # + lca['stack'][unit]
                         else:
                             lca[me_plant][unit].append(lca['CO2'][unit] + lca['H2'][unit][i] + lca['MeRe'][unit])
                 # Break down lca into components:
@@ -436,13 +440,13 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
                             lca[me_plant][unit+'_elyzer'].append(lca['H2St'][unit[:-4]+'H2']/MeOH_out*H2_kg_in)
                             if 'CO2' in me_plant:
                                 if 'CO2' in unit:
-                                    lca[me_plant][unit+'_reactor'].append(lca['MeHy'][unit][i])
+                                    lca[me_plant][unit+'_reactor'].append(lca['MeHy'][unit])#[i])
                                 else:
                                     lca[me_plant][unit+'_reactor'].append(lca['MeHy'][unit])
                                 lca[me_plant][unit+'_ccs'].append(lca['CCS'][unit])
                             else:
                                 if 'CO2' in unit:
-                                    lca[me_plant][unit+'_reactor'].append(lca['MeRe'][unit][i])
+                                    lca[me_plant][unit+'_reactor'].append(lca['MeRe'][unit])#[i])
                                 else:
                                     lca[me_plant][unit+'_reactor'].append(lca['MeRe'][unit])
                                 lca[me_plant][unit+'_ccs'].append(0)
@@ -487,10 +491,10 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
                 finance[plant]['VOM_H2_$_yr'] = {MeOH_scenario:VOM_H2_yr}
                 VOM_H2_mwh = [i/mwh_yr for i in VOM_H2_yr]
                 finance[plant]['VOM_H2_$_mwh'] = {MeOH_scenario:VOM_H2_mwh}
-                VOM_comps = ['VOM_elec_$_mwh',
-                            'VOM_H2_$_mwh',
+                VOM_comps = ['VOM_H2_$_mwh',
                             'VOM_CO2_$_mwh',
                             'VOM_H2O_$_mwh',
+                            # 'VOM_elec_$_mwh',
                             'VOM_cat_$_mwh',
                             'VOM_other_$_mwh']
             finance[plant]['VOM_$_mwh'] = {MeOH_scenario:[]}
@@ -895,6 +899,8 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
                             data = [i*engin[plant]['MeOH_kg_yr'][MeOH_scenario]/engin[plant]['H2_kg_yr_in'][MeOH_scenario] for i in em_meoh]
                     else:
                         data = lca[plant][row]
+                        if '_disp' in row:
+                            data = [-i for i in data]
                 else:
                     data = finance[plant][row]
                 if type(data) is dict:

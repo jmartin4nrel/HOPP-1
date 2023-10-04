@@ -54,14 +54,15 @@ def inflate(dollars, original_year, new_year):
     
 #endregion    
 
-def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115104, ASPEN_capex=33339802, ASPEN_Fopex=14.62, ASPEN_Vopex_cat=410.94, ASPEN_Vopex_other=-90.4, ASPEN_elec_use=0.89):
+def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115104, ASPEN_capex=33339802, ASPEN_Fopex=14.62, ASPEN_Vopex_cat=410.94, ASPEN_Vopex_other=-90.4,
+                 ASPEN_elec_use=0.89, ASPEN_H2O_use=1.51, ASPEN_MeOH_CO2=0.078):
 
     ## ALL CHANGES HERE - SELECT SCENARIO COMBOS, MANUALLY OVERRIDE PRICING ASSUMPTIONS
     #region
 
     # Simulation duration
     sim_start_year = 2020
-    sim_end_year = 2050
+    sim_end_year = 2020
     sim_increment = 5
     sim_years = np.arange(sim_start_year,sim_end_year+sim_increment,sim_increment)
 
@@ -438,7 +439,9 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
                             'OK':       35} # mg catalyst / kg MeOH 
     ruddy_cat_price_kg =   {'Great':    10,
                             'Good':     10,
-                            'OK':       10} # $/kg catalyst 
+                            'OK':       10} # $/kg catalyst
+    ruddy_H2O_gal_kg_MeOH = ASPEN_H2O_use
+    ruddy_CO2_em = ASPEN_MeOH_CO2
 
     #endregion
 
@@ -453,6 +456,10 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
         engin[plant]['CO2 source'] = {}
         source = 'CCS' if 'CO2' in plant else 'NGCC'
         engin[plant]['CO2 source'] = source
+
+        # Workaround for PSR CO2 emissions data:
+        if plant == 'MPSR':
+            engin[plant]['CO2_em_kg_MeOH'] = ruddy_CO2_em
 
         # Scale MeOH plant
         MeOH_kt_yr = {}
@@ -472,6 +479,7 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
                     Stack_CO2_kt_yr[scenario] = MeOH_kt_yr[scenario]*(100-nyari_CO2_conv_pct)/100
                     elec_in_kw[scenario] = MeOH_kt_yr[scenario]*1e6/8760 * nyari_elec_usage
                     cat_mg_kg_MeOH[scenario] = nyari_cat_mg_kg_MeOH
+                    H2O_gal_day[scenario] = MeOH_kt_yr[scenario] * 1e6 / 365 * nyari_H2O_gal_kg_MeOH
                 else:
                     MeOH_kt_yr[scenario] = MeOH_cap_mt_yr/1e3
                     CO2_kt_yr[scenario] = ruddy_mass_ratio_CO2_MeOH[scenario]*MeOH_kt_yr[scenario]
@@ -479,7 +487,7 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
                     Stack_CO2_kt_yr[scenario] = MeOH_kt_yr[scenario]*(100-ruddy_CO2_conv_pct[scenario])/100
                     elec_in_kw[scenario] = MeOH_kt_yr[scenario]*1e6/8760 * ruddy_elec_usage[scenario]
                     cat_mg_kg_MeOH[scenario] = ruddy_cat_mg_kg_MeOH[scenario]
-                H2O_gal_day[scenario] = MeOH_kt_yr[scenario] * 1e6 / 365 * nyari_H2O_gal_kg_MeOH
+                    H2O_gal_day[scenario] = MeOH_kt_yr[scenario] * 1e6 / 365 * ruddy_H2O_gal_kg_MeOH
             NG_MMBtu_day = 0
             TS_CO2_kt_yr = 0
             elec_out_kw = 0
