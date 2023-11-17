@@ -155,3 +155,4 @@ hybrid/validation/*
 
 # Internal results for RCC
 examples/resource_files/methanol_RCC/HOPP_results/*
+examples/resource_files/methanol_RCC/HOPP_results_test/*

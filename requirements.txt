@@ -2,7 +2,7 @@ NREL-PySAM==3.0.0
 NREL-PySAM-stubs==3.0.0
 Pillow
 Pyomo>=6.1.2
-humpday
+#humpday
 pysot
 nevergrad
 optuna
@@ -32,3 +32,5 @@ urllib3
 hybridbosse
 setuptools
 python-rapidjson
+
+openpyxl

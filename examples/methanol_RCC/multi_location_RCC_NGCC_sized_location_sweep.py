@@ -516,7 +516,7 @@ if __name__ == '__main__':
     cambium_scenarios = ['MidCase']#,'HighNGPrice','LowNGPrice'
     for l, cambium_scenario in enumerate(cambium_scenarios):   
         resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'
-        results_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'/cambium_scenario
+        results_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results_test'/cambium_scenario
         with open(Path(results_dir/'engin.json'),'r') as file:
             engin = json.load(file)
         with open(Path(results_dir/'finance.json'),'r') as file:
@@ -865,11 +865,11 @@ if __name__ == '__main__':
                     os.mkdir(year_results_dir/'kWsell')
 
                 # Run hybrid calculation for all sites
-                # tic = time.time()
-                # run_all_hybrid_calcs(site_name, site_details, technologies_lols, costs,
-                #                         year_results_dir, plant_size_pcts, wind_pcts, power_factors)
-                # toc = time.time()
-                # print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
+                tic = time.time()
+                run_all_hybrid_calcs(site_name, site_details, technologies_lols, costs,
+                                        year_results_dir, plant_size_pcts, wind_pcts, power_factors)
+                toc = time.time()
+                print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
                 
                 for site_num in site_nums:
                 

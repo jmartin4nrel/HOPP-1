@@ -21,6 +21,10 @@ from pathlib import Path
 from global_land_mask import globe
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+import requests
+from shapely.geometry import shape
+from shapely.prepared import prep
+from shapely.geometry import Point
 
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter, column_index_from_string
@@ -54,6 +58,28 @@ def inflate(dollars, original_year, new_year):
     
 #endregion    
 
+## Find country a point is located in
+#region
+ 
+def get_country(lat, lon, geo_data):
+    """
+    Determine which country a point lies in
+    """
+    countries = {}
+    for feature in geo_data["features"]:
+        geom = feature["geometry"]
+        country = feature["properties"]["ADMIN"]
+        countries[country] = prep(shape(geom))
+
+    point = Point(lon, lat)
+    for country, geom in countries.items():
+        if geom.contains(point):
+            return country
+
+    return "unknown"
+
+#endregion
+
 def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115104, ASPEN_capex=33339802, ASPEN_Fopex=14.62, ASPEN_Vopex_cat=410.94, ASPEN_Vopex_other=-90.4,
                  ASPEN_elec_use=0.89, ASPEN_H2O_use=1.51, ASPEN_MeOH_CO2=0.078):
 
@@ -80,7 +106,7 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
     # Locations
     select_locations = False # TODO: Switch to True to only analyze locations listed below
     resource_dir = Path(__file__).parent.absolute()/'..'/'resource_files'/'methanol_RCC'
-    location_file = 'ngcc_sites.csv'
+    location_file = 'ngcc_sites_full.csv'
     locations = {}
     states_covered = {}
     locations_df = pd.read_csv(resource_dir/location_file,index_col='PlantID')
@@ -850,53 +876,66 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
 
     #endregion
 
-    # # Plot survey locations to check
-    # #region
+    # Plot survey locations to check
+    #region
 
-    # # Stolen from gis.stackexchange.com/questions/156035
-    # def merc_x(lon):
-    #   r_major=6378137.000
-    #   return r_major*(lon*np.pi/180)
-    # def merc_y(lat):
-    #   if lat>89.5:lat=89.5
-    #   if lat<-89.5:lat=-89.5
-    #   r_major=6378137.000
-    #   r_minor=6356752.3142
-    #   temp=r_minor/r_major
-    #   eccent=(1-temp**2)**.5
-    #   phi=(lat*np.pi/180)
-    #   sinphi=np.sin(phi)
-    #   con=eccent*sinphi
-    #   com=eccent/2
-    #   con=((1.0-con)/(1.0+con))**com
-    #   ts=np.tan((np.pi/2-phi)/2)/con
-    #   y=0-r_major*np.log(ts)
-    #   return y
+    # Stolen from gis.stackexchange.com/questions/156035
+    def merc_x(lon):
+      r_major=6378137.000
+      return r_major*(lon*np.pi/180)
+    def merc_y(lat):
+      if lat>89.5:lat=89.5
+      if lat<-89.5:lat=-89.5
+      r_major=6378137.000
+      r_minor=6356752.3142
+      temp=r_minor/r_major
+      eccent=(1-temp**2)**.5
+      phi=(lat*np.pi/180)
+      sinphi=np.sin(phi)
+      con=eccent*sinphi
+      com=eccent/2
+      con=((1.0-con)/(1.0+con))**com
+      ts=np.tan((np.pi/2-phi)/2)/con
+      y=0-r_major*np.log(ts)
+      return y
 
-    # # Set up background image
-    # plt.clf
-    # bg_img = 'bkg_small.png'
-    # img = plt.imread(resource_dir/bg_img)
-    # ax = plt.gca()
-    # min_x = merc_x(-100)
-    # max_x = merc_x(-67)
-    # min_y = merc_y(25)
-    # max_y = merc_y(46)
-    # ax.imshow(img, extent=[min_x, max_x, min_y, max_y])
-    # # Plot survey locations
-    # for id, loc in locations.items():
-    #     for n in range(len(loc['lat'])):
-    #         lat = loc['lat'][n]
-    #         lon = loc['lon'][n]
-    #         color = [1*loc['on_land'][n],0,0]
-    #         x = merc_x(lon)
-    #         y = merc_y(lat)
-    #         ax.plot(x,y,'.',color=color)
-    # plt.xlim([min_x,max_x])
-    # plt.ylim([min_y,max_y])
-    # plt.show()
+    # Set up background image
+    plt.clf
+    bg_img = 'USbkg.png'
+    img = plt.imread(resource_dir/bg_img)
+    ax = plt.gca()
+    min_x = merc_x(-125)
+    max_x = merc_x(-67)
+    min_y = merc_y(25)
+    max_y = merc_y(50)
+    ax.imshow(img, extent=[min_x, max_x, min_y, max_y])
 
-    # #endregion
+    geo_data = requests.get(
+        "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson").json()
+
+    # Plot survey locations
+    for id, loc in locations.items():
+        for n in range(len(loc['lat'])):
+            lat = loc['lat'][n]
+            lon = loc['lon'][n]
+            color = [1*loc['on_land'][n],0,0]
+            x = merc_x(lon)
+            y = merc_y(lat)
+            if id in ['CA06','TX04','OH03','NY01']:
+                print('Checking site {} of {}...'.format(n+1,len(loc['lat'])))
+                if globe.is_land(lat,lon):
+                    if get_country(lat, lon, geo_data=geo_data) == 'United States of America':
+                        ax.plot(x,y,'.',color=color)
+                else:
+                    if (id != 'CA06') or n<11: 
+                        ax.plot(x,y,'.',color=color)
+            else:
+                ax.plot(x,y,'.',color=color)
+    plt.xlim([min_x,max_x])
+    plt.ylim([min_y,max_y])
+    plt.show()
+
+    #endregion
 
     # Add universal financial params to each tech
 
@@ -910,7 +949,7 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
     ## Write imported dicts to json dumpfiles
 
     current_dir = Path(__file__).parent.absolute()
-    resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'/cambium_scenario
+    resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results_test'/cambium_scenario
     with open(Path(resource_dir/'engin.json'),'w') as file:
         json.dump(engin, file)
     with open(Path(resource_dir/'finance.json'),'w') as file:
