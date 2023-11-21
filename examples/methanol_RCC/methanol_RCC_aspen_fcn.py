@@ -845,9 +845,9 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
                 loc['on_land'].append(False)
             elif (id == 'MI02') and (i in [0,1,2]):
                 loc['on_land'].append(False)
-            elif (id == 'NY01') and (i in [0,1,5]):
+            elif (id == 'NY02') and (i in [0,1,5]):
                 loc['on_land'].append(False)
-            elif (id == 'OH03') and (i in [4,5]):
+            elif (id == 'OH04') and (i in [4,5]):
                 loc['on_land'].append(False)
             else:
                 loc['on_land'].append(globe.is_land(lat+lat_delta,lon+lon_delta))
@@ -867,75 +867,75 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
                 loc['on_land'].append(False)
             elif (id == 'MI02') and (i in [0,1,2,3,4,5]):
                 loc['on_land'].append(False)
-            elif (id == 'NY01') and (i in [0,1,2,3,4]):
+            elif (id == 'NY02') and (i in [0,1,2,3,4]):
                 loc['on_land'].append(False)
-            elif (id == 'OH03') and (i in [9,10,11]):
+            elif (id == 'OH04') and (i in [9,10,11]):
                 loc['on_land'].append(False)
             else:
                 loc['on_land'].append(globe.is_land(lat+lat_delta,lon+lon_delta))
 
     #endregion
 
-    # Plot survey locations to check
-    #region
+    # # Plot survey locations to check
+    # #region
 
-    # Stolen from gis.stackexchange.com/questions/156035
-    def merc_x(lon):
-      r_major=6378137.000
-      return r_major*(lon*np.pi/180)
-    def merc_y(lat):
-      if lat>89.5:lat=89.5
-      if lat<-89.5:lat=-89.5
-      r_major=6378137.000
-      r_minor=6356752.3142
-      temp=r_minor/r_major
-      eccent=(1-temp**2)**.5
-      phi=(lat*np.pi/180)
-      sinphi=np.sin(phi)
-      con=eccent*sinphi
-      com=eccent/2
-      con=((1.0-con)/(1.0+con))**com
-      ts=np.tan((np.pi/2-phi)/2)/con
-      y=0-r_major*np.log(ts)
-      return y
+    # # Stolen from gis.stackexchange.com/questions/156035
+    # def merc_x(lon):
+    #   r_major=6378137.000
+    #   return r_major*(lon*np.pi/180)
+    # def merc_y(lat):
+    #   if lat>89.5:lat=89.5
+    #   if lat<-89.5:lat=-89.5
+    #   r_major=6378137.000
+    #   r_minor=6356752.3142
+    #   temp=r_minor/r_major
+    #   eccent=(1-temp**2)**.5
+    #   phi=(lat*np.pi/180)
+    #   sinphi=np.sin(phi)
+    #   con=eccent*sinphi
+    #   com=eccent/2
+    #   con=((1.0-con)/(1.0+con))**com
+    #   ts=np.tan((np.pi/2-phi)/2)/con
+    #   y=0-r_major*np.log(ts)
+    #   return y
 
-    # Set up background image
-    plt.clf
-    bg_img = 'USbkg.png'
-    img = plt.imread(resource_dir/bg_img)
-    ax = plt.gca()
-    min_x = merc_x(-125)
-    max_x = merc_x(-67)
-    min_y = merc_y(25)
-    max_y = merc_y(50)
-    ax.imshow(img, extent=[min_x, max_x, min_y, max_y])
+    # # Set up background image
+    # plt.clf
+    # bg_img = 'USbkg.png'
+    # img = plt.imread(resource_dir/bg_img)
+    # ax = plt.gca()
+    # min_x = merc_x(-125)
+    # max_x = merc_x(-67)
+    # min_y = merc_y(25)
+    # max_y = merc_y(50)
+    # ax.imshow(img, extent=[min_x, max_x, min_y, max_y])
 
-    geo_data = requests.get(
-        "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson").json()
+    # geo_data = requests.get(
+    #     "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson").json()
 
-    # Plot survey locations
-    for id, loc in locations.items():
-        for n in range(len(loc['lat'])):
-            lat = loc['lat'][n]
-            lon = loc['lon'][n]
-            color = [1*loc['on_land'][n],0,0]
-            x = merc_x(lon)
-            y = merc_y(lat)
-            if id in ['CA06','TX04','OH03','NY01']:
-                print('Checking site {} of {}...'.format(n+1,len(loc['lat'])))
-                if globe.is_land(lat,lon):
-                    if get_country(lat, lon, geo_data=geo_data) == 'United States of America':
-                        ax.plot(x,y,'.',color=color)
-                else:
-                    if (id != 'CA06') or n<11: 
-                        ax.plot(x,y,'.',color=color)
-            else:
-                ax.plot(x,y,'.',color=color)
-    plt.xlim([min_x,max_x])
-    plt.ylim([min_y,max_y])
-    plt.show()
+    # # Plot survey locations
+    # for id, loc in locations.items():
+    #     for n in range(len(loc['lat'])):
+    #         lat = loc['lat'][n]
+    #         lon = loc['lon'][n]
+    #         color = [1*loc['on_land'][n],0,0]
+    #         x = merc_x(lon)
+    #         y = merc_y(lat)
+    #         if id in ['CA02','TX11','TX13','OH04','NY02']:
+    #             print('Checking site {} of {}...'.format(n+1,len(loc['lat'])))
+    #             if globe.is_land(lat,lon):
+    #                 if get_country(lat, lon, geo_data=geo_data) == 'United States of America':
+    #                     ax.plot(x,y,'.',color=color)
+    #             else:
+    #                 if (id != 'CA02') or n<11: 
+    #                     ax.plot(x,y,'.',color=color)
+    #         else:
+    #             ax.plot(x,y,'.',color=color)
+    # plt.xlim([min_x,max_x])
+    # plt.ylim([min_y,max_y])
+    # plt.show()
 
-    #endregion
+    # #endregion
 
     # Add universal financial params to each tech
 
@@ -949,7 +949,7 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
     ## Write imported dicts to json dumpfiles
 
     current_dir = Path(__file__).parent.absolute()
-    resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results_test'/cambium_scenario
+    resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'/cambium_scenario
     with open(Path(resource_dir/'engin.json'),'w') as file:
         json.dump(engin, file)
     with open(Path(resource_dir/'finance.json'),'w') as file:

@@ -320,9 +320,9 @@ def run_hybrid_calc_bruteforce(site_name, year, site_num, res_fn_wind, res_fn_so
         except:
             print('Timezone lookup failed for {}'.format(location))
         
-        # Wait to de-synchronize api requests on multi-threaded analysis #TODO: get multiple api keys so this is not necessary
-        wait = 10+rng.integers(10)
-        time.sleep(wait)
+        # # Wait to de-synchronize api requests on multi-threaded analysis #TODO: get multiple api keys so this is not necessary
+        # wait = 10+rng.integers(10)
+        # time.sleep(wait)
         
         # Create site, downloading resource files if needed
         Site = SiteInfo(Site, hub_height=sim_tech['wind']['hub_height'],
@@ -414,9 +414,9 @@ def run_hybrid_calc_bruteforce(site_name, year, site_num, res_fn_wind, res_fn_so
         except:
             print('Timezone lookup failed for {}'.format(location))
         
-        # Wait to de-synchronize api requests on multi-threaded analysis #TODO: get multiple api keys so this is not necessary
-        wait = 10+rng.integers(10)
-        time.sleep(wait)
+        # # Wait to de-synchronize api requests on multi-threaded analysis #TODO: get multiple api keys so this is not necessary
+        # wait = 10+rng.integers(10)
+        # time.sleep(wait)
         
         # Create site, downloading resource files if needed
         Site = SiteInfo(Site, hub_height=sim_tech['wind']['hub_height'],
@@ -491,7 +491,7 @@ def run_all_hybrid_calcs(site_name, site_details, technologies_lols, costs, resu
         
 
     # # Run a multi-threaded analysis
-    with multiprocessing.Pool(8) as p:
+    with multiprocessing.Pool(10) as p:
         if optimize:
             p.starmap(run_hybrid_calc_optimize, all_args)
         else:
@@ -516,7 +516,7 @@ if __name__ == '__main__':
     cambium_scenarios = ['MidCase']#,'HighNGPrice','LowNGPrice'
     for l, cambium_scenario in enumerate(cambium_scenarios):   
         resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'
-        results_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results_test'/cambium_scenario
+        results_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'/cambium_scenario
         with open(Path(results_dir/'engin.json'),'r') as file:
             engin = json.load(file)
         with open(Path(results_dir/'finance.json'),'r') as file:
@@ -550,7 +550,7 @@ if __name__ == '__main__':
         site_name_list = list(locations.keys())#[1:2]
         site_name_list.reverse()
         sites_per_location = 19
-        single_site = True
+        single_site = False
 
         if single_site:
             site_name_list = [scenario_info['site_selection']['site_name']]
@@ -570,7 +570,7 @@ if __name__ == '__main__':
                 desired_lats = locations[site_name]['lat'][:sites_per_location]
                 desired_lons = locations[site_name]['lon'][:sites_per_location]
 
-            for plant in ['HCO2','HPSR']:#
+            for plant in ['HPSR']:#'HCO2',
             
                 locations[site_name][plant] = {}
                 locations[site_name][plant]['orig_lcoe_$_kwh'] = [[] for i in range(len(desired_lats))]
@@ -624,11 +624,11 @@ if __name__ == '__main__':
                 correct_wind_speed_for_height = True
                 
                 # Get H2 elyzer size
-                H2_plants = ['HCO2','HPSR']#
+                H2_plants = ['HPSR']#'HCO2',
                 HCO2_scenario = plant_scenarios['HCO2']
                 HPSR_scenario = plant_scenarios['HPSR']
                 
-                elyzer_inputs_kw = [engin['HCO2']['elec_in_kw'][HCO2_scenario][year_idx],engin['HPSR']['elec_in_kw'][HPSR_scenario][year_idx]]
+                elyzer_inputs_kw = [engin['HPSR']['elec_in_kw'][HPSR_scenario][year_idx]]#engin['HCO2']['elec_in_kw'][HCO2_scenario][year_idx],
                 elyzer_cf = 0.97 #TODO: variable electrolyzer capacity
                 elyzer_sizes_kw = [i/elyzer_cf for i in elyzer_inputs_kw]
 
@@ -838,7 +838,7 @@ if __name__ == '__main__':
 
 
                 # Save results from all locations to folder
-                year_results_dir = results_dir/str(sim_year)
+                year_results_dir = results_dir/(str(sim_year)+' geo')
                 if not os.path.exists(year_results_dir):
                     os.mkdir(year_results_dir)
                 if not os.path.exists(year_results_dir/'OrigLCOE'):
@@ -873,7 +873,7 @@ if __name__ == '__main__':
                 
                 for site_num in site_nums:
                 
-                    for k, plant in enumerate(['HCO2','HPSR']):#
+                    for k, plant in enumerate(['HPSR']):#'HCO2',
                         
                         min_lcoe = np.inf
                         min_CI = np.inf

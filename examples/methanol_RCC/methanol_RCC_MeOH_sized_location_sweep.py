@@ -44,8 +44,8 @@ for DAC_cost_mt in [0]:
         # try_H2_ratio_lo(H2_ratio)
         # try_H2_ratio_hi(H2_ratio)
         
-        with open(multi) as f:
-            exec(f.read())
+        # with open(multi) as f:
+        #     exec(f.read())
 
         old_price_diff = -1
         breakeven_price = 2
