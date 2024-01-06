@@ -170,7 +170,7 @@ def run_hopp_calc(site, sim_tech, technologies, sim_cost, on_land, sim_power, ju
         orig_CI = np.sum(orig_ghg_kg)/np.sum(gen_kw)*1000
         orig_WC = np.sum(orig_wc_kg)/np.sum(gen_kw)*1000
 
-        # plt.plot(np.arange(0,8760),gen_kw,label='Initial hybrid plant output')
+        # plt.plot(np.arange(0,8760),[i/1000 for i in gen_kw],label='Wind/solar above 144 MW - difference sold under PPA')
 
         # Find excess generation above electrolyzer capcity and sell to grid
         ppa_lcoe_ratio = technologies['interconnection']['ppa_lcoe_ratio']
@@ -183,7 +183,7 @@ def run_hopp_calc(site, sim_tech, technologies, sim_cost, on_land, sim_power, ju
                 profit_from_selling_to_grid += (gen_kw[i]-elyzer_size_kw)*sell_price
                 gen_kw[i] = elyzer_size_kw
         
-        # plt.plot(np.arange(0,8760),gen_kw,label='After selling excess to grid')
+        # plt.plot(np.arange(0,8760),[i/1000 for i in gen_kw],label='Wind/solar under 136 MW - difference purchased from grid')
 
         # Buy grid electricity to meet electrolyzer capacity factor
         cost_to_buy_from_grid = 0.0
@@ -236,10 +236,12 @@ def run_hopp_calc(site, sim_tech, technologies, sim_cost, on_land, sim_power, ju
         final_CI = np.sum(final_ghg_kg)/np.sum(orig_gen_kw)*1000
         final_WC = np.sum(final_wc_kg)/np.sum(orig_gen_kw)*1000
         
-        # plt.plot(np.arange(0,8760),gen_kw,label='After buying from grid for H2')
-        # plt.xlabel('[hr]')
-        # plt.ylabel('[kW]')
+        # plt.plot(np.arange(0,8760),[i/1000 for i in gen_kw],label='Electrolyzer maintained between 136 MW and 144 MW')
+        # plt.xlabel('[hr of year]')
+        # plt.ylabel('[MW]')
         # plt.legend()
+        # plt.xlim([0,500])
+        # plt.ylim([0,420])
         # plt.show()
 
         # Save outputs
@@ -546,11 +548,11 @@ if __name__ == '__main__':
         resource_year = 2013
         sim_years = scenario_info['sim_years']
         plant_size_pcts = np.arange(100,200,20)
-        wind_pcts = np.arange(10,110,20)
+        wind_pcts = np.arange(90,110,20)
         site_name_list = list(locations.keys())#[1:2]
         site_name_list.reverse()
         sites_per_location = 19
-        single_site = False
+        single_site = True
 
         if single_site:
             site_name_list = [scenario_info['site_selection']['site_name']]
@@ -570,7 +572,7 @@ if __name__ == '__main__':
                 desired_lats = locations[site_name]['lat'][:sites_per_location]
                 desired_lons = locations[site_name]['lon'][:sites_per_location]
 
-            for plant in ['HPSR']:#'HCO2',
+            for plant in ['HCO2','HPSR']:#
             
                 locations[site_name][plant] = {}
                 locations[site_name][plant]['orig_lcoe_$_kwh'] = [[] for i in range(len(desired_lats))]
@@ -624,11 +626,11 @@ if __name__ == '__main__':
                 correct_wind_speed_for_height = True
                 
                 # Get H2 elyzer size
-                H2_plants = ['HPSR']#'HCO2',
+                H2_plants = ['HCO2','HPSR']#
                 HCO2_scenario = plant_scenarios['HCO2']
                 HPSR_scenario = plant_scenarios['HPSR']
                 
-                elyzer_inputs_kw = [engin['HPSR']['elec_in_kw'][HPSR_scenario][year_idx]]#engin['HCO2']['elec_in_kw'][HCO2_scenario][year_idx],
+                elyzer_inputs_kw = [engin['HCO2']['elec_in_kw'][HCO2_scenario][year_idx],engin['HPSR']['elec_in_kw'][HPSR_scenario][year_idx]]#
                 elyzer_cf = 0.97 #TODO: variable electrolyzer capacity
                 elyzer_sizes_kw = [i/elyzer_cf for i in elyzer_inputs_kw]
 
@@ -838,7 +840,7 @@ if __name__ == '__main__':
 
 
                 # Save results from all locations to folder
-                year_results_dir = results_dir/(str(sim_year)+' geo')
+                year_results_dir = results_dir/(str(sim_year))# +' geo'
                 if not os.path.exists(year_results_dir):
                     os.mkdir(year_results_dir)
                 if not os.path.exists(year_results_dir/'OrigLCOE'):
@@ -864,16 +866,16 @@ if __name__ == '__main__':
                 if not os.path.exists(year_results_dir/'kWsell'):
                     os.mkdir(year_results_dir/'kWsell')
 
-                # Run hybrid calculation for all sites
-                tic = time.time()
-                run_all_hybrid_calcs(site_name, site_details, technologies_lols, costs,
-                                        year_results_dir, plant_size_pcts, wind_pcts, power_factors)
-                toc = time.time()
-                print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
+                # # Run hybrid calculation for all sites
+                # tic = time.time()
+                # run_all_hybrid_calcs(site_name, site_details, technologies_lols, costs,
+                #                         year_results_dir, plant_size_pcts, wind_pcts, power_factors)
+                # toc = time.time()
+                # print('Time to complete 1 set of calcs: {:.2f} min'.format((toc-tic)/60))
                 
                 for site_num in site_nums:
                 
-                    for k, plant in enumerate(['HPSR']):#'HCO2',
+                    for k, plant in enumerate(['HCO2','HPSR']):#
                         
                         min_lcoe = np.inf
                         min_CI = np.inf

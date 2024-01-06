@@ -88,7 +88,7 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
 
     # Simulation duration
     sim_start_year = 2020
-    sim_end_year = 2020
+    sim_end_year = 2050
     sim_increment = 5
     sim_years = np.arange(sim_start_year,sim_end_year+sim_increment,sim_increment)
 
@@ -402,10 +402,21 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
     # # Plot to check
     # log_x = np.linspace(np.log(np.min(capacity_kt_y)),np.log(np.max(capacity_kt_y)),100)
     # plt.clf()
-    # plt.plot(np.power(np.e,log_x),
-    #         a_cap2capex_mil_kt_y*np.power(np.power(np.e,log_x),-b_cap2capex_mil_kt_y))
-    # plt.plot(capacity_kt_y,capex_mil_kt_y,'.')
+    # plt.plot([x*1000 for x in capacity_kt_y],
+    #          [y*1000 for y in capex_mil_kt_y]
+    #           ,'.',label='Literature TEA')
+    # plt.plot([x*1000 for x in np.power(np.e,log_x)],
+    #         [y*1000 for y in a_cap2capex_mil_kt_y*np.power(np.power(np.e,log_x),-b_cap2capex_mil_kt_y)],
+    #         label='Correlation')
+    # plt.plot(115104,136.03*1e6/115104,'x',label='Baseline TOC')
     # plt.xscale('log')
+    # plt.xlabel('MeOH production capacity [mt/y]')
+    # plt.ylabel('MeOH reactor TOC [$/mt/y]')
+    # plt.ylim([0,3500])
+    # plt.grid(True)
+    # plt.legend()
+    # plt.text(1e5,1500,'y = {:.3f}*x^-{:.3f}'.format(a_cap2capex_mil_kt_y,b_cap2capex_mil_kt_y))
+    # plt.gcf().set_tight_layout(True)
     # plt.show()
 
     #endregion
@@ -612,7 +623,7 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
                 # From Nyari et al model
                 a = finance[plant]['capex_mil_kt_y_A']
                 b = finance[plant]['capex_mil_kt_y_B']
-                capex = 1.5e6*kt_yr#a*kt_yr**(-b) * kt_yr * 1e6
+                capex = a*kt_yr**(-b) * kt_yr * 1e6#1.5e6*kt_yr#
                 labor_yr = labor_person_year*workers_kt_y*kt_yr
                 overhead_yr = overhead_capex_ratio*capex
                 fom_yr = labor_yr + overhead_yr
@@ -948,21 +959,21 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
 
     ## Write imported dicts to json dumpfiles
 
-    current_dir = Path(__file__).parent.absolute()
-    resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'/cambium_scenario
-    with open(Path(resource_dir/'engin.json'),'w') as file:
-        json.dump(engin, file)
-    with open(Path(resource_dir/'finance.json'),'w') as file:
-        json.dump(finance, file)
-    with open(Path(resource_dir/'scenario.json'),'w') as file:
-        json.dump(scenario_info, file)
-    with open(Path(resource_dir/'locations.json'),'w') as file:
-        out_locations = copy.deepcopy(locations)
-        for ID, loc in out_locations.items():
-            for i, value in enumerate(loc['on_land']):
-                value = str(value).lower()
-                loc['on_land'][i] = value
-        json.dump(out_locations, file)
+    # current_dir = Path(__file__).parent.absolute()
+    # resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'/cambium_scenario
+    # with open(Path(resource_dir/'engin.json'),'w') as file:
+    #     json.dump(engin, file)
+    # with open(Path(resource_dir/'finance.json'),'w') as file:
+    #     json.dump(finance, file)
+    # with open(Path(resource_dir/'scenario.json'),'w') as file:
+    #     json.dump(scenario_info, file)
+    # with open(Path(resource_dir/'locations.json'),'w') as file:
+    #     out_locations = copy.deepcopy(locations)
+    #     for ID, loc in out_locations.items():
+    #         for i, value in enumerate(loc['on_land']):
+    #             value = str(value).lower()
+    #             loc['on_land'][i] = value
+    #     json.dump(out_locations, file)
 
 
     # # RUN HOPP HERE - multi_location_RCC.py
