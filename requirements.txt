@@ -7,7 +7,6 @@ fastkml
 floris
 future
 global_land_mask
-humpday
 hybridbosse
 lcoe
 lxml
@@ -42,3 +41,5 @@ CoolProp
 attrs
 utm
 pyyaml-include
+responses
+chardet
