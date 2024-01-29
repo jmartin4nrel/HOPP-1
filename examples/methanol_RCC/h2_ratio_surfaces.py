@@ -19,7 +19,7 @@ recycle_coeffs = np.array([5.344973406,3.319247523,7.791814942,-0.810991271,-0.9
 
 
 
-# recycle_coeffs = np.array([0,-0.140722005,0,0.202260591,0.330659156,0.12583702])
+recycle_coeffs = np.array([0,-0.140722005,0,0.202260591,0.330659156,0.12583702])
 
 
 
@@ -55,14 +55,14 @@ ratios = np.matmul(ABmat,recycle_coeffs)
 max_ratio = 5.0
 min_ratio = 0
 
-# max_ratio = 0.37
-# min_ratio = 0.12
+max_ratio = 0.37
+min_ratio = 0.12
 
-# max_ratio = 13.0
-# min_ratio = 0
+max_ratio = 13.0
+min_ratio = 0
 
-# max_ratio = 1.2
-# min_ratio = 0.3
+max_ratio = 1.2
+min_ratio = 0.3
 
 # max_ratio = 7.0
 # min_ratio = 0
@@ -71,8 +71,8 @@ min_ratio = 0
 # min_ratio = 0.0
 
 
-# # Convert to LCOM
-# ratios = [0.1353*i**5-1.1868*i**4+3.7065*i**3-4.9465*i**2+4.9105*i-0.2194 for i in ratios]
+# Convert to LCOM
+ratios = [0.1353*i**5-1.1868*i**4+3.7065*i**3-4.9465*i**2+4.9105*i-0.2194 for i in ratios]
 
 # # Convert to CI
 # ratios = [0.0897*i**5+0.7853*i**4+2.4453*i**3-3.2317*i**2+3.229*i-0.2525 for i in ratios]
@@ -84,15 +84,17 @@ ratios = [min(i,max_ratio) for i in ratios]
 
 ratio_mat = np.reshape(ratios,np.shape(A))
 
-map = plt.contourf(X,Y,ratio_mat, np.arange(0.0,5.5,0.5))# np.arange(0.12,0.39,0.02))#
-# map = plt.contourf(X,Y,ratio_mat, np.arange(0.3,1.2,0.1))#np.arange(0.0,14,1))# 
+# map = plt.contourf(X,Y,ratio_mat, np.arange(0.12,0.39,0.02))#np.arange(0.0,5.5,0.5))# 
+map = plt.contourf(X,Y,ratio_mat, np.arange(0.3,1.2,0.1))#np.arange(0.0,14,1))# 
 # map = plt.contourf(X,Y,ratio_mat, np.arange(0.1,0.7,0.05))#np.arange(0.0,7.5,1.0))# 
 
-plt.colorbar(label='H2:MeOH Ratio')
-# plt.colorbar(label='LCOM [$/kg-MeOH]')
+# map.set_cmap('plasma_r')
+
+# plt.colorbar(label='H2:MeOH Ratio')
+plt.colorbar(label='LCOM [$/kg-MeOH]')
 # plt.colorbar(label='CI [kg-CO2e/kg-MeOH]')
 
-plt.contour(X,Y,ratio_mat,[0.26,100],colors=[[1,0,0]],linestyles=['--'],label='Baseline')
+plt.contour(X,Y,ratio_mat,[0.79,100],colors=[[1,0,0]],linestyles=['--'],label='Baseline')
 
 cat_sels = [23.0,27.8,31.0,46.4,58.1]
 cat_effs = [86.4,73.1,71.2,94.4,84.5]
@@ -103,16 +105,18 @@ cat_effs = [86.4,73.1,71.2,94.4,84.5]
 
 # # plt.plot(cat_sels[0],cat_effs[0],'.',label='CZA Jun 23')
 # # plt.plot(cat_sels[1],cat_effs[1],'.',label='CZA Nov 23')
-plt.plot(cat_sels[1],cat_effs[1],'o',label='CZA',color=[1,0,0])
-plt.plot(cat_sels[2],cat_effs[2],'v',label='Ca/CZA',color=[.5,0,1])
-plt.plot(cat_sels[3],cat_effs[3],'s',label='K/CZA',color=[1,0,1])
-plt.plot(cat_sels[4],cat_effs[4],'D',label='Na/CZA',color=[1,.5,0])
+plt.plot(cat_sels[1],cat_effs[1],'o',label='CZA',color=[1,0,0],markeredgecolor='w')
+plt.plot(cat_sels[2],cat_effs[2],'v',label='Ca/CZA',color=[.5,0,1],markeredgecolor='w')
+plt.plot(cat_sels[3],cat_effs[3],'s',label='K/CZA',color=[1,0,1],markeredgecolor='w')
+plt.plot(cat_sels[4],cat_effs[4],'D',label='Na/CZA',color=[1,.5,0],markeredgecolor='w')
 # plt.ylim([60,100])
 plt.xlabel('Methanol selectivity %')
 plt.ylabel('Net CO2 conversion %')
-plt.title('H2:MeOH Ratio, Single-Pass\n')
-# plt.title('Levelized Cost of Methanol, Recycle\n')
+plt.title('H2:MeOH Ratio, Recycle',pad=30)
+plt.title('Levelized Cost of Methanol, Recycle',pad=30)
 # plt.title('Carbon Intensity, Recycle\n')
-plt.legend(bbox_to_anchor=(1.005,1.09),ncol=4,handletextpad=0.1)
+plt.legend(bbox_to_anchor=(1.45,1.25),ncol=4,handletextpad=0.0,columnspacing=0.1)
 # plt.grid('on')
+plt.gcf().set_size_inches(3.4,3)
+plt.gcf().set_tight_layout(True)
 plt.show()
