@@ -16,14 +16,20 @@ class SimpleReactor(BaseClass):
         site = SiteInfo object
         config = FuelConfig object
         name = Name
+        :param input_streams_kg_s: Dict of flows coming into the reactor
+        :param output_streams_kg_s: Dict of flows coming out of the reactor
     """
     site: SiteInfo = field()
     config: "FuelConfig" = field()
     name: str = field()
+    input_streams_kg_s: dict = {}
+    output_streams_kg_s: dict = {}
+
 
     def __attrs_post_init__(self):
         self.fuel_prod_kg_s = self.config.fuel_prod_kg_s
         self.fuel_produced = self.config.fuel_produced
+        self.annual_mass_kg = None
 
     def value(self, name: str, set_value=None):
         """
@@ -33,6 +39,20 @@ class SimpleReactor(BaseClass):
             self.__setattr__(name, set_value)
         else:
             return self.__getattribute__(name)
+
+    def execute(self, project_life):
+        '''
+        Executes a fuel plant simulation
+        '''
+        fuel_kg_s = self.config.fuel_prod_kg_s
+        fuel = self.config.fuel_produced
+        self.output_streams_kg_s[fuel] = fuel_kg_s
+        self.annual_mass_kg = fuel_kg_s*60*60*24*365
+        if fuel == 'methanol':
+            h2ratio = 0.195
+            co2ratio = 1.423
+            self.input_streams_kg_s['hydrogen'] = fuel_kg_s*h2ratio
+            self.input_streams_kg_s['carbon dioxide'] = fuel_kg_s*co2ratio
 
 @define
 class SimpleReactorFinance(BaseClass):

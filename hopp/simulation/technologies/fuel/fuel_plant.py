@@ -58,11 +58,11 @@ class FuelPlant(FlowSource):
             config: Fuel plant configuration
         """
         
-        if self.config.model_input_file is None:
-            system_model = SimpleReactor(flatirons_site,default_config,"Default Fuel Plant")
-            financial_model = Singleowner.default('WindPowerSingleOwner')
+        if self.config is None:
+            system_model = SimpleReactor(self.site,default_config,"default fuel plant")
         else:
-            pass
+            system_model = SimpleReactor(self.site,self.config,self.config.fuel_produced+" plant")
+        financial_model = Singleowner.default('WindPowerSingleOwner')
 
         super().__init__("FuelPlant", self.site, system_model, financial_model)
 
@@ -84,3 +84,11 @@ class FuelPlant(FlowSource):
     @fuel_produced.setter
     def fuel_produced(self, name: str):
         self._system_model.value("fuel_produced",name)
+
+    @property
+    def system_capacity_kg_s(self):
+        return self._system_model.value("fuel_prod_kg_s")
+    
+    @system_capacity_kg_s.setter
+    def system_capacity_kg_s(self, kg_s: float):
+         self._system_model.value("fuel_prod_kg_s",kg_s)

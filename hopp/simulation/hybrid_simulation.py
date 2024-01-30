@@ -23,6 +23,8 @@ from hopp.simulation.technologies.layout.hybrid_layout import HybridLayout
 from hopp.simulation.technologies.dispatch.hybrid_dispatch_builder_solver import HybridDispatchBuilderSolver
 from hopp.utilities.log import hybrid_logger as logger
 from hopp.simulation.base import BaseClass
+from hopp.simulation.technologies.power_source import PowerSource
+from hopp.simulation.technologies.flow_source import FlowSource
 
 
 PowerSourceTypes = Union[
@@ -489,7 +491,7 @@ class HybridSimulation(BaseClass):
         .. TODO: Is production ratio correct? Weighting values result in a sum greater than 1?
 
         """
-        generators = [v for k, v in self.technologies.items() if k != 'grid']
+        generators = [v for k, v in self.technologies.items() if k != 'grid' and isinstance(v,PowerSource)]
 
         # Average based on capacities
         hybrid_size_kw = sum([v.system_capacity_kw for v in generators])
@@ -633,9 +635,9 @@ class HybridSimulation(BaseClass):
         for source in self.technologies.keys():
             self.technologies[source].setup_performance_model()
 
-    def simulate_power(self, project_life: int = 25, lifetime_sim=False):
+    def simulate_generation(self, project_life: int = 25, lifetime_sim=False):
         """
-        Runs the individual system models for power generation and storage, while calculating the hybrid power variables.
+        Runs the individual system models for power/flow generation and storage, while calculating the hybrid power variables.
 
         Updates the grid model to consolidate all the inputs from the power generation and storage.
 
@@ -651,7 +653,10 @@ class HybridSimulation(BaseClass):
         for system in non_dispatchable_systems:
             model = getattr(self, system)
             if model:
-                model.simulate_power(project_life, lifetime_sim)
+                if isinstance(model, PowerSource):
+                    model.simulate_power(project_life, lifetime_sim)
+                elif isinstance(model, FlowSource):
+                    model.simulate_flow(project_life, lifetime_sim) 
 
         # simulate dispatchable systems using dispatch optimization
         self.dispatch_builder.simulate_power()
@@ -666,7 +671,7 @@ class HybridSimulation(BaseClass):
         for system in self.technologies.keys():
             if system != 'grid':
                 model = getattr(self, system)
-                if model:
+                if isinstance(model, PowerSource):
                     hybrid_size_kw += model.system_capacity_kw
                     hybrid_nominal_capacity += model.calc_nominal_capacity(self.interconnect_kw)
                     project_life_gen = np.tile(model.generation_profile, int(project_life / (len(model.generation_profile) // self.site.n_timesteps)))
@@ -699,7 +704,7 @@ class HybridSimulation(BaseClass):
         for system in self.technologies.keys():
             if system != 'grid':
                 model = getattr(self, system)
-                if model:
+                if isinstance(model,PowerSource):
                     storage_cc = True
                     if system in self.sim_options.keys():
                         # cannot skip financials for battery because replacements, capacity credit, and intermediate variables are calculated here
@@ -745,7 +750,7 @@ class HybridSimulation(BaseClass):
             For simulation modules which support simulating each year of the project_life, whether or not to do so; otherwise the first year data is repeated
         :return:
         """
-        self.simulate_power(project_life, lifetime_sim)
+        self.simulate_generation(project_life, lifetime_sim)
         self.calculate_installed_cost()
         self.calculate_financials()
         self.simulate_financials(project_life)
@@ -825,7 +830,10 @@ class HybridSimulation(BaseClass):
             if v == "grid":
                 continue
             if hasattr(self, v):
-                setattr(aep, v, getattr(getattr(self, v), "annual_energy_kwh"))
+                if isinstance(getattr(self, v),PowerSource):
+                    setattr(aep, v, getattr(getattr(self, v), "annual_energy_kwh"))
+                if isinstance(getattr(self, v),FlowSource):
+                    setattr(aep, v, getattr(getattr(self, v), "annual_mass_kg"))
         aep.hybrid = sum(self.grid.generation_profile[0:self.site.n_timesteps])
         return aep
 

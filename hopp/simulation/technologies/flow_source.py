@@ -479,10 +479,10 @@ class FlowSource(BaseClass):
         return self._dispatch
 
     @property
-    def annual_energy_kwh(self) -> float:
+    def annual_mass_kg(self) -> float:
         """Annual mass [kg]"""
         if self.system_capacity_kg_s > 0:
-            return self._system_model.value("annual_mass")
+            return self._system_model.value("annual_mass_kg")
         else:
             return 0
 

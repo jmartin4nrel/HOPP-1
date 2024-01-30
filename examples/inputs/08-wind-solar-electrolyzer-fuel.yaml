@@ -15,3 +15,8 @@ technologies:
   fuel:
     fuel_prod_kg_s: 1.0
     fuel_produced: 'methanol'
+
+config:
+  simulation_options:
+    fuel:
+      skip_financial: true
