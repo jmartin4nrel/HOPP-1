@@ -17,11 +17,14 @@ from hopp.simulation.technologies.csp.trough_plant import TroughConfig, TroughPl
 from hopp.simulation.technologies.wave.mhk_wave_plant import MHKWavePlant, MHKConfig
 from hopp.simulation.technologies.battery import Battery, BatteryConfig, BatteryStateless, BatteryStatelessConfig
 from hopp.simulation.technologies.grid import Grid, GridConfig
+from hopp.simulation.technologies.fuel.fuel_plant import FuelPlant, FuelConfig
 from hopp.simulation.technologies.reopt import REopt
 from hopp.simulation.technologies.layout.hybrid_layout import HybridLayout
 from hopp.simulation.technologies.dispatch.hybrid_dispatch_builder_solver import HybridDispatchBuilderSolver
 from hopp.utilities.log import hybrid_logger as logger
 from hopp.simulation.base import BaseClass
+from hopp.simulation.technologies.power_source import PowerSource
+from hopp.simulation.technologies.flow_source import FlowSource
 
 
 PowerSourceTypes = Union[
@@ -38,7 +41,7 @@ PowerSourceTypes = Union[
 
 class HybridSimulationOutput:
     """Class for creating :class:`HybridSimulation` output structure"""
-    _keys = ("pv", "wind", "wave", "battery", "tower", "trough", "hybrid")
+    _keys = ("pv", "wind", "wave", "battery", "tower", "trough", "hybrid","fuel")
 
     def __init__(self, power_sources):
         """
@@ -102,6 +105,7 @@ class TechnologiesConfig(BaseClass):
         battery: Battery config. If `tracking` is False, uses `BatteryStatelessConfig`.
             Otherwise, defaults to `BatteryConfig`.
         grid: Grid config
+        fuel: Fuel config
 
     """
     pv: Optional[Union[PVConfig, DetailedPVConfig]] = field(default=None)
@@ -111,6 +115,7 @@ class TechnologiesConfig(BaseClass):
     trough: Optional[TroughConfig] = field(default=None)
     battery: Optional[Union[BatteryConfig, BatteryStatelessConfig]] = field(default=None)
     grid: Optional[GridConfig] = field(default=None)
+    fuel: Optional[FuelConfig] = field(default=None)
 
     @classmethod
     def from_dict(cls, data: dict):
@@ -148,6 +153,9 @@ class TechnologiesConfig(BaseClass):
 
         if "grid" in data:
             config["grid"] = GridConfig.from_dict(data["grid"])
+
+        if "fuel" in data:
+            config["fuel"] = FuelConfig.from_dict(data["fuel"])
 
         return super().from_dict(config)
 
@@ -188,6 +196,7 @@ class HybridSimulation(BaseClass):
     trough: Optional[TroughPlant] = field(init=False, default=None)
     battery: Optional[Union[Battery, BatteryStateless]] = field(init=False, default=None)
     grid: Optional[Grid] = field(init=False, default=None)
+    fuel: Optional[FuelPlant] = field(init=False, default=None)
     technologies: Dict[str, PowerSourceTypes] = field(init=False)
 
     dispatch_builder: HybridDispatchBuilderSolver = field(init=False)
@@ -271,6 +280,17 @@ class HybridSimulation(BaseClass):
             
         else:
             raise Exception("Grid parameters must be specified")
+        
+        fuel_config = self.tech_config.fuel
+
+        if fuel_config is not None:
+            self.fuel = FuelPlant(self.site, config=fuel_config)
+            self.technologies["fuel"] = self.fuel
+
+            logger.info("Created HybridSystem.fuel with system size {} kg/s, producing {}".format(
+                fuel_config.fuel_prod_kg_s, fuel_config.fuel_produced))
+            
+        
         
         self.check_consistent_financial_models()
 
@@ -373,6 +393,7 @@ class HybridSimulation(BaseClass):
         pv_mw = 0
         battery_mw = 0
         battery_mwh = 0
+        fuel_kg_s = 0
         if self.pv:
             pv_mw = self.pv.system_capacity_kw / 1000
         if self.wind:
@@ -382,10 +403,11 @@ class HybridSimulation(BaseClass):
             battery_mwh = self.battery.system_capacity_kwh / 1000
 
         # TODO: add tower and trough to cost_model functionality
-        pv_cost, wind_cost, storage_cost, total_cost = self.cost_model.calculate_total_costs(wind_mw,
-                                                                                             pv_mw,
-                                                                                             battery_mw,
-                                                                                             battery_mwh)
+        pv_cost, wind_cost, storage_cost, fuel_cost, total_cost = self.cost_model.calculate_total_costs(wind_mw,
+                                                                                                        pv_mw,
+                                                                                                        battery_mw,
+                                                                                                        battery_mwh,
+                                                                                                        fuel_kg_s)
         if self.pv:
             self.pv.total_installed_cost = pv_cost
         if self.wind:
@@ -401,6 +423,9 @@ class HybridSimulation(BaseClass):
         if self.trough:
             self.trough.total_installed_cost = self.trough.calculate_total_installed_cost()
             total_cost += self.trough.total_installed_cost
+        if self.fuel:
+            self.fuel.total_installed_cost = fuel_cost
+            total_cost += self.fuel.total_installed_cost
 
         self.grid.total_installed_cost = total_cost
         logger.info("HybridSystem set hybrid total installed cost to to {}".format(total_cost))
@@ -466,7 +491,7 @@ class HybridSimulation(BaseClass):
         .. TODO: Is production ratio correct? Weighting values result in a sum greater than 1?
 
         """
-        generators = [v for k, v in self.technologies.items() if k != 'grid']
+        generators = [v for k, v in self.technologies.items() if k != 'grid' and isinstance(v,PowerSource)]
 
         # Average based on capacities
         hybrid_size_kw = sum([v.system_capacity_kw for v in generators])
@@ -610,9 +635,9 @@ class HybridSimulation(BaseClass):
         for source in self.technologies.keys():
             self.technologies[source].setup_performance_model()
 
-    def simulate_power(self, project_life: int = 25, lifetime_sim=False):
+    def simulate_generation(self, project_life: int = 25, lifetime_sim=False):
         """
-        Runs the individual system models for power generation and storage, while calculating the hybrid power variables.
+        Runs the individual system models for power/flow generation and storage, while calculating the hybrid power variables.
 
         Updates the grid model to consolidate all the inputs from the power generation and storage.
 
@@ -624,11 +649,14 @@ class HybridSimulation(BaseClass):
         """
         self.setup_performance_models()
         # simulate non-dispatchable systems
-        non_dispatchable_systems = ['pv', 'wind','wave']
+        non_dispatchable_systems = ['pv', 'wind','wave','fuel']
         for system in non_dispatchable_systems:
             model = getattr(self, system)
             if model:
-                model.simulate_power(project_life, lifetime_sim)
+                if isinstance(model, PowerSource):
+                    model.simulate_power(project_life, lifetime_sim)
+                elif isinstance(model, FlowSource):
+                    model.simulate_flow(project_life, lifetime_sim) 
 
         # simulate dispatchable systems using dispatch optimization
         self.dispatch_builder.simulate_power()
@@ -643,7 +671,7 @@ class HybridSimulation(BaseClass):
         for system in self.technologies.keys():
             if system != 'grid':
                 model = getattr(self, system)
-                if model:
+                if isinstance(model, PowerSource):
                     hybrid_size_kw += model.system_capacity_kw
                     hybrid_nominal_capacity += model.calc_nominal_capacity(self.interconnect_kw)
                     project_life_gen = np.tile(model.generation_profile, int(project_life / (len(model.generation_profile) // self.site.n_timesteps)))
@@ -676,7 +704,7 @@ class HybridSimulation(BaseClass):
         for system in self.technologies.keys():
             if system != 'grid':
                 model = getattr(self, system)
-                if model:
+                if isinstance(model,PowerSource):
                     storage_cc = True
                     if system in self.sim_options.keys():
                         # cannot skip financials for battery because replacements, capacity credit, and intermediate variables are calculated here
@@ -722,7 +750,7 @@ class HybridSimulation(BaseClass):
             For simulation modules which support simulating each year of the project_life, whether or not to do so; otherwise the first year data is repeated
         :return:
         """
-        self.simulate_power(project_life, lifetime_sim)
+        self.simulate_generation(project_life, lifetime_sim)
         self.calculate_installed_cost()
         self.calculate_financials()
         self.simulate_financials(project_life)
@@ -802,7 +830,10 @@ class HybridSimulation(BaseClass):
             if v == "grid":
                 continue
             if hasattr(self, v):
-                setattr(aep, v, getattr(getattr(self, v), "annual_energy_kwh"))
+                if isinstance(getattr(self, v),PowerSource):
+                    setattr(aep, v, getattr(getattr(self, v), "annual_energy_kwh"))
+                if isinstance(getattr(self, v),FlowSource):
+                    setattr(aep, v, getattr(getattr(self, v), "annual_mass_kg"))
         aep.hybrid = sum(self.grid.generation_profile[0:self.site.n_timesteps])
         return aep
 
@@ -1036,7 +1067,9 @@ class HybridSimulation(BaseClass):
                 outputs['Missed Scheduled Load (%)'] = self.grid.missed_load_percentage * 100
                 outputs['Schedule Curtailment year 1 (MWh)'] = sum(self.grid.schedule_curtailed[0:8760])/1.e3
                 outputs['Schedule Curtailment (%)'] = self.grid.schedule_curtailed_percentage * 100
-
+        if self.fuel:
+            outputs['Fuel (kg/s)'] = self.fuel.system_capacity_kg_s
+        
         attr_map = {'annual_energies': {'name': 'AEP (GWh)', 'scale': 1/1e6},
                     'capacity_factors': {'name': 'Capacity Factor (-)'},
                     'capacity_credit_percent': {'name': 'Capacity Credit (%)'},
