@@ -24,6 +24,8 @@ class SimpleReactor(BaseClass):
     name: str = field()
     input_streams_kg_s: dict = {}
     output_streams_kg_s: dict = {}
+    input_streams_kw: dict = {}
+    output_streams_kw: dict = {}
 
 
     def __attrs_post_init__(self):
@@ -47,12 +49,24 @@ class SimpleReactor(BaseClass):
         fuel_kg_s = self.config.fuel_prod_kg_s
         fuel = self.config.fuel_produced
         self.output_streams_kg_s[fuel] = fuel_kg_s
+        self.flow_kg_s = [fuel_kg_s]
         self.annual_mass_kg = fuel_kg_s*60*60*24*365
         if fuel == 'methanol':
             h2ratio = 0.195
             co2ratio = 1.423
+            kwh_kgH2 = 55.0
+            kj_kgH2 = kwh_kgH2*3600
+            kgH2O_kgH2 = 14.309
             self.input_streams_kg_s['hydrogen'] = fuel_kg_s*h2ratio
+            self.input_streams_kg_s['water'] = self.input_streams_kg_s['hydrogen']*kgH2O_kgH2
+            self.input_streams_kw['electricity'] = self.input_streams_kg_s['hydrogen']*kj_kgH2
             self.input_streams_kg_s['carbon dioxide'] = fuel_kg_s*co2ratio
+            self.output_streams_kg_s['oxygen'] = fuel_kg_s*15.998/2.016
+        if fuel == 'hydrogen':
+            kwh_kg = 55.0
+            kj_kg = kwh_kg*3600
+            self.input_streams_kw['electricity'] = fuel_kg_s*kj_kg
+            self.output_streams_kg_s['oxygen'] = fuel_kg_s*15.998/2.016
 
 @define
 class SimpleReactorFinance(BaseClass):

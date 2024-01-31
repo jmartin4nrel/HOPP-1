@@ -490,7 +490,7 @@ class FlowSource(BaseClass):
     def generation_profile(self) -> list:
         """System flow generated [kg/s]"""
         if self.system_capacity_kg_s:
-            return list(self._system_model.value("flow"))
+            return list(self._system_model.value("flow_kg_s"))
         else:
             return [0] * self.site.n_timesteps
 

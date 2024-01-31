@@ -13,7 +13,7 @@ technologies:
   grid:
     interconnect_kw: 50000
   fuel:
-    fuel_prod_kg_s: 1.0
+    fuel_prod_kg_s: 3.64992
     fuel_produced: 'methanol'
 
 config:

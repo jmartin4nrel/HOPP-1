@@ -59,9 +59,9 @@ class FuelPlant(FlowSource):
         """
         
         if self.config is None:
-            system_model = SimpleReactor(self.site,default_config,"default fuel plant")
+            system_model = SimpleReactor(self.site,default_config,"fuel")
         else:
-            system_model = SimpleReactor(self.site,self.config,self.config.fuel_produced+" plant")
+            system_model = SimpleReactor(self.site,self.config,self.config.fuel_produced)
         financial_model = Singleowner.default('WindPowerSingleOwner')
 
         super().__init__("FuelPlant", self.site, system_model, financial_model)
