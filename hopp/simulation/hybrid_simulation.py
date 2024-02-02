@@ -18,6 +18,8 @@ from hopp.simulation.technologies.wave.mhk_wave_plant import MHKWavePlant, MHKCo
 from hopp.simulation.technologies.battery import Battery, BatteryConfig, BatteryStateless, BatteryStatelessConfig
 from hopp.simulation.technologies.grid import Grid, GridConfig
 from hopp.simulation.technologies.fuel.fuel_plant import FuelPlant, FuelConfig
+from hopp.simulation.technologies.co2.co2_plant import CO2Plant, CO2Config
+from hopp.simulation.technologies.financial import SimpleFinance, SimpleFinanceConfig
 from hopp.simulation.technologies.reopt import REopt
 from hopp.simulation.technologies.layout.hybrid_layout import HybridLayout
 from hopp.simulation.technologies.dispatch.hybrid_dispatch_builder_solver import HybridDispatchBuilderSolver
@@ -41,7 +43,7 @@ PowerSourceTypes = Union[
 
 class HybridSimulationOutput:
     """Class for creating :class:`HybridSimulation` output structure"""
-    _keys = ("pv", "wind", "wave", "battery", "tower", "trough", "hybrid","fuel")
+    _keys = ("pv", "wind", "wave", "battery", "tower", "trough", "hybrid","fuel","co2")
 
     def __init__(self, power_sources):
         """
@@ -116,6 +118,7 @@ class TechnologiesConfig(BaseClass):
     battery: Optional[Union[BatteryConfig, BatteryStatelessConfig]] = field(default=None)
     grid: Optional[GridConfig] = field(default=None)
     fuel: Optional[FuelConfig] = field(default=None)
+    co2: Optional[CO2Config] = field(default=None)
 
     @classmethod
     def from_dict(cls, data: dict):
@@ -157,6 +160,13 @@ class TechnologiesConfig(BaseClass):
         if "fuel" in data:
             config["fuel"] = FuelConfig.from_dict(data["fuel"])
 
+        if "co2" in data:
+            config["co2"] = CO2Config.from_dict(data["co2"])
+
+        for key, tech in data.items():
+            if "simple_fin_config" in tech.keys():
+                config[key].simple_fin_config = SimpleFinanceConfig.from_dict(tech["simple_fin_config"])
+
         return super().from_dict(config)
 
 
@@ -188,6 +198,7 @@ class HybridSimulation(BaseClass):
     dispatch_options: Optional[dict] = field(default=None)
     cost_info: Optional[dict] = field(default=None)
     simulation_options: Optional[dict] = field(default=None)
+    finance_options: Optional[dict] = field(default=None)
 
     pv: Optional[Union[PVPlant, DetailedPVPlant]] = field(init=False, default=None)
     wind: Optional[WindPlant] = field(init=False, default=None)
@@ -197,6 +208,7 @@ class HybridSimulation(BaseClass):
     battery: Optional[Union[Battery, BatteryStateless]] = field(init=False, default=None)
     grid: Optional[Grid] = field(init=False, default=None)
     fuel: Optional[FuelPlant] = field(init=False, default=None)
+    co2: Optional[CO2Plant] = field(init=False, default=None)
     technologies: Dict[str, PowerSourceTypes] = field(init=False)
 
     dispatch_builder: HybridDispatchBuilderSolver = field(init=False)
@@ -207,6 +219,13 @@ class HybridSimulation(BaseClass):
         self._fileout = Path.cwd() / "results"
         self.sim_options = self.simulation_options or {}
 
+        # Add global simple financial model options to each tech_config
+        for tech in self.tech_config._get_model_dict().keys():
+            tech_config = self.tech_config.__getattribute__(tech)
+            if tech_config:
+                if 'simple_fin_config' in tech_config._get_model_dict().keys():
+                    tech_config.simple_fin_config.assign(self.finance_options)
+            
         pv_config = self.tech_config.pv
 
         if pv_config is not None:
@@ -290,6 +309,15 @@ class HybridSimulation(BaseClass):
             logger.info("Created HybridSystem.fuel with system size {} kg/s, producing {}".format(
                 fuel_config.fuel_prod_kg_s, fuel_config.fuel_produced))
             
+        co2_config = self.tech_config.co2
+
+        if co2_config is not None:
+            self.co2 = CO2Plant(self.site, config=co2_config)
+            self.technologies["co2"] = self.co2
+
+            logger.info("Created HybridSystem.co2 with system size {} kg/s".format(
+                co2_config.co2_kg_s))
+            
         
         
         self.check_consistent_financial_models()
@@ -319,7 +347,14 @@ class HybridSimulation(BaseClass):
         fin_models = {}
         for tech, model in self.technologies.items():
             if model._financial_model:
-                fin_models[tech] = type(model._financial_model)
+                # TODO: make sim_options and skip_financial auto-populate so we don't have to do this complex check
+                if tech not in self.sim_options.keys():
+                    fin_models[tech] = type(model._financial_model)
+                else:
+                    if 'skip_financial' not in self.sim_options[tech].keys():
+                        fin_models[tech] = type(model._financial_model)
+                    elif not self.sim_options[tech]['skip_financial']:
+                        fin_models[tech] = type(model._financial_model)
         financial_model_types = set(fin_models.values())
         if len(financial_model_types) > 1:
             raise Exception(f"Different technologies are using different financial models. This is usually a modeling error. {fin_models}")
@@ -394,6 +429,7 @@ class HybridSimulation(BaseClass):
         battery_mw = 0
         battery_mwh = 0
         fuel_kg_s = 0
+        co2_kg_s = 0
         if self.pv:
             pv_mw = self.pv.system_capacity_kw / 1000
         if self.wind:
@@ -401,13 +437,18 @@ class HybridSimulation(BaseClass):
         if self.battery:
             battery_mw = self.battery.system_capacity_kw / 1000
             battery_mwh = self.battery.system_capacity_kwh / 1000
+        if self.fuel:
+            fuel_kg_s = self.fuel.system_capacity_kg_s
+        if self.co2:
+            co2_kg_s = self.co2.system_capacity_kg_s
 
         # TODO: add tower and trough to cost_model functionality
-        pv_cost, wind_cost, storage_cost, fuel_cost, total_cost = self.cost_model.calculate_total_costs(wind_mw,
-                                                                                                        pv_mw,
-                                                                                                        battery_mw,
-                                                                                                        battery_mwh,
-                                                                                                        fuel_kg_s)
+        pv_cost, wind_cost, storage_cost, fuel_cost, co2_cost, total_cost = self.cost_model.calculate_total_costs(wind_mw,
+                                                                                                                    pv_mw,
+                                                                                                                    battery_mw,
+                                                                                                                    battery_mwh,
+                                                                                                                    fuel_kg_s,
+                                                                                                                    co2_kg_s)
         if self.pv:
             self.pv.total_installed_cost = pv_cost
         if self.wind:
@@ -426,6 +467,9 @@ class HybridSimulation(BaseClass):
         if self.fuel:
             self.fuel.total_installed_cost = fuel_cost
             total_cost += self.fuel.total_installed_cost
+        if self.co2:
+            self.co2.total_installed_cost = co2_cost
+            total_cost += self.co2.total_installed_cost
 
         self.grid.total_installed_cost = total_cost
         logger.info("HybridSystem set hybrid total installed cost to to {}".format(total_cost))
@@ -649,7 +693,7 @@ class HybridSimulation(BaseClass):
         """
         self.setup_performance_models()
         # simulate non-dispatchable systems
-        non_dispatchable_systems = ['pv', 'wind','wave','fuel']
+        non_dispatchable_systems = ['pv', 'wind','wave','fuel','co2']
         for system in non_dispatchable_systems:
             model = getattr(self, system)
             if model:
@@ -716,6 +760,11 @@ class HybridSimulation(BaseClass):
                         model.simulate_financials(self.interconnect_kw, project_life, storage_cc)
                     except TypeError:
                         model.simulate_financials(self.interconnect_kw, project_life)
+                elif isinstance(model,FlowSource):
+                    if system in self.sim_options.keys():
+                        if 'skip_financial' in self.sim_options[system].keys() and self.sim_options[system]['skip_financial']:
+                            continue
+                    model.simulate_financials(project_life)
 
         # Consolidate grid financials by copying over power and storage financial information
         if self.battery:
@@ -740,6 +789,22 @@ class HybridSimulation(BaseClass):
         logger.info(f"Hybrid Financials Complete. NPVs are {self.net_present_values}.")
 
 
+    def simple_financials(self):
+        """
+        Runs the simple finanical model for individual sub-systems and the hybrid system as a whole
+        """
+        for system in self.technologies.keys():
+            model = getattr(self, system)
+            if isinstance(model._financial_model,SimpleFinance):
+                if isinstance(model,PowerSource):
+                    output_kwh_yr =  model.annual_energy_kwh
+                    model._financial_model.calc_levelized_cost_energy(output_kwh_yr)
+                if isinstance(model,FlowSource):
+                    output_kg_yr =  model.annual_mass_kg
+                    model._financial_model.calc_levelized_cost_mass(output_kg_yr)
+        pass
+
+
     def simulate(self,
                  project_life: int = 25,
                  lifetime_sim = False):
@@ -751,6 +816,10 @@ class HybridSimulation(BaseClass):
         :return:
         """
         self.simulate_generation(project_life, lifetime_sim)
+        if 'model' in self.finance_options.keys():
+            if 'simple' == self.finance_options['model']:
+                self.simple_financials()
+                return
         self.calculate_installed_cost()
         self.calculate_financials()
         self.simulate_financials(project_life)

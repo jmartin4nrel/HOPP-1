@@ -10,7 +10,7 @@ from hopp.utilities import load_yaml
 from hopp.utilities.validators import gt_zero, contains
 from hopp.simulation.technologies.flow_source import FlowSource
 from hopp.simulation.technologies.sites import SiteInfo, flatirons_site
-from hopp.simulation.technologies.financial import CustomFinancialModel, FinancialModelType
+from hopp.simulation.technologies.financial import SimpleFinance, SimpleFinanceConfig
 from hopp.simulation.technologies.fuel.simple_reactor import SimpleReactor, SimpleReactorFinance
 from hopp.utilities.log import hybrid_logger as logger
 
@@ -28,6 +28,7 @@ class FuelConfig(BaseClass):
     fuel_prod_kg_s: float = field(default=1.0, validator=gt_zero)
     fuel_produced: str = field(default="hydrogen", validator=contains(["hydrogen","methanol"]))
     model_name: str = field(default="SimpleReactor", validator=contains(["SimpleReactor"]))
+    simple_fin_config: Optional[dict] = field(default=None)
     model_input_file: Optional[str] = field(default=None)
     
     
@@ -36,18 +37,12 @@ class FuelConfig(BaseClass):
     
 default_config = FuelConfig.default()
 
-default_fin_config = {'life_yr':30,
-                    'doll_yr':2020,
-                    'capex':1e6,
-                    'fopex_ann':1e3,
-                    'vopex_kg':1e0,
-                    'fcr':0.07}
-
 @define
 class FuelPlant(FlowSource):
     site: SiteInfo
     config: FuelConfig
     config_name: str = field(init=False, default="DefaultFuelPlant")
+    simple_fin_config: SimpleFinanceConfig = field(default=None)
 
     def __attrs_post_init__(self):
         """
@@ -60,9 +55,13 @@ class FuelPlant(FlowSource):
         
         if self.config is None:
             system_model = SimpleReactor(self.site,default_config,"fuel")
+            financial_model = Singleowner.default('WindPowerSingleOwner')
         else:
             system_model = SimpleReactor(self.site,self.config,self.config.fuel_produced)
-        financial_model = Singleowner.default('WindPowerSingleOwner')
+            if self.config.simple_fin_config:
+                financial_model = SimpleFinance(self.config.simple_fin_config)
+            else:
+                financial_model = Singleowner.default('WindPowerSingleOwner')
 
         super().__init__("FuelPlant", self.site, system_model, financial_model)
 

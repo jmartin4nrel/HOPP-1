@@ -18,6 +18,7 @@ class CostCalculator():
                  storage_installed_cost_mw,
                  storage_installed_cost_mwh,
                  fuel_installed_cost_kg_s,
+                 co2_installed_cost_kg_s,
                  wind_bos_cost_mw=0,
                  pv_bos_cost_mw=0,
                  storage_bos_cost_mw=0,
@@ -67,6 +68,7 @@ class CostCalculator():
         self.storage_installed_cost_mw = storage_installed_cost_mw
         self.storage_installed_cost_mwh = storage_installed_cost_mwh
         self.fuel_installed_cost_kg_s = fuel_installed_cost_kg_s
+        self.co2_installed_cost_kg_s = co2_installed_cost_kg_s
         self.wind_bos_cost_mw = wind_bos_cost_mw
         self.pv_bos_cost_mw = pv_bos_cost_mw
         self.storage_bos_cost_mw = storage_bos_cost_mw
@@ -74,7 +76,7 @@ class CostCalculator():
         self.modify_costs = modify_costs
         self.cost_reductions = cost_reductions
 
-    def calculate_installed_costs(self, wind_size, pv_size, storage_size_mw=0., storage_size_mwh=0., fuel_size_kg_s=0.):
+    def calculate_installed_costs(self, wind_size, pv_size, storage_size_mw=0., storage_size_mwh=0., fuel_size_kg_s=0., co2_size_kg_s=0.):
         """
         Calculates installed costs for wind, solar, and hybrid based on installed cost/mw and size of plant
         :return: installed cost of wind, solar and hybrid components of plant
@@ -90,21 +92,22 @@ class CostCalculator():
         else:
             storage_installed_cost = 0
         fuel_installed_cost = self.fuel_installed_cost_kg_s * fuel_size_kg_s
+        co2_installed_cost = self.co2_installed_cost_kg_s * co2_size_kg_s
         total_installed_cost += wind_installed_cost
         total_installed_cost += solar_installed_cost
         total_installed_cost += storage_installed_cost
         total_installed_cost += fuel_installed_cost
-        return wind_installed_cost, solar_installed_cost, storage_installed_cost, fuel_installed_cost, total_installed_cost
+        return wind_installed_cost, solar_installed_cost, storage_installed_cost, fuel_installed_cost, co2_installed_cost, total_installed_cost
 
-    def calculate_total_costs(self, wind_mw, pv_mw, storage_mw=0., storage_mwh=0., fuel_kg_s=0.):
+    def calculate_total_costs(self, wind_mw, pv_mw, storage_mw=0., storage_mwh=0., fuel_kg_s=0., co2_kg_s=0):
         """
         Calculates total installed cost of plant (BOS Cost + Installed Cost).
         Modifies the capex or opex costs as specified in cost_reductions if modify_costs is True
         :return: Total installed cost of plant (BOS Cost + Installed Cost)
         """
 
-        wind_installed_cost, solar_installed_cost, storage_installed_cost, fuel_installed_cost, total_installed_cost = \
-            self.calculate_installed_costs(wind_mw, pv_mw, storage_mw, storage_mwh, fuel_kg_s)
+        wind_installed_cost, solar_installed_cost, storage_installed_cost, fuel_installed_cost, co2_installed_cost, total_installed_cost = \
+            self.calculate_installed_costs(wind_mw, pv_mw, storage_mw, storage_mwh, fuel_kg_s, co2_kg_s)
 
         if self.bos_cost_source.lower() == 'costpermw':
             wind_bos_cost, solar_bos_cost, storage_bos_cost, total_bos_cost, _ = \
@@ -120,6 +123,7 @@ class CostCalculator():
         total_solar_cost = solar_installed_cost + solar_bos_cost
         total_storage_cost = storage_installed_cost + storage_bos_cost
         total_fuel_cost = fuel_installed_cost
+        total_co2_cost = co2_installed_cost
         total_project_cost = total_installed_cost + total_bos_cost
 
         if self.modify_costs:
@@ -149,7 +153,7 @@ class CostCalculator():
             # Not modifying wind or solar costs
 
         logger.info("Total Project Cost (Installed Cost + BOS Cost): {}".format(total_project_cost))
-        return total_solar_cost, total_wind_cost, total_storage_cost, total_fuel_cost, total_project_cost
+        return total_solar_cost, total_wind_cost, total_storage_cost, total_fuel_cost, total_co2_cost, total_project_cost
 
 
 def create_cost_calculator(interconnection_mw: float,
@@ -162,6 +166,8 @@ def create_cost_calculator(interconnection_mw: float,
                            solar_installed_cost_mw: float = 960000,
                            storage_installed_cost_mw: float = 291000,
                            storage_installed_cost_mwh: float = 335000,
+                           fuel_installed_cost_kg: float = 335000,
+                           co2_installed_cost_kg: float = 335000,
                            wind_bos_cost_mw: float = 0,
                            solar_bos_cost_mw: float = 0,
                            storage_bos_cost_mw: float = 0,
@@ -187,5 +193,5 @@ def create_cost_calculator(interconnection_mw: float,
 
     return CostCalculator(bos_cost_source, scenario, interconnection_mw, wind_installed_cost_mw,
                           solar_installed_cost_mw, storage_installed_cost_mw, storage_installed_cost_mwh,
-                          wind_bos_cost_mw, solar_bos_cost_mw, storage_bos_cost_mw, storage_bos_cost_mwh,
-                          modify_costs, cost_reductions)
+                          fuel_installed_cost_kg, co2_installed_cost_kg, wind_bos_cost_mw, solar_bos_cost_mw,
+                          storage_bos_cost_mw, storage_bos_cost_mwh, modify_costs, cost_reductions)

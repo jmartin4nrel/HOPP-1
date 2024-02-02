@@ -52,23 +52,23 @@ class BatterySystem(FinancialData):
     To add any additional system cost, first see if the variable exists in Singleowner, and re-use name.
     This will simplify interoperability
     """
-    batt_bank_replacement: tuple
-    batt_computed_bank_capacity: tuple
-    batt_meter_position: tuple
-    batt_replacement_option: float
-    batt_replacement_schedule_percent: tuple
+    batt_bank_replacement: tuple=None
+    batt_computed_bank_capacity: tuple=None
+    batt_meter_position: tuple=None
+    batt_replacement_option: float=None
+    batt_replacement_schedule_percent: tuple=None
 
 
 @dataclass
 class SystemCosts(FinancialData):
-    om_fixed: tuple
-    om_production: tuple
-    om_capacity: tuple
-    om_batt_fixed_cost: float
-    om_batt_variable_cost: float
-    om_batt_capacity_cost: float
-    om_batt_replacement_cost: float
-    om_replacement_cost_escal: float
+    om_fixed: tuple=None
+    om_production: tuple=None
+    om_capacity: tuple=None
+    om_batt_fixed_cost: float=None
+    om_batt_variable_cost: float=None
+    om_batt_capacity_cost: float=None
+    om_batt_replacement_cost: float=None
+    om_replacement_cost_escal: float=None
     total_installed_cost: float=None
 
 
