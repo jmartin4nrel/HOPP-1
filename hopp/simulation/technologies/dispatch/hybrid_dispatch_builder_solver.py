@@ -356,34 +356,125 @@ class HybridDispatchBuilderSolver:
             for index in block_object.index_set():
                 block_object[index].display()
 
+    # def simulate_power(self):
+    #     if self.needs_dispatch:
+    #         # Dispatch Optimization Simulation with Rolling Horizon
+    #         logger.info("Simulating system with dispatch optimization...")
+    #     else:
+    #         logger.info("Dispatch optimization not required...")
+    #         return
+    #     ti = list(range(0, self.site.n_timesteps, self.options.n_roll_periods))
+    #     self.dispatch.initialize_parameters()
+
+    #     if self.clustering is None:
+    #         # Solving the year in series
+    #         for i, t in enumerate(ti):
+    #             if self.options.is_test_start_year or self.options.is_test_end_year:
+    #                 if (self.options.is_test_start_year and i < 5) or (self.options.is_test_end_year and i > 359):
+    #                     start_time = time.time()
+    #                     self.simulate_with_dispatch(t)
+    #                     sim_w_dispath_time = time.time()
+    #                     logger.info('Day {} dispatch optimized.'.format(i))
+    #                     logger.info("      %6.2f seconds required to simulate with dispatch" % (sim_w_dispath_time - start_time))
+    #                 else:
+    #                     continue
+    #                     # TODO: can we make the csp and battery model run with heuristic dispatch here?
+    #                     #  Maybe calling a simulate_with_heuristic() method
+    #             else:
+    #                 if (i % 73) == 0:
+    #                     logger.info("\t {:.0f} % complete".format(i*20/73))
+    #                 self.simulate_with_dispatch(t)
+    #     else:
+
+    #         initial_states = {tech:{'day':[], 'soc':[], 'load':[]} for tech in ['trough', 'tower', 'battery'] if tech in self.power_sources.keys()}  # List of known charge states at 12 am from completed simulations
+    #         npercluster = self.clustering.clusters['count']
+    #         inds = sorted(range(len(npercluster)), key=npercluster.__getitem__)  # Indicies to sort clusters by low-to-high number of days represented
+    #         for i in range(self.clustering.clusters['n_cluster']):
+    #             j = inds[i]  # cluster index
+    #             time_start, time_stop = self.clustering.get_sim_start_end_times(j)
+    #             battery_soc = self.clustering.battery_soc_heuristic(j, initial_states['battery']) if 'battery' in self.power_sources.keys() else None
+
+    #             # Set CSP initial states (need to do this prior to update_time_series_parameters() or update_initial_conditions(), both pull from the stored plant state)
+    #             for tech in ['trough', 'tower']:
+    #                 if tech in self.power_sources.keys():
+    #                     self.power_sources[tech].plant_state = self.power_sources[tech].set_initial_plant_state()  # Reset to default initial state
+    #                     csp_soc, is_cycle_on, initial_cycle_load = self.clustering.csp_initial_state_heuristic(j, self.power_sources[tech].solar_multiple, initial_states[tech])
+    #                     self.power_sources[tech].set_tes_soc(csp_soc)  
+    #                     self.power_sources[tech].set_cycle_state(is_cycle_on)  
+    #                     self.power_sources[tech].set_cycle_load(initial_cycle_load)
+
+    #             self.simulate_with_dispatch(time_start, self.clustering.ndays+1, battery_soc, n_initial_sims = 1)  
+
+    #             # Update lists of known states at 12am
+    #             for tech in ['trough', 'tower', 'battery']: 
+    #                 if tech in self.power_sources.keys():
+    #                     for d in range(self.clustering.ndays):
+    #                         day  = self.clustering.sim_start_days[j]+d
+    #                         initial_states[tech]['day'].append(day)
+    #                         if tech in ['trough', 'tower']:
+    #                             initial_states[tech]['soc'].append(self.power_sources[tech].get_tes_soc(day*24))
+    #                             initial_states[tech]['load'].append(self.power_sources[tech].get_cycle_load(day*24))
+    #                         elif tech in ['battery']:
+    #                             step = day*24 * int(self.site.n_timesteps/8760)
+    #                             initial_states[tech]['soc'].append(self.power_sources[tech].Outputs.SOC[step])
+
+    #         # After exemplar simulations, update to full annual generation array for dispatchable technologies
+    #         for tech in self.power_sources.keys():
+    #             if tech in ['battery']:
+    #                 for key in ['gen', 'P', 'SOC']:
+    #                     val = getattr(self.power_sources[tech].Outputs, key)
+    #                     setattr(self.power_sources[tech].Outputs, key, list(self.clustering.compute_annual_array_from_cluster_exemplar_data(val)))
+    #             elif tech in ['trough', 'tower']:
+    #                 for key in ['gen', 'P_out_net', 'P_cycle', 'q_dot_pc_startup', 'q_pc_startup', 'e_ch_tes', 'eta', 'q_pb']:  # Data quantities used in capacity value calculations
+    #                     self.power_sources[tech].outputs.ssc_time_series[key] = list(self.clustering.compute_annual_array_from_cluster_exemplar_data(self.power_sources[tech].outputs.ssc_time_series[key])) 
+
     def simulate_power(self):
         if self.needs_dispatch:
             # Dispatch Optimization Simulation with Rolling Horizon
-            logger.info("Simulating system with dispatch optimization...")
+            print("Simulating system with dispatch optimization...")
         else:
-            logger.info("Dispatch optimization not required...")
+            print("Dispatch optimization not required...")
             return
-        ti = list(range(0, self.site.n_timesteps, self.options.n_roll_periods))
-        self.dispatch.initialize_parameters()
+        if self.options.limit_dispatch:
+            dispatch_times = self.options.limit_dispatch_idxs
+            start_indx = dispatch_times['start_indx']
+            end_indx = dispatch_times['end_indx']
+            initial_soc = dispatch_times['initial_soc']
+            ti = list(range(start_indx, end_indx, self.options.n_roll_periods))
+            
+            self.dispatch.update_time_series_parameters(start_indx)
+            self.power_sources['battery'].dispatch.initialize_parameters()
+            self.power_sources['battery'].dispatch.update_dispatch_initial_soc(initial_soc)
+            
+        else:
+            ti = list(range(0, self.site.n_timesteps, self.options.n_roll_periods))
+            self.dispatch.initialize_parameters()
 
+        print("Number of periods to optimize: {:.0f}".format(len(ti)))
         if self.clustering is None:
             # Solving the year in series
+            prev_pct_complete = 0
             for i, t in enumerate(ti):
                 if self.options.is_test_start_year or self.options.is_test_end_year:
                     if (self.options.is_test_start_year and i < 5) or (self.options.is_test_end_year and i > 359):
                         start_time = time.time()
                         self.simulate_with_dispatch(t)
                         sim_w_dispath_time = time.time()
-                        logger.info('Day {} dispatch optimized.'.format(i))
-                        logger.info("      %6.2f seconds required to simulate with dispatch" % (sim_w_dispath_time - start_time))
+                        print('Day {} dispatch optimized.'.format(i))
+                        print("      %6.2f seconds required to simulate with dispatch" % (sim_w_dispath_time - start_time))
                     else:
                         continue
                         # TODO: can we make the csp and battery model run with heuristic dispatch here?
                         #  Maybe calling a simulate_with_heuristic() method
                 else:
-                    if (i % 73) == 0:
-                        logger.info("\t {:.0f} % complete".format(i*20/73))
-                    self.simulate_with_dispatch(t)
+                    pct_complete = int(i/len(ti)*100)
+                    if (i == 0) or (pct_complete > prev_pct_complete):
+                        print("\t {:.0f} % complete".format(pct_complete))
+                        prev_pct_complete = pct_complete
+                    if i != 0:
+                        initial_soc = self.power_sources['battery'].outputs.SOC[t-1]
+                    self.simulate_with_dispatch(t, initial_soc=initial_soc)
+
         else:
 
             initial_states = {tech:{'day':[], 'soc':[], 'load':[]} for tech in ['trough', 'tower', 'battery'] if tech in self.power_sources.keys()}  # List of known charge states at 12 am from completed simulations
