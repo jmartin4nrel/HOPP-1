@@ -4,187 +4,132 @@ import copy
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from comms_tracking import setup_tracking, update_trackers, updateSOCplot
 
-bufferSize  = 4096
+def batt_balance(HOPPdict, ARIESdict, trackers):
 
-def setup_tracking(plotting):
+    aries_time = trackers[1]
+    aries_xdata = trackers[2]
 
-    
-    # Make time series - "hopp_time" with one point per hour, "hopp_time2" with two points per hour
-    hopp_time = pd.date_range('2019-01-05 14:00', periods=25, freq='1 h')
-    aries_time = pd.date_range('2019-01-05 14:00', periods=0, freq='100 ms')
-    aries_xdata = {'wind':[],'wave':[],'solar':[],'battery':[],'elyzer':[],'soc':[]}
-    if plotting:
-        hopp_time2 = np.vstack([hopp_time,hopp_time])
-        hopp_time2 = np.reshape(np.transpose(hopp_time2),25*2)
-        hopp_time2 = hopp_time2[1:-1]
-        hopp_time = hopp_time[:-1]
-
-        lines = np.empty([3,2],object)
-        for i in range(3):
-            for j in range(2):
-                lines[i,j] = []
-
-        fig,ax=plt.subplots(3,2)
-        fig.set_figwidth(15.0)
-        fig.set_figheight(7.0)
-
-        lines[0,0].append(ax[0,0].plot(aries_time,aries_xdata['wave'],label=None,color=[0,0,1])[0])
-        lines[0,0].append(ax[0,0].plot(aries_time,aries_xdata['solar'],label=None,color=[1,.5,0])[0])
-        lines[0,0].append(ax[0,0].plot(hopp_time2,np.zeros(len(hopp_time2)),label="Wave Generation",color=[0,0,1],alpha=0.5)[0])
-        lines[0,0].append(ax[0,0].plot(hopp_time2,np.zeros(len(hopp_time2)),label="Solar Generation",color=[1,.5,0],alpha=0.5)[0])
-        ax[0,0].legend()
-        ax[0,0].set_ylabel('Generation [MW]')
-        ax[0,0].set_ylim([0,5])
-
-        lines[0,1].append(ax[0,1].plot(aries_time,aries_xdata['wave'],label=None,color=[0,0,1])[0])
-        lines[0,1].append(ax[0,1].plot(aries_time,aries_xdata['solar'],label=None,color=[1,.5,0])[0])
-        lines[0,1].append(ax[0,1].plot(hopp_time2,np.zeros(len(hopp_time2)),label="Wave Generation",color=[0,0,1],alpha=0.5)[0])
-        lines[0,1].append(ax[0,1].plot(hopp_time2,np.zeros(len(hopp_time2)),label="Solar Generation",color=[1,.5,0],alpha=0.5)[0])
-        ax[0,1].legend()
-        ax[0,1].set_ylabel('Generation [MW]')
-        ax[0,1].set_ylim([0,5])
-
-
-        lines[1,0].append(ax[1,0].plot(hopp_time2,np.zeros(len(hopp_time2)),label=None,color=[0,.5,0])[0])
-        lines[1,0].append(ax[1,0].plot(hopp_time2,np.zeros(len(hopp_time2)),label="Wind Generation",color=[0,.5,0],alpha=0.5)[0])
-        lines[1,0].append(ax[1,0].plot(hopp_time2,np.zeros(len(hopp_time2)),label="Battery Generation",color=[.5,0,0],alpha=0.5)[0])
-        lines[1,0].append(ax[1,0].plot(hopp_time2,np.zeros(len(hopp_time2)),label="Output to Electrolyzer",color=[.5,0,1],alpha=0.5)[0])
-        ax[1,0].legend(ncol=2)
-        ax[1,0].set_ylabel('Generation [MW]')
-        ax[1,0].set_ylim([-120,620])
-        
-        lines[1,1].append(ax[1,1].plot(hopp_time2,np.zeros(len(hopp_time2)),label=None,color=[0,.5,0])[0])
-        lines[1,1].append(ax[1,1].plot(hopp_time2,np.zeros(len(hopp_time2)),label="Wind Generation",color=[0,.5,0],alpha=0.5)[0])
-        ax[1,1].legend(ncol=2)
-        ax[1,1].set_ylabel('Generation [MW]')
-        ax[1,1].set_ylim([-120,620])
-
-        
-        lines[2,0].append(ax[2,0].plot(hopp_time,np.zeros(len(hopp_time)),'k-',label="HOPP Simulation")[0])
-        ax[2,0].set_ylabel('Battery SOC [%]')
-        ax[2,0].set_ylim([0,100])
-
-        sim_start = '2019-01-05 14:00:00.0'
-        sim_end = '2019-01-06 14:00:00.0'
-        ax[0,0].set_xlim(pd.DatetimeIndex((sim_start,sim_end)))
-        ax[1,0].set_xlim(pd.DatetimeIndex((sim_start,sim_end)))
-        ax[2,0].set_xlim(pd.DatetimeIndex((sim_start,sim_end)))
-
-        return hopp_time, aries_time, aries_xdata, hopp_time2, fig, ax, lines
-    
-    else:
-
-        return hopp_time, aries_time, aries_xdata
-
-
-# Setup UDP receive from HOPP
-localIP     = "127.0.0.1"
-localPort   = 20001
-serverAddressPort   = (localIP, localPort)
-recvHOPPsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-recvHOPPsocket.bind(serverAddressPort)
-
-# Setup UDP receive from ARIES
-localIP     = "127.0.0.1"
-localPort   = 20002
-serverAddressPort   = (localIP, localPort)
-recvARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-recvARIESsocket.bind(serverAddressPort)
-
-# Setup UDP send to ARIES
-localIP     = "127.0.0.1"
-localPort   = 20003
-sendARIESaddress  = (localIP, localPort)
-sendARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-
-# Setup UDP send to HOPP
-localIP     = "127.0.0.1"
-localPort   = 20004
-sendHOPPaddress  = (localIP, localPort)
-sendHOPPsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-
-# Set up trackers and plots if necessary
-plotting = True
-if plotting:
-    plt.ion()
-trackers = setup_tracking(plotting)
-if plotting:
-    hopp_time, aries_time, aries_xdata, hopp_time2, fig, ax, lines = trackers
-else:
-    hopp_time, aries_time, aries_xdata = trackers
-
-while(True):
-
-    # Receive data from HOPP
-    HOPPpair = recvHOPPsocket.recvfrom(bufferSize)
-    HOPPraw = HOPPpair[0]
-    HOPPdict = json.loads(HOPPraw)
+    # Get commanded electrolyzer output from HOPP
     comm_dict = HOPPdict['commands']
-    gen_dict = HOPPdict['gen']
-    batt_soc = HOPPdict['soc']
+    elyzer_kw = comm_dict['elyzer_kw']
 
-    # Receive data from ARIES
-    ARIESpair = recvARIESsocket.recvfrom(bufferSize)
-    ARIESraw = ARIESpair[0]
-    ARIESdict = json.loads(ARIESraw)
-    aries_time = aries_time.append(pd.DatetimeIndex(ARIESdict['aries_time']))
-    for i, gen_type in enumerate(["wind", "wave", "solar"]):
-        aries_xdata[gen_type].extend(ARIESdict[gen_type])
+    # Get generation from ARIES
+    wind_kw = ARIESdict['wind']
+    wave_kw = ARIESdict['wave']
+    solar_kw = ARIESdict['solar']
+    batt_kw = ARIESdict['batt']
+
+    # Look up battery parameters
+    cap_kw = HOPPdict['batt_limits']['cap_kw']
+    cap_kwh = HOPPdict['batt_limits']['cap_kwh']
+    max_SOC = HOPPdict['batt_limits']['max_SOC']
+    min_SOC = HOPPdict['batt_limits']['min_SOC']
+    hoppSOC = HOPPdict['soc']
+    ariesSOC = aries_xdata['soc']
+
+    # Calc new SOC
+    if len(ariesSOC) == 0:
+        initSOC = hoppSOC[0]
+        sec_elapsed = float(np.diff(pd.DatetimeIndex(ARIESdict['aries_time'])))/1e9
+    else:
+        initSOC = aries_xdata['soc'][-1]
+        sec_elapsed = float(np.diff(aries_time[[-3,-1]]))/1e9
+    newSOC = (initSOC/100-sec_elapsed*batt_kw[0]/cap_kwh/3600)*100
+    if len(ariesSOC) == 0:
+        aries_xdata['soc'].extend([initSOC,newSOC])
+    else:
+        aries_xdata['soc'].append(newSOC)
+
+    # Calculate battery generation needed
+    new_batt_kw = elyzer_kw-wind_kw[0]-wave_kw[0]-solar_kw[0]
+
+    # Put 'bumpers' at capacity, SOC limits
+    new_batt_kw = np.max([-cap_kw,new_batt_kw])
+    new_batt_kw = np.min([cap_kw,new_batt_kw])
+    expectedSOC = (newSOC/100-sec_elapsed*new_batt_kw/cap_kwh/3600)*100
+    # if (newSOC<max_SOC) and (expectedSOC>max_SOC):
+    if expectedSOC>max_SOC:
+        if newSOC<max_SOC:
+            over_fraction = (expectedSOC-max_SOC)/(expectedSOC-newSOC)
+            new_batt_kw = new_batt_kw*(1-over_fraction)
+        else:
+            new_batt_kw = np.max([new_batt_kw,0])
+    elif expectedSOC<min_SOC:
+        if newSOC>min_SOC:
+            under_fraction = (expectedSOC-min_SOC)/(expectedSOC-newSOC)
+            new_batt_kw = new_batt_kw*(1-under_fraction)
+        else:
+            new_batt_kw = np.min([new_batt_kw,0])
+
+    HOPPdict['batt_command_kw'] = new_batt_kw
     
+    return HOPPdict, trackers
+
+if __name__ == '__main__':
+
+    bufferSize  = 4096
+    plotting = True
+
+    # Setup UDP receive from HOPP
+    localIP     = "127.0.0.1"
+    localPort   = 20001
+    serverAddressPort   = (localIP, localPort)
+    recvHOPPsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+    recvHOPPsocket.bind(serverAddressPort)
+    recvHOPPsocket.settimeout(60)
+
+    # Setup UDP receive from ARIES
+    localIP     = "127.0.0.1"
+    localPort   = 20002
+    serverAddressPort   = (localIP, localPort)
+    recvARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+    recvARIESsocket.bind(serverAddressPort)
+    recvARIESsocket.settimeout(60)
+
+    # Setup UDP send to ARIES
+    localIP     = "127.0.0.1"
+    localPort   = 20003
+    sendARIESaddress  = (localIP, localPort)
+    sendARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+
+    # Setup UDP send to HOPP
+    localIP     = "127.0.0.1"
+    localPort   = 20004
+    sendHOPPaddress  = (localIP, localPort)
+    sendHOPPsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+
+    # Set up trackers and plots if necessary
     if plotting:
+        plt.ion()
+    trackers = setup_tracking(plotting)
 
-        # Double up the generation timepoints to make stepped plot with hopp_time2
-        gen2_list = ["wind_gen2", "wave_gen2", "pv_gen2", "batt_gen2", "hybrid_gen2"]
-        for i, gen_type in enumerate(["wind", "wave", "pv", "batt", "hybrid"]):
-            gen2 = np.vstack([gen_dict[gen_type],gen_dict[gen_type]])
-            gen2 = np.reshape(np.transpose(gen2),24*2)
-            exec(gen2_list[i]+" = gen2")
-        
-        
-        lines[0,0][0].set_xdata(aries_time)
-        lines[0,0][0].set_ydata([i/1000 for i in aries_xdata['wave']])
-        lines[0,0][1].set_xdata(aries_time)
-        lines[0,0][1].set_ydata([i/1000 for i in aries_xdata['solar']])
-        lines[0,0][2].set_ydata(wave_gen2/1000)
-        lines[0,0][3].set_ydata(pv_gen2/1000)
-        
-        lines[0,1][0].set_xdata(aries_time)
-        lines[0,1][0].set_ydata([i/1000 for i in aries_xdata['wave']])
-        lines[0,1][1].set_xdata(aries_time)
-        lines[0,1][1].set_ydata([i/1000 for i in aries_xdata['solar']])
-        lines[0,1][2].set_ydata(wave_gen2/1000)
-        lines[0,1][3].set_ydata(pv_gen2/1000)
-        
-        
-        lines[1,0][0].set_xdata(aries_time)
-        lines[1,0][0].set_ydata([i/1000 for i in aries_xdata['wind']])
-        lines[1,0][1].set_ydata(wind_gen2/1000)
-        lines[1,0][2].set_ydata(batt_gen2/1000)
-        lines[1,0][3].set_ydata(hybrid_gen2/1000)
+    while(True):
 
-        lines[1,1][0].set_xdata(aries_time)
-        lines[1,1][0].set_ydata([i/1000 for i in aries_xdata['wind']])
-        lines[1,1][1].set_ydata(wind_gen2/1000)
-        # lines[1,1][2].set_ydata(batt_gen2/1000)
-        # lines[1,1][3].set_ydata(hybrid_gen2/1000)
+        # Receive data from HOPP
+        HOPPpair = recvHOPPsocket.recvfrom(bufferSize)
+        HOPPraw = HOPPpair[0]
+        HOPPdict = json.loads(HOPPraw)
+        comm_dict = HOPPdict['commands']
 
+        # Receive data from ARIES
+        ARIESpair = recvARIESsocket.recvfrom(bufferSize)
+        ARIESraw = ARIESpair[0]
+        ARIESdict = json.loads(ARIESraw)
 
-        lines[2,0][0].set_ydata(batt_soc)
-        
-        aries_start_index = np.max([0,len(aries_time)-100])
-        ax[0,1].set_xlim(pd.DatetimeIndex((aries_time[aries_start_index],aries_time[-1])))
-        ax[1,1].set_xlim(pd.DatetimeIndex((aries_time[aries_start_index],aries_time[-1])))
-        ax[2,1].set_xlim(pd.DatetimeIndex((aries_time[aries_start_index],aries_time[-1])))
+        trackers = update_trackers(trackers, HOPPdict, ARIESdict, plotting)
 
-    # clientMsg = "Message to ARIES: Received"
-    # bytesToSend = str.encode(clientMsg)
-    # sendARIESsocket.sendto(bytesToSend, sendARIESaddress)
+        # Balance battery output from real-time output
+        HOPPdict, trackers = batt_balance(HOPPdict, ARIESdict, trackers)
 
-    # clientMsg = "Message to HOPP: Sent to HOPP"
-    # bytesToSend = str.encode(clientMsg)
-    # sendHOPPsocket.sendto(bytesToSend, sendHOPPaddress)
+        if plotting:
+            trackers = updateSOCplot(trackers, HOPPdict)
 
-    fig.canvas.draw() 
-    fig.canvas.flush_events() 
-    plt.pause(1)
+        # Send command back to ARIES
+        bytesToSend = str.encode(json.dumps(HOPPdict))
+        sendARIESsocket.sendto(bytesToSend, sendARIESaddress)
+
+        # Send ARIES time back to HOPP
+        bytesToSend = str.encode(json.dumps(str(ARIESdict['aries_time'][-1])))
+        sendHOPPsocket.sendto(bytesToSend, sendHOPPaddress)

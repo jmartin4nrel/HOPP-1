@@ -26,6 +26,9 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
     plot_results: bool (default False) to activate plotting of simulated HOPP and placeholder ARIES signals
     '''
 
+    sim_start = '2019-01-05 14:00:00.0'
+    sim_end = '2019-01-06 14:00:00.0'        
+    
     # Set the desired load schedule to control the battery dispatch
     DEFAULT_SOLAR_RESOURCE_FILE = ROOT_DIR.parent / "examples" / "inputs" / "resource_files" / "eco" / "oahu_N_19_18_loop_solar_resource.csv"
     DEFAULT_WIND_RESOURCE_FILE = ROOT_DIR.parent / "examples" / "inputs" / "resource_files" / "eco" / "oahu_N_19_18_loop_wind_resource_srw.srw"
@@ -97,10 +100,13 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
 
         # Double up the generation timepoints to make stepped plot with hopp_time2
         gen2_list = ["wind_gen2", "wave_gen2", "pv_gen2", "batt_gen2", "hybrid_gen2"]
+        gen2_list = ["wind", "wave", "pv", "batt", "hybrid"]
+        gen2_dict = {}
         for i, gen1 in enumerate([wind_gen, wave_gen, pv_gen, batt_gen, hybrid_gen]):
             gen2 = np.vstack([gen1,gen1])
             gen2 = np.reshape(np.transpose(gen2),8760*2)
-            exec(gen2_list[i]+" = gen2")
+            gen2_dict[gen2_list[i]] = gen2
+            # exec(gen2_list[i]+" = gen2")
 
         # Fill out the battery SOC time history
         batt_soc = np.array(batt.SOC)
@@ -110,21 +116,21 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
 
         if plot_results:
             # Plot results
-            plt.ion()
+            plt.ioff()
             fig,ax=plt.subplots(3,1,sharex=True)
             fig.set_figwidth(8.0)
             fig.set_figheight(9.0)
 
-            ax[0].plot(hopp_time2,wave_gen2/1000,label="Wave Generation")
-            ax[0].plot(hopp_time2,pv_gen2/1000,label="Solar Generation")
+            ax[0].plot(hopp_time2,gen2_dict['wave']/1000,label="Wave Generation")
+            ax[0].plot(hopp_time2,gen2_dict['pv']/1000,label="Solar Generation")
             ax[0].legend()
             ax[0].set_ylabel('Generation [MW]')
 
-            ax[1].plot(hopp_time2,wave_gen2/1000,label="Wave Generation")
-            ax[1].plot(hopp_time2,pv_gen2/1000,label="Solar Generation")
-            ax[1].plot(hopp_time2,wind_gen2/1000,label="Wind Generation")
-            ax[1].plot(hopp_time2,batt_gen2/1000,label="Battery Generation")
-            ax[1].plot(hopp_time2,hybrid_gen2/1000,label="Output to Electrolyzer")
+            ax[1].plot(hopp_time2,gen2_dict['wave']/1000,label="Wave Generation")
+            ax[1].plot(hopp_time2,gen2_dict['pv']/1000,label="Solar Generation")
+            ax[1].plot(hopp_time2,gen2_dict['wind']/1000,label="Wind Generation")
+            ax[1].plot(hopp_time2,gen2_dict['batt']/1000,label="Battery Generation")
+            ax[1].plot(hopp_time2,gen2_dict['hybrid']/1000,label="Output to Electrolyzer")
             ax[1].legend(ncol=3)
             ax[1].set_ylabel('Generation [MW]')
             ax[1].set_ylim([-120,550])
@@ -134,8 +140,6 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
             ax[2].set_ylabel('Battery SOC [%]')
             ax[2].set_ylim([0,100])
 
-            sim_start = '2019-01-05 14:00:00.0'
-            sim_end = '2019-01-06 14:00:00.0'
             plt.xlim(pd.DatetimeIndex((sim_start,sim_end)))
             
             plt.show()
@@ -144,7 +148,7 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
 
             # Interpolate the HOPP generation to 100 ms intervals
             hopp_time3 = pd.date_range('2019-01-01 00:30', periods=8760, freq='1 h')
-            gen_frame = pd.DataFrame(np.transpose([wind_gen, wave_gen, pv_gen]),index=hopp_time3, columns=['wind','wave','solar'])
+            gen_frame = pd.DataFrame(np.transpose([wind_gen, wave_gen, pv_gen, batt_gen, hybrid_gen]),index=hopp_time3, columns=['wind','wave','solar', 'batt', 'elyzer'])
             slice_start = '2019-01-05 13:00'
             slice_end = '2019-01-06 15:00'
             gen_frame2 = gen_frame[slice_start:slice_end]
@@ -156,6 +160,12 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
                 values = gen_frame3[tech].values
                 mean = np.mean(values)
                 gen_frame3[tech] = values+np.random.standard_normal(len(values))*mean/100
+
+            # Put in placeholder battery command
+            batt_placeholder_kw = -40000.
+            gen_frame3["batt"] = np.full(values.shape,batt_placeholder_kw)
+            
+            # Save to .csv
             gen_frame3.to_csv(ROOT_DIR.parent / "examples" / "outputs" / "placeholder_ARIES.csv")
 
             hopp_time3 = gen_frame3.index.values
@@ -168,7 +178,7 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
                 fig.set_figheight(6.0)
 
                 ax[0].plot(hopp_time3,wind_gen3/1000,label = '"ARIES modeled" wind (placeholder)')
-                ax[0].plot(hopp_time2,wind_gen2/1000,label = 'HOPP modeled wind')
+                ax[0].plot(hopp_time2,gen2_dict['wind']/1000,label = 'HOPP modeled wind')
                 ax[0].set_xlim(pd.DatetimeIndex((sim_start,sim_end)))
                 ax[0].legend()
                 ax[0].set_ylabel('Generation [MW]')
@@ -176,7 +186,7 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
                 zoom_start = '2019-01-05 14:30'
                 zoom_end = '2019-01-05 14:31'
                 ax[1].plot(hopp_time3,wind_gen3/1000,label = '"ARIES modeled" wind (placeholder)')
-                ax[1].plot(hopp_time2,wind_gen2/1000,label = 'HOPP modeled wind')
+                ax[1].plot(hopp_time2,gen2_dict['wind']/1000,label = 'HOPP modeled wind')
                 ax[1].set_xlim(pd.DatetimeIndex((zoom_start,zoom_end)))
                 ax[1].legend()
                 ax[1].set_ylabel('Generation [MW]')
