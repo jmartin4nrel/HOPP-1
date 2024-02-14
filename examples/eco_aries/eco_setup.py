@@ -48,7 +48,7 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
             wave=True
         )
     # Create the HOPP Model
-    CONFIG_FILE = ROOT_DIR.parent / "examples" / "inputs" / "08-eco.yaml"
+    CONFIG_FILE = ROOT_DIR.parent / "examples" / "inputs" / "08-eco_aries.yaml"
     hopp_config = load_yaml(CONFIG_FILE)
     hopp_config["site"] = site
     hi = HoppInterface(hopp_config)
