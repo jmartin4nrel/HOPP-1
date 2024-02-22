@@ -11,7 +11,7 @@ if __name__ == '__main__':
 
     # Set up hopp simulation
     hi = eco_setup(True)
-    hi.simulate(1)
+    hi.hopp.system.simulate_power(1)
 
     # Setup UDP send
     localIP     = "127.0.0.1"

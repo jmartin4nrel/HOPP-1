@@ -48,7 +48,7 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
             wave=True
         )
     # Create the HOPP Model
-    CONFIG_FILE = ROOT_DIR.parent / "examples" / "inputs" / "08-eco_aries.yaml"
+    CONFIG_FILE = ROOT_DIR.parent / "examples" / "inputs" / "09-eco_aries.yaml"
     hopp_config = load_yaml(CONFIG_FILE)
     hopp_config["site"] = site
     hi = HoppInterface(hopp_config)
@@ -79,7 +79,7 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
 
     if generate_ARIES_placeholders or plot_results:
 
-        hi.simulate(1)
+        hi.hopp.system.simulate_power(1)
         hybrid_plant = hi.system
         gen = hybrid_plant.generation_profile
         batt = hybrid_plant.battery.outputs
