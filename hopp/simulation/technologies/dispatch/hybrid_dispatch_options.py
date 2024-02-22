@@ -81,6 +81,10 @@ class HybridDispatchOptions:
 
         self.use_higher_hours: bool = False
         self.higher_hours: dict = {}
+        
+        self.skip_dispatch: bool = False
+        self.limit_dispatch: bool = False
+        self.limit_dispatch_idxs: dict = {}
 
         if dispatch_options is not None:
             for key, value in dispatch_options.items():
