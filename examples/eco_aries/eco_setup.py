@@ -1,35 +1,26 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import os
+import yaml
+from yamlinclude import YamlIncludeConstructor
+
 from hopp import ROOT_DIR
 from hopp.simulation.technologies.sites import SiteInfo, oahu_site
 from hopp.utilities import load_yaml
 from hopp.simulation import HoppInterface
 from hopp.utilities.keys import set_nrel_key_dot_env
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-
-import os
-from hopp.utilities.keys import set_developer_nrel_gov_key
-
-# # yaml imports
-import yaml
-from yamlinclude import YamlIncludeConstructor
-from pathlib import Path
-
-PATH = Path(__file__).parent
-YamlIncludeConstructor.add_to_loader_class(loader_class=yaml.FullLoader, base_dir=PATH / './input/floris/')
-YamlIncludeConstructor.add_to_loader_class(loader_class=yaml.FullLoader, base_dir=PATH / './input/turbines/')
-
-# ORBIT imports
 from ORBIT.core.library import initialize_library
-initialize_library(os.path.join(os.getcwd(), "./../eco/05-offshore-h2/input/"))
-
-# HOPP imports
 from greenheart.tools.eco.hybrid_system import run_simulation
 
-# Set API key manually if not using the .env
-global NREL_API_KEY
-NREL_API_KEY = os.getenv("NREL_API_KEY") # Set this key manually here if you are not setting it using the .env
-set_developer_nrel_gov_key(NREL_API_KEY)  
+dirname = os.path.dirname(__file__)
+orbit_library_path = os.path.join(dirname, "input_files/")
+
+YamlIncludeConstructor.add_to_loader_class(loader_class=yaml.FullLoader, base_dir=os.path.join(orbit_library_path, 'floris/'))
+YamlIncludeConstructor.add_to_loader_class(loader_class=yaml.FullLoader, base_dir=os.path.join(orbit_library_path, 'turbines/'))
+
+initialize_library(orbit_library_path)
+set_nrel_key_dot_env()
 
 def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
 
@@ -50,7 +41,7 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
     DEFAULT_WIND_RESOURCE_FILE = ROOT_DIR.parent / "examples" / "inputs" / "resource_files" / "eco" / "oahu_N_19_18_loop_wind_resource_srw.srw"
     DEFAULT_WAVE_RESOURCE_FILE = ROOT_DIR.parent / "examples" / "inputs" / "resource_files" / "eco" / "oahu_N_19_18_loop_wave_resource_3hr.csv"
     DEFAULT_PRICE_FILE = ROOT_DIR.parent / "resource_files" / "grid" / "pricing-data-2015-IronMtn-002_factors.csv"
-    elzyer_load_kw = float(360 * 1000)
+    elzyer_load_kw = float(300 * 1000)
     DEFAULT_LOAD = elzyer_load_kw*np.ones((8760))/1000
     site = SiteInfo(
             oahu_site,
@@ -105,10 +96,34 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
     #     verbose=False, show_plots=False, save_plots=False, use_profast=True, incentive_option=1, plant_design_scenario=1,
     #     output_level=6, post_processing=False)
     # hi = hopp_results{'hopp_interface'}
-    
+    turbine_model = "iea_15MW"
+    filename_turbine_config = os.path.join(orbit_library_path, f"turbines/{turbine_model}.yaml")
+    filename_orbit_config = os.path.join(orbit_library_path, f"plant/orbit-config.yaml")
+    filename_floris_config = os.path.join(orbit_library_path, f"floris/floris_input_{turbine_model}.yaml")
+    filename_eco_config = os.path.join(orbit_library_path, f"plant/eco_config.yaml")
+    filename_hopp_config = os.path.join(orbit_library_path, f"plant/hopp_config_wind_wave_solar_battery_baseline.yaml")
+
+    hopp_results, elyzer_results, _ = run_simulation(filename_hopp_config, 
+                                                    filename_eco_config, 
+                                                    filename_turbine_config, 
+                                                    filename_orbit_config, 
+                                                    filename_floris_config, 
+                                                    use_profast=True, 
+                                                    incentive_option=1, 
+                                                    plant_design_scenario=7, 
+                                                    output_level=6,
+                                                    post_processing=False)
+    hi = hopp_results['hopp_interface']
+
+    # # Set load schedule to electrolyzer capacity
+    # elzyer_target_kw = elyzer_results['capacity_kw']
+    # DEFAULT_LOAD = elzyer_target_kw*np.ones((8760))/1000
+    # # hi.system.site.desired_schedule = DEFAULT_LOAD
+    # getattr(hi.system.site, 'desired_schedule', DEFAULT_LOAD)
+        
     if generate_ARIES_placeholders or plot_results:
 
-        hi.hopp.system.simulate_power(1)
+        # hi.hopp.system.simulate_power(1)
         hybrid_plant = hi.system
         gen = hybrid_plant.generation_profile
         batt = hybrid_plant.battery.outputs
@@ -125,7 +140,7 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
         wave_gen = np.array(gen['wave'])
         pv_gen = np.array(gen['pv'])
         batt_gen = np.array(gen['battery'])
-        hybrid_gen = np.array(gen['hybrid'])
+        hybrid_gen = wind_gen+wave_gen+pv_gen+batt_gen
 
         # Double up the generation timepoints to make stepped plot with hopp_time2
         gen2_list = ["wind_gen2", "wave_gen2", "pv_gen2", "batt_gen2", "hybrid_gen2"]
@@ -223,7 +238,7 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
 
                 plt.show()
 
-    return hi
+    return hi, elyzer_results
 
 
 def eco_modify(hi, timestep, results):

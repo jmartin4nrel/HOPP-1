@@ -12,7 +12,7 @@ def setup_tracking(plotting):
         hopp_time2 = np.vstack([hopp_time,hopp_time])
         hopp_time2 = np.reshape(np.transpose(hopp_time2),25*2)
         hopp_time2 = hopp_time2[1:-1]
-        hopp_time = hopp_time[:-1]
+        # hopp_time = hopp_time[:-1]
 
         lines = np.empty([3,2],object)
         for i in range(3):

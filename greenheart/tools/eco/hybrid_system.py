@@ -96,6 +96,7 @@ def run_simulation(filename_hopp_config, filename_eco_config, filename_turbine_c
         
         # run electrolyzer physics model
         electrolyzer_physics_results = he_elec.run_electrolyzer_physics(hopp_results_internal, orbit_config["project_parameters"]["project_lifetime"], eco_config, wind_resource, design_scenario, show_plots=show_plots, save_plots=save_plots, verbose=verbose)
+        electrolyzer_physics_results['capacity_kw'] = eco_config['electrolyzer']['rating']*1000.0
 
         # run electrolyzer cost model
         electrolyzer_cost_results = he_elec.run_electrolyzer_cost(electrolyzer_physics_results, orbit_config, hopp_config, eco_config, design_scenario, verbose=verbose)
@@ -216,25 +217,25 @@ def run_simulation(filename_hopp_config, filename_eco_config, filename_turbine_c
     ## end solver loop here
     platform_results = he_h2.run_equipment_platform(hopp_config, eco_config, orbit_config, design_scenario, hopp_results, electrolyzer_physics_results, h2_storage_results, desal_results, verbose=verbose)
     
-    ################# OSW intermediate calculations" aka final financial calculations
-    # does LCOE even make sense if we are only selling the H2? I think in this case LCOE should not be used, rather LCOH should be used. Or, we could use LCOE based on the electricity actually used for h2
-    # I think LCOE is just being used to estimate the cost of the electricity used, but in this case we should just use the cost of the electricity generating plant since we are not selling to the grid. We
-    # could build in a grid connection later such that we use LCOE for any purchased electricity and sell any excess electricity after H2 production
-    # actually, I think this is what OSW is doing for LCOH
+    # ################# OSW intermediate calculations" aka final financial calculations
+    # # does LCOE even make sense if we are only selling the H2? I think in this case LCOE should not be used, rather LCOH should be used. Or, we could use LCOE based on the electricity actually used for h2
+    # # I think LCOE is just being used to estimate the cost of the electricity used, but in this case we should just use the cost of the electricity generating plant since we are not selling to the grid. We
+    # # could build in a grid connection later such that we use LCOE for any purchased electricity and sell any excess electricity after H2 production
+    # # actually, I think this is what OSW is doing for LCOH
     
-    # TODO double check full-system CAPEX
-    capex, capex_breakdown = he_fin.run_capex(hopp_results, orbit_project, orbit_hybrid_electrical_export_project, electrolyzer_cost_results, h2_pipe_array_results, h2_transport_compressor_results, h2_transport_pipe_results, h2_storage_results, hopp_config, eco_config, orbit_config, design_scenario, desal_results, platform_results, verbose=verbose)
+    # # TODO double check full-system CAPEX
+    # capex, capex_breakdown = he_fin.run_capex(hopp_results, orbit_project, orbit_hybrid_electrical_export_project, electrolyzer_cost_results, h2_pipe_array_results, h2_transport_compressor_results, h2_transport_pipe_results, h2_storage_results, hopp_config, eco_config, orbit_config, design_scenario, desal_results, platform_results, verbose=verbose)
 
-    # TODO double check full-system OPEX
-    opex_annual, opex_breakdown_annual = he_fin.run_opex(hopp_results, orbit_project, orbit_hybrid_electrical_export_project, electrolyzer_cost_results, h2_pipe_array_results, h2_transport_compressor_results, h2_transport_pipe_results, h2_storage_results, hopp_config, eco_config, orbit_config, desal_results, platform_results, verbose=verbose, total_export_system_cost=capex_breakdown["electrical_export_system"])
+    # # TODO double check full-system OPEX
+    # opex_annual, opex_breakdown_annual = he_fin.run_opex(hopp_results, orbit_project, orbit_hybrid_electrical_export_project, electrolyzer_cost_results, h2_pipe_array_results, h2_transport_compressor_results, h2_transport_pipe_results, h2_storage_results, hopp_config, eco_config, orbit_config, desal_results, platform_results, verbose=verbose, total_export_system_cost=capex_breakdown["electrical_export_system"])
 
-    if verbose:
-        print("hybrid plant capacity factor: ", np.sum(hopp_results["combined_hybrid_power_production_hopp"])/(hopp_results["hybrid_plant"].system_capacity_kw.hybrid * 365 * 24))
+    # if verbose:
+    #     print("hybrid plant capacity factor: ", np.sum(hopp_results["combined_hybrid_power_production_hopp"])/(hopp_results["hybrid_plant"].system_capacity_kw.hybrid * 365 * 24))
 
-    if use_profast:
-        lcoe, pf_lcoe = he_fin.run_profast_lcoe(eco_config, orbit_config, orbit_project, capex_breakdown, opex_breakdown_annual, hopp_results, incentive_option, design_scenario, verbose=verbose, show_plots=show_plots, save_plots=save_plots)    
-        lcoh_grid_only, pf_grid_only = he_fin.run_profast_grid_only(eco_config, orbit_config, orbit_project, electrolyzer_physics_results, capex_breakdown, opex_breakdown_annual, hopp_results, design_scenario, total_accessory_power_renewable_kw, total_accessory_power_grid_kw, verbose=verbose, show_plots=show_plots, save_plots=save_plots)
-        lcoh, pf_lcoh = he_fin.run_profast_full_plant_model(eco_config, orbit_config, orbit_project, electrolyzer_physics_results, capex_breakdown, opex_breakdown_annual, hopp_results, incentive_option, design_scenario, total_accessory_power_renewable_kw, total_accessory_power_grid_kw, verbose=verbose, show_plots=show_plots, save_plots=save_plots)
+    # if use_profast:
+    #     lcoe, pf_lcoe = he_fin.run_profast_lcoe(eco_config, orbit_config, orbit_project, capex_breakdown, opex_breakdown_annual, hopp_results, incentive_option, design_scenario, verbose=verbose, show_plots=show_plots, save_plots=save_plots)    
+    #     lcoh_grid_only, pf_grid_only = he_fin.run_profast_grid_only(eco_config, orbit_config, orbit_project, electrolyzer_physics_results, capex_breakdown, opex_breakdown_annual, hopp_results, design_scenario, total_accessory_power_renewable_kw, total_accessory_power_grid_kw, verbose=verbose, show_plots=show_plots, save_plots=save_plots)
+    #     lcoh, pf_lcoh = he_fin.run_profast_full_plant_model(eco_config, orbit_config, orbit_project, electrolyzer_physics_results, capex_breakdown, opex_breakdown_annual, hopp_results, incentive_option, design_scenario, total_accessory_power_renewable_kw, total_accessory_power_grid_kw, verbose=verbose, show_plots=show_plots, save_plots=save_plots)
     
     ################# end OSW intermediate calculations
     if post_processing:

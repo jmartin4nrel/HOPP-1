@@ -449,6 +449,7 @@ class HybridDispatchBuilderSolver:
         else:
             ti = list(range(0, self.site.n_timesteps, self.options.n_roll_periods))
             self.dispatch.initialize_parameters()
+            initial_soc = self.power_sources['battery'].config.initial_SOC
 
         print("Number of periods to optimize: {:.0f}".format(len(ti)))
         if self.clustering is None:
@@ -548,7 +549,7 @@ class HybridDispatchBuilderSolver:
                 else:
                     system_limit = self.site.desired_schedule[start_time:start_time + n_horizon]
 
-                transmission_limit = self.power_sources['grid'].value('grid_interconnection_limit_kwac') / 1e3
+                transmission_limit = self.power_sources['grid'].value('grid_interconnection_limit_kwac')
                 for count, value in enumerate(system_limit):
                     if value > transmission_limit:
                         logger.warning('Warning: Desired schedule is greater than transmission limit. '

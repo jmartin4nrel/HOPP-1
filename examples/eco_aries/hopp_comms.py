@@ -10,7 +10,7 @@ if __name__ == '__main__':
     bufferSize  = 4096
 
     # Set up hopp simulation
-    hi = eco_setup(True)
+    hi, elyzer_results = eco_setup(True)
     hi.hopp.system.simulate_power(1)
 
     # Setup UDP send
@@ -61,20 +61,21 @@ if __name__ == '__main__':
             wave_gen = np.array(gen['wave'])
             pv_gen = np.array(gen['pv'])
             batt_gen = np.array(gen['battery'])
-            hybrid_gen = np.array(gen['hybrid'])
+            elyzer_load = np.array(elyzer_results['electrical_generation_timeseries'])
+            hybrid_gen = wind_gen+wave_gen+pv_gen+batt_gen
 
             # Double up the generation timepoints to make stepped plot with hopp_time2
             gen_dict = {}
-            gen_list = ["wind", "wave", "pv", "batt", "elyzer"]
-            for i, gen1 in enumerate([wind_gen, wave_gen, pv_gen, batt_gen, hybrid_gen]):
+            gen_list = ["wind", "wave", "pv", "batt", "elyzer"," hybrid"]
+            for i, gen1 in enumerate([wind_gen, wave_gen, pv_gen, batt_gen, elyzer_load, hybrid_gen]):
                 gen_dict[gen_list[i]] = list(gen1[start_timestep:end_timestep])
 
             # Fill out the battery SOC time history
             batt_soc = np.array(batt.SOC)
             batt_soc[1:] = batt_soc[:-1]
             batt_soc[:(start_timestep+1)] = new_SOC
-            batt_soc[end_timestep:] = batt_soc[end_timestep]
-            batt_soc = list(batt_soc[start_timestep:end_timestep])
+            batt_soc[(end_timestep+1):] = batt_soc[end_timestep+1]
+            batt_soc = list(batt_soc[start_timestep:(end_timestep+1)])
 
             # Build command dict
             bess_kw = hi.system.generation_profile['battery'][hopp_timestep]
