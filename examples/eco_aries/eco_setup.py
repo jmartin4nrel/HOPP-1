@@ -10,6 +10,22 @@ import matplotlib.pyplot as plt
 import os
 from hopp.utilities.keys import set_developer_nrel_gov_key
 
+# # yaml imports
+import yaml
+from yamlinclude import YamlIncludeConstructor
+from pathlib import Path
+
+PATH = Path(__file__).parent
+YamlIncludeConstructor.add_to_loader_class(loader_class=yaml.FullLoader, base_dir=PATH / './input/floris/')
+YamlIncludeConstructor.add_to_loader_class(loader_class=yaml.FullLoader, base_dir=PATH / './input/turbines/')
+
+# ORBIT imports
+from ORBIT.core.library import initialize_library
+initialize_library(os.path.join(os.getcwd(), "./../eco/05-offshore-h2/input/"))
+
+# HOPP imports
+from greenheart.tools.eco.hybrid_system import run_simulation
+
 # Set API key manually if not using the .env
 global NREL_API_KEY
 NREL_API_KEY = os.getenv("NREL_API_KEY") # Set this key manually here if you are not setting it using the .env
@@ -77,6 +93,19 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
     }
     hi.system.wave.create_mhk_cost_calculator(cost_model_inputs)
 
+    # # Create HOPP model - new
+    # turbine_model="osw_18MW"
+    # filename_orbit_config= "./../eco/05-offshore-h2/input/plant/orbit-config-"+turbine_model+".yaml"
+    # filename_turbine_config = "./../eco/05-offshore-h2/input/turbines/"+turbine_model+".yaml"
+    # filename_floris_config = "./../eco/05-offshore-h2/input/floris/floris_input_osw_18MW.yaml"
+    # filename_hopp_config = "./../eco/05-offshore-h2/input/plant/hopp_config.yaml"
+    # filename_eco_config = "./../eco/05-offshore-h2/input/plant/eco_config.yaml"
+    # hopp_results, electrolyzer_physics_results, remaining_power_profile = run_simulation(\
+    #     filename_hopp_config, filename_eco_config, filename_turbine_config, filename_orbit_config, filename_floris_config,
+    #     verbose=False, show_plots=False, save_plots=False, use_profast=True, incentive_option=1, plant_design_scenario=1,
+    #     output_level=6, post_processing=False)
+    # hi = hopp_results{'hopp_interface'}
+    
     if generate_ARIES_placeholders or plot_results:
 
         hi.hopp.system.simulate_power(1)
