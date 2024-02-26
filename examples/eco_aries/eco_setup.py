@@ -36,72 +36,12 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
     sim_start = '2019-01-05 14:00:00.0'
     sim_end = '2019-01-06 14:00:00.0'        
     
-    # Set the desired load schedule to control the battery dispatch
-    DEFAULT_SOLAR_RESOURCE_FILE = ROOT_DIR.parent / "examples" / "inputs" / "resource_files" / "eco" / "oahu_N_19_18_loop_solar_resource.csv"
-    DEFAULT_WIND_RESOURCE_FILE = ROOT_DIR.parent / "examples" / "inputs" / "resource_files" / "eco" / "oahu_N_19_18_loop_wind_resource_srw.srw"
-    DEFAULT_WAVE_RESOURCE_FILE = ROOT_DIR.parent / "examples" / "inputs" / "resource_files" / "eco" / "oahu_N_19_18_loop_wave_resource_3hr.csv"
-    DEFAULT_PRICE_FILE = ROOT_DIR.parent / "resource_files" / "grid" / "pricing-data-2015-IronMtn-002_factors.csv"
-    elzyer_load_kw = float(300 * 1000)
-    DEFAULT_LOAD = elzyer_load_kw*np.ones((8760))/1000
-    site = SiteInfo(
-            oahu_site,
-            solar_resource_file=DEFAULT_SOLAR_RESOURCE_FILE,
-            wind_resource_file=DEFAULT_WIND_RESOURCE_FILE,
-            wave_resource_file=DEFAULT_WAVE_RESOURCE_FILE,
-            grid_resource_file=DEFAULT_PRICE_FILE,
-            desired_schedule=DEFAULT_LOAD,
-            solar=True,
-            wind=True,
-            wave=True
-        )
-    # Create the HOPP Model
-    CONFIG_FILE = ROOT_DIR.parent / "examples" / "inputs" / "09-eco_aries.yaml"
-    hopp_config = load_yaml(CONFIG_FILE)
-    hopp_config["site"] = site
-    hi = HoppInterface(hopp_config)
-
-    # Enter turbine power curve and eliminate losses
-    wind_power_curve = ROOT_DIR.parent / "examples" / "inputs" / "resource_files" / "eco" / "iea15mw_power_curve.csv"
-    curve_data = pd.read_csv(wind_power_curve)
-    wind_speed = curve_data['Wind Speed [m/s]'].values.tolist() 
-    curve_power = [i*1000 for i in curve_data['Power [MW]']]
-    hi.system.wind._system_model.Turbine.wind_turbine_powercurve_windspeeds = wind_speed
-    hi.system.wind._system_model.Turbine.wind_turbine_powercurve_powerout = curve_power 
-    all_losses = 0.0
-    loss_list = ["avail_bop_loss","avail_grid_loss","avail_turb_loss","elec_eff_loss","elec_parasitic_loss","env_degrad_loss", "env_env_loss", "env_icing_loss", "ops_env_loss", "ops_grid_loss", "ops_load_loss", "turb_generic_loss", "turb_hysteresis_loss", "turb_perf_loss", "turb_specific_loss", "wake_ext_loss"]
-    for loss in loss_list:
-        getattr(hi.system, 'wind').value(loss,all_losses)
-
-    # Add Wave Cost Model Inputs
-    cost_model_inputs = {
-        'reference_model_num':3,
-        'water_depth': 100,
-        'distance_to_shore': 80,
-        'number_rows': 10,
-        'device_spacing':600,
-        'row_spacing': 600,
-        'cable_system_overbuild': 20
-    }
-    hi.system.wave.create_mhk_cost_calculator(cost_model_inputs)
-
-    # # Create HOPP model - new
-    # turbine_model="osw_18MW"
-    # filename_orbit_config= "./../eco/05-offshore-h2/input/plant/orbit-config-"+turbine_model+".yaml"
-    # filename_turbine_config = "./../eco/05-offshore-h2/input/turbines/"+turbine_model+".yaml"
-    # filename_floris_config = "./../eco/05-offshore-h2/input/floris/floris_input_osw_18MW.yaml"
-    # filename_hopp_config = "./../eco/05-offshore-h2/input/plant/hopp_config.yaml"
-    # filename_eco_config = "./../eco/05-offshore-h2/input/plant/eco_config.yaml"
-    # hopp_results, electrolyzer_physics_results, remaining_power_profile = run_simulation(\
-    #     filename_hopp_config, filename_eco_config, filename_turbine_config, filename_orbit_config, filename_floris_config,
-    #     verbose=False, show_plots=False, save_plots=False, use_profast=True, incentive_option=1, plant_design_scenario=1,
-    #     output_level=6, post_processing=False)
-    # hi = hopp_results{'hopp_interface'}
     turbine_model = "iea_15MW"
     filename_turbine_config = os.path.join(orbit_library_path, f"turbines/{turbine_model}.yaml")
     filename_orbit_config = os.path.join(orbit_library_path, f"plant/orbit-config.yaml")
     filename_floris_config = os.path.join(orbit_library_path, f"floris/floris_input_{turbine_model}.yaml")
     filename_eco_config = os.path.join(orbit_library_path, f"plant/eco_config.yaml")
-    filename_hopp_config = os.path.join(orbit_library_path, f"plant/hopp_config_wind_wave_solar_battery_baseline.yaml")
+    filename_hopp_config = os.path.join(orbit_library_path, f"plant/hopp_config_aries_eco_baseline.yaml")
 
     hopp_results, elyzer_results, _ = run_simulation(filename_hopp_config, 
                                                     filename_eco_config, 
@@ -112,14 +52,9 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
                                                     incentive_option=1, 
                                                     plant_design_scenario=7, 
                                                     output_level=6,
-                                                    post_processing=False)
+                                                    post_processing=False,
+                                                    skip_financials=True)
     hi = hopp_results['hopp_interface']
-
-    # # Set load schedule to electrolyzer capacity
-    # elzyer_target_kw = elyzer_results['capacity_kw']
-    # DEFAULT_LOAD = elzyer_target_kw*np.ones((8760))/1000
-    # # hi.system.site.desired_schedule = DEFAULT_LOAD
-    # getattr(hi.system.site, 'desired_schedule', DEFAULT_LOAD)
         
     if generate_ARIES_placeholders or plot_results:
 

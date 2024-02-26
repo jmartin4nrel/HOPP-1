@@ -40,8 +40,8 @@ class Hopp(BaseClass):
 
         # self.system.ppa_price = self.config['grid_config']['ppa_price']
 
-    def simulate(self, project_life: int = 25, lifetime_sim: bool = False):
-        self.system.simulate(project_life, lifetime_sim)
+    def simulate(self, project_life: int = 25, lifetime_sim: bool = False, skip_financials: bool = False):
+        self.system.simulate(project_life, lifetime_sim, skip_financials)
 
     # I/O
 

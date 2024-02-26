@@ -79,18 +79,18 @@ config:
     wind:
       skip_financial: true
   dispatch_options:
-    battery_dispatch: simple #heuristic #
+    battery_dispatch: simple #heuristic
     solver: cbc
-    n_look_ahead_periods: 48 #48
-    # n_roll_periods: 25
+    n_look_ahead_periods: 25 #48
+    n_roll_periods: 25
     grid_charging: false
     pv_charging_only: false
     include_lifecycle_count: false
-    limit_dispatch: false # Comment out starting here to optimize whole year
-    # limit_dispatch_idxs:
-    #   start_indx: 110
-    #   end_indx: 158
-    #   initial_soc: 50.0
+    limit_dispatch: true # Comment out starting here to optimize whole year
+    limit_dispatch_idxs:
+      start_indx: 110
+      end_indx: 135
+      initial_soc: 50.0
   cost_info:
     wind_installed_cost_mw: 352600.0 # based on 2023 ATB moderate case for offshore wind
     solar_installed_cost_mw: 1331353.0 # based on 2023 ATB moderate case for utility-scale pv

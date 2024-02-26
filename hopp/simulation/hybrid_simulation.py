@@ -718,7 +718,8 @@ class HybridSimulation(BaseClass):
 
     def simulate(self,
                  project_life: int = 25,
-                 lifetime_sim = False):
+                 lifetime_sim = False,
+                 skip_financials = False):
         """
         Runs the individual system models then combines the financials
 
@@ -727,9 +728,10 @@ class HybridSimulation(BaseClass):
         :return:
         """
         self.simulate_power(project_life, lifetime_sim)
-        # self.calculate_installed_cost()
-        # self.calculate_financials()
-        # self.simulate_financials(project_life)
+        if not skip_financials:
+            self.calculate_installed_cost()
+            self.calculate_financials()
+            self.simulate_financials(project_life)
 
     @property
     def interconnect_kw(self) -> float:

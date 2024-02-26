@@ -109,7 +109,7 @@ def setup_hopp(
     return hopp_config, hopp_site
 
 # Function to run hopp from provided inputs from setup_hopp()
-def run_hopp(hopp_config, hopp_site, project_lifetime, verbose=False):
+def run_hopp(hopp_config, hopp_site, project_lifetime, verbose=False, skip_financials=False):
     
     hopp_config_internal = copy.deepcopy(hopp_config)
     if "wave" in hopp_config_internal["technologies"].keys():
@@ -124,7 +124,7 @@ def run_hopp(hopp_config, hopp_site, project_lifetime, verbose=False):
     if "wave" in hi.system.technologies.keys():
         hi.system.wave.create_mhk_cost_calculator(wave_cost_dict)
 
-    hi.simulate(project_life=project_lifetime)
+    hi.simulate(project_life=project_lifetime, lifetime_sim=False, skip_financials=skip_financials)
 
     # store results for later use
     hopp_results = {

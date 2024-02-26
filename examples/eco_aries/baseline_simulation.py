@@ -40,6 +40,10 @@ def run_baseline():
                                    incentive_option=1, 
                                    plant_design_scenario=7, 
                                    output_level=4)
+    
+    return lcoe, lcoh
 
 if __name__ == "__main__":
-    run_baseline()
+    lcoe, lcoh = run_baseline()
+    print("LCOE: {:.3f}".format(lcoe))
+    print("LCOH: {:.3f}".format(lcoh))
