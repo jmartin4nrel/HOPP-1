@@ -66,7 +66,7 @@ def batt_balance(HOPPdict, ARIESdict, trackers):
     
     return HOPPdict, trackers
 
-if __name__ == '__main__':
+def realtime_balancer():
 
     bufferSize  = 4096
     plotting = True
@@ -132,3 +132,8 @@ if __name__ == '__main__':
         # Send ARIES time back to HOPP
         bytesToSend = str.encode(json.dumps(str(ARIESdict['aries_time'][-1])))
         sendHOPPsocket.sendto(bytesToSend, sendHOPPaddress)
+
+
+if __name__ == '__main__':
+
+    realtime_balancer()

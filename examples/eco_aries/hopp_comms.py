@@ -5,7 +5,7 @@ import json
 from hopp import ROOT_DIR
 from examples.eco_aries.eco_setup import eco_setup, eco_modify
 
-if __name__ == '__main__':
+def hopp_comms():
 
     bufferSize  = 4096
 
@@ -98,3 +98,8 @@ if __name__ == '__main__':
         aries_time = pd.DatetimeIndex([json.loads(pair[0])])[0]
         hopp_timestep = np.where(hopp_time == aries_time.floor('1h'))
         hopp_timestep = hopp_timestep[0][0]
+
+
+if __name__ == '__main__':
+
+    hopp_comms()

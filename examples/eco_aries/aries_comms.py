@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from hopp import ROOT_DIR
 
-if __name__ == '__main__':
+def aries_comms():
 
     bufferSize  = 4096
 
@@ -67,3 +67,8 @@ if __name__ == '__main__':
             HOPPdict = json.loads(pair[0])
             HOPPcommand = HOPPdict['batt_command_kw']
             aries_signals.loc[(new_time_index+pd.Timedelta('100ms')):,'batt'] = HOPPcommand
+
+
+if __name__ == '__main__':
+
+    aries_comms()
