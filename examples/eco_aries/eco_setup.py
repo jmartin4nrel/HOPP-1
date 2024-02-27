@@ -58,10 +58,12 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
         
     if generate_ARIES_placeholders or plot_results:
 
-        # hi.hopp.system.simulate_power(1)
+        # Collect info from HOPP simulation to send to ARIES
         hybrid_plant = hi.system
         gen = hybrid_plant.generation_profile
         batt = hybrid_plant.battery.outputs
+        wind_velocities = hi.system.wind._system_model.turb_velocities
+        insol = hi.system.pv._system_model.Outputs.poa
 
         # Make time series - "hopp_time" with one point per hour, "hopp_time2" with two points per hour
         hopp_time = pd.date_range('2019-01-01', periods=8761, freq='1 h')
@@ -85,7 +87,6 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
             gen2 = np.vstack([gen1,gen1])
             gen2 = np.reshape(np.transpose(gen2),8760*2)
             gen2_dict[gen2_list[i]] = gen2
-            # exec(gen2_list[i]+" = gen2")
 
         # Fill out the battery SOC time history
         batt_soc = np.array(batt.SOC)
@@ -125,24 +126,38 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
 
         if generate_ARIES_placeholders:
 
-            # Interpolate the HOPP generation to 100 ms intervals
+            # Interpolate the HOPP generation and resources to 100 ms intervals
             hopp_time3 = pd.date_range('2019-01-01 00:30', periods=8760, freq='1 h')
             gen_frame = pd.DataFrame(np.transpose([wind_gen, wave_gen, pv_gen, batt_gen, hybrid_gen]),index=hopp_time3, columns=['wind','wave','solar', 'batt', 'elyzer'])
             slice_start = '2019-01-05 13:00'
             slice_end = '2019-01-06 15:00'
             gen_frame2 = gen_frame[slice_start:slice_end]
-            gen_frame3 = gen_frame2.resample('100 ms').interpolate('cubic')
+            gen_frame3 = gen_frame2.resample('30 min').interpolate('linear')
             gen_frame3 = gen_frame3[sim_start:sim_end]
+            
+            # Move the middle point to make the average the same
+            for tech in gen_frame3.columns.values:
+                values = gen_frame3[tech].values
+                for i in range(int(len(values)/2)-1):
+                    values[i*2+1] = (values[i*2+1]*4-values[i*2]-values[i*2+2])/2
+                gen_frame3[tech] = values
+
+            # Resample to 5 min
+            gen_frame3 = gen_frame3.resample('5 min').interpolate('linear')
 
             # Superimpose some random noise
             for tech in gen_frame3.columns.values:
                 values = gen_frame3[tech].values
                 mean = np.mean(values)
-                gen_frame3[tech] = values+np.random.standard_normal(len(values))*mean/100
+                noise = np.random.standard_normal(len(values))*mean*.08 # based on evaluation of 5 min wind samples - std is 8% of mean
+                gen_frame3[tech] = values+noise-np.mean(noise)
+
+            # Resample to 100 ms
+            gen_frame3 = gen_frame3.resample('100 ms').interpolate('cubic')
 
             # Put in placeholder battery command
             batt_placeholder_kw = -40000.
-            gen_frame3["batt"] = np.full(values.shape,batt_placeholder_kw)
+            gen_frame3["batt"] = np.full(gen_frame3['batt'].values.shape,batt_placeholder_kw)
             
             # Save to .csv
             gen_frame3.to_csv(ROOT_DIR.parent / "examples" / "outputs" / "placeholder_ARIES.csv")
@@ -195,3 +210,7 @@ def eco_modify(hi, timestep, results):
     '''
 
     return hi
+
+if __name__ == '__main__':
+
+    hi, _ = eco_setup(True, True)
