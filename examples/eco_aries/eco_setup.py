@@ -65,8 +65,10 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
         batt = hybrid_plant.battery.outputs
         insol = hi.system.pv._system_model.Outputs.poa
         wind_speed = hi.system.wind._system_model.speeds
+        wind_dir = hi.system.wind._system_model.wind_dirs
         wind_velocities = hi.system.wind._system_model.turb_velocities
         turb8_speed = wind_velocities[:,0,8]
+        turb9_speed = wind_velocities[:,0,9]
 
         # Make time series - "hopp_time" with one point per hour, "hopp_time2" with two points per hour
         hopp_time = pd.date_range('2019-01-01', periods=8761, freq='1 h')
@@ -94,10 +96,14 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
         # Double up resources the same way
         insol2 = np.vstack([insol,insol])
         wind_speed2 = np.vstack([wind_speed,wind_speed])
+        wind_dir2 = np.vstack([wind_dir,wind_dir])
         turb8_speed2 = np.vstack([turb8_speed,turb8_speed])
+        turb9_speed2 = np.vstack([turb9_speed,turb9_speed])
         insol2 = np.reshape(np.transpose(insol2),8760*2)
         wind_speed2 = np.reshape(np.transpose(wind_speed2),8760*2)
         turb8_speed2 = np.reshape(np.transpose(turb8_speed2),8760*2)
+        turb9_speed2 = np.reshape(np.transpose(turb9_speed2),8760*2)
+        wind_dir2 = np.reshape(np.transpose(wind_dir2),8760*2)
 
         # Fill out the battery SOC time history
         batt_soc = np.array(batt.SOC)
@@ -109,8 +115,8 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
             # Plot results
             plt.ioff()
             fig,ax=plt.subplots(3,1,sharex=True)
-            fig.set_figwidth(8.0)
-            fig.set_figheight(9.0)
+            fig.set_figwidth(12.0)
+            fig.set_figheight(12.0)
 
             ax[0].plot(hopp_time2,gen2_dict['wave']/1000,label="Wave Generation")
             ax[0].plot(hopp_time2,gen2_dict['pv']/1000,label="Solar Generation")
@@ -161,18 +167,27 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
             # Resample to 5 min
             aries_frame = aries_frame.resample('5 min').interpolate('linear')
 
+            # Add in deviations
+            wind_5min_devs = pd.read_csv(ROOT_DIR.parent/"examples"/"eco_aries"/"input_files"/"resources"/"wind_5min_dev.csv",header=None)
+            for tech in aries_frame.columns.values:
+                if 'wind_vel' in tech:
+                    values = aries_frame[tech].values
+                    values += np.squeeze(wind_5min_devs.values)
+                    
             # Superimpose some random noise
             for tech in aries_frame.columns.values:
                 if tech != 'poa':
                     values = aries_frame[tech].values
                     mean = np.mean(values)
                     # print(mean)
-                    noise = np.random.standard_normal(len(values))*mean*.08 # based on evaluation of 5 min wind samples - std is 8% of mean
+                    noise = np.random.standard_normal(len(values))*mean*.01 # Noise is 1% of the mean
+                    noise = np.cumsum(noise)
+                    noise = np.multiply(noise,np.divide(np.flip(np.divide(np.add(np.where(noise)[0],len(noise)),2)),len(noise)))
                     pos_noise = np.maximum(noise*0,values-noise)-values
                     # print(np.mean(values+pos_noise-np.mean(pos_noise)))
                     aries_frame[tech] = values+pos_noise-np.mean(pos_noise)
 
-            # Resample to 1 s
+            # Resample to 1 s with spline fit
             aries_frame = aries_frame.resample('1 s').interpolate('cubic')
 
             # Make sure the signals stay above zero
@@ -208,27 +223,27 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
             HOPP_gen1 = np.sum(HOPP_gen1)
             HOPP_gen2 = np.sum(wind_gen[110:134])/1000
             
-            print("Calculated wind generation from ARIES turbine speeds + IEA curve: {:.1f} MWh".format(ARIES_gen))
-            print("Calculated wind generation from HOPP turbine speeds + IEA curve: {:.1f} MWh".format(HOPP_gen1))
-            print("Calculated wind generation from plant-wide HOPP simulation: {:.1f} MWh".format(HOPP_gen2))
-            
             # Correct ARIES wind speeds
-            ARIES_correction_factor =  (HOPP_gen1/ARIES_gen-1)*5/4
-            ARIES_gen = 0
-            for turb in range(num_turbs):
-                vel = copy.deepcopy(aries_frame.iloc[:-1,turb+6].values)
-                below_cutoffs = np.argwhere(vel<cutoff)
-                idxs = copy.deepcopy(below_cutoffs)
-                distances = (cutoff-vel[below_cutoffs])/(cutoff-cutin)*2
-                vel[below_cutoffs] = vel[below_cutoffs]*(1+ARIES_correction_factor*distances)
-                new_vel_below = copy.deepcopy(vel[below_cutoffs])
-                vel[np.argwhere(vel<cutin)] = cutin
-                vel[np.argwhere(vel>cutoff)] = cutoff
-                gen = A*np.power(vel,3) + B*np.power(vel,2) + C*vel + D
-                ARIES_gen += gen[:-1]/3600
-                new_vel = aries_frame.iloc[:-1,turb+6].values
-                new_vel[idxs] = new_vel_below
-            ARIES_gen = np.sum(ARIES_gen)
+            iterations = 0
+            ARIES_correction_factor = 1
+            while iterations < 10 and ARIES_correction_factor > 0.0001:
+                ARIES_correction_factor =  copy.deepcopy(HOPP_gen1/ARIES_gen-1)
+                ARIES_gen = 0
+                for turb in range(num_turbs):
+                    vel = copy.deepcopy(aries_frame.iloc[:-1,turb+6].values)
+                    below_cutoffs = np.argwhere(vel<cutoff)
+                    idxs = copy.deepcopy(below_cutoffs)
+                    distances = (cutoff-vel[below_cutoffs])/(cutoff-cutin)*2
+                    vel[below_cutoffs] = vel[below_cutoffs]*(1+ARIES_correction_factor*distances)
+                    new_vel_below = copy.deepcopy(vel[below_cutoffs])
+                    vel[np.argwhere(vel<cutin)] = cutin
+                    vel[np.argwhere(vel>cutoff)] = cutoff
+                    gen = A*np.power(vel,3) + B*np.power(vel,2) + C*vel + D
+                    ARIES_gen += gen[:-1]/3600
+                    new_vel = aries_frame.iloc[:-1,turb+6].values
+                    new_vel[idxs] = new_vel_below
+                ARIES_gen = np.sum(ARIES_gen)
+                iterations += 1
 
             print("Calculated wind generation from ARIES turbine speeds + IEA curve: {:.1f} MWh".format(ARIES_gen))
             print("Calculated wind generation from HOPP turbine speeds + IEA curve: {:.1f} MWh".format(HOPP_gen1))
@@ -252,9 +267,9 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
 
             if plot_results:
 
-                fig,ax=plt.subplots(2,1)
+                fig,ax=plt.subplots(3,1,sharex=True)
                 fig.set_figwidth(12.0)
-                fig.set_figheight(8.0)        
+                fig.set_figheight(12.0)        
 
                 ax[0].plot(hopp_time2,insol2,label = 'HOPP')
                 ax[0].plot(hopp_time3,aries_frame['poa'],label = 'ARIES')
@@ -262,15 +277,20 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
                 ax[0].legend()
                 ax[0].set_ylabel('POA insolation [W/m2]')
 
-                ax[1].plot(hopp_time2,wind_speed2,label = 'No-wake HOPP input speed')
-                ax[1].plot(hopp_time2,turb8_speed2,label = 'Turbine 8 HOPP input speed')
-                ax[1].plot(hopp_time3,aries_frame['wind_vel_08'],label = 'Turbine 8 ARIES speed')
-                ax[1].plot(hopp_time3,aries_frame['wind_vel_max'],label = 'Max speed of all ARIES turbines')
-                ax[1].plot(hopp_time3,aries_frame['wind_vel_min'],label = 'Min speed of all ARIES turbines')
-                ax[1].set_xlim(pd.DatetimeIndex((sim_start,sim_end)))
+                ax[1].plot(hopp_time2,wind_speed2,'k-',linewidth=3,label = 'Original HOPP wind speed')
+                ax[1].plot(hopp_time2,turb8_speed2,'c--',label = 'Turbine 8 HOPP eff. rotor vel.')
+                ax[1].plot(hopp_time2,turb9_speed2,'r:',label = 'Turbine 9 HOPP eff. rotor vel.')
+                ax[1].plot(hopp_time3,aries_frame['wind_vel_08'],'c-',label = 'Turbine 8 ARIES wind speed')
+                ax[1].plot(hopp_time3,aries_frame['wind_vel_09'],'r-',label = 'Turbine 9 ARIES wind speed')
+                # ax[1].plot(hopp_time3,aries_frame['wind_vel_max'],'--',label = 'Max speed of all ARIES turbines')
+                # ax[1].plot(hopp_time3,aries_frame['wind_vel_min'],'--',label = 'Min speed of all ARIES turbines')
                 ax[1].legend(ncol=2)
                 ax[1].set_ylabel('Wind Speed [m/s]')
                 ax[1].set_ylim([0,15])
+
+                ax[2].plot(hopp_time2,wind_dir2,)
+                ax[2].set_ylabel('Wind Direction [deg]')
+                ax[2].set_ylim([80,140])
 
                 plt.show()
 
