@@ -9,7 +9,7 @@ def aries_comms():
     bufferSize  = 4096
 
     # Set up faster-than-realtime
-    times_realtime = 100
+    times_realtime = 4
 
     # Read in ARIES placeholder signal
     aries_sig_fn = ROOT_DIR.parent / 'examples' / 'outputs' / 'placeholder_ARIES.csv'
@@ -41,10 +41,10 @@ def aries_comms():
         # Measure elapsed time and find correct place in ARIES signal
         elpased_time = (pd.Timestamp.now()-timer_start)*times_realtime
         aries_time = start_time+elpased_time
-        new_time_index = aries_time.floor('100ms')
+        new_time_index = aries_time.floor('1s')
 
-        # If at least two 100 ms cycle have passed, send out the signals
-        if new_time_index > time_index + pd.Timedelta('200ms'):
+        # If at least two 1 s cycle have passed, send out the signals
+        if new_time_index > time_index + pd.Timedelta('2s'):
             rows = aries_signals.loc[time_index:new_time_index]
             rows = rows.iloc[[0,-2]]
 
@@ -52,7 +52,7 @@ def aries_comms():
             response_dict = {'aries_time':[str(i) for i in rows.index.values]}
             sum = 0.
             for col in rows.columns.values:
-                rows[col] = np.mean(aries_signals.loc[time_index:(new_time_index-pd.Timedelta('100ms')),col])
+                rows[col] = np.mean(aries_signals.loc[time_index:(new_time_index-pd.Timedelta('1s')),col])
                 if col != 'elyzer':
                     sum += rows[col]
                 else:
@@ -66,7 +66,7 @@ def aries_comms():
             pair = recvSocket.recvfrom(bufferSize)
             HOPPdict = json.loads(pair[0])
             HOPPcommand = HOPPdict['batt_command_kw']
-            aries_signals.loc[(new_time_index+pd.Timedelta('100ms')):,'batt'] = HOPPcommand
+            aries_signals.loc[(new_time_index+pd.Timedelta('1s')):,'batt'] = HOPPcommand
 
 
 if __name__ == '__main__':

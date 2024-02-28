@@ -10,9 +10,8 @@ def hopp_comms():
     bufferSize  = 4096
 
     # Set up hopp simulation
-    hi, elyzer_results = eco_setup(True)
-    hi.hopp.system.simulate_power(1)
-
+    hi, elyzer_results = eco_setup(False)
+    
     # Setup UDP send
     localIP     = "127.0.0.1"
     localPort   = 20001
