@@ -67,6 +67,8 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
         wind_speed = hi.system.wind._system_model.speeds
         wind_dir = hi.system.wind._system_model.wind_dirs
         wind_velocities = hi.system.wind._system_model.turb_velocities
+        wind_x = hi.system.wind._system_model.fi.layout_x
+        wind_y = hi.system.wind._system_model.fi.layout_y
         turb8_speed = wind_velocities[:,0,8]
         turb9_speed = wind_velocities[:,0,9]
 

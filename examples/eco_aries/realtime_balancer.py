@@ -1,5 +1,6 @@
 import socket
 import json
+import struct
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -99,6 +100,12 @@ def realtime_balancer():
     sendHOPPaddress  = (localIP, localPort)
     sendHOPPsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 
+    # Setup UDP send to ADMS
+    localIP     = "127.0.0.1"
+    localPort   = 20005
+    sendADMSaddress  = (localIP, localPort)
+    sendADMSsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+
     # Set up trackers and plots if necessary
     if plotting:
         plt.ion()
@@ -128,6 +135,11 @@ def realtime_balancer():
         # Send command back to ARIES
         bytesToSend = str.encode(json.dumps(HOPPdict))
         sendARIESsocket.sendto(bytesToSend, sendARIESaddress)
+
+        # Send float to ADMS testbed
+        bytesToSend = b"".join([struct.pack('!f',1234),
+                                struct.pack('!f',5678)])
+        sendADMSsocket.sendto(bytesToSend, sendADMSaddress)
 
         # Send ARIES time back to HOPP
         bytesToSend = str.encode(json.dumps(str(ARIESdict['aries_time'][-1])))
