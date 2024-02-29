@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from comms_tracking import setup_tracking, update_trackers, updateSOCplot
+from aries_comms import aries_output_unpack, aries_input_pack
 
 def batt_balance(HOPPdict, ARIESdict, trackers):
 
@@ -125,6 +126,7 @@ def realtime_balancer(simulate_aries=True):
             # Receive data from ARIES
             ARIESpair = recvARIESsocket.recvfrom(bufferSize)
             ARIESraw = ARIESpair[0]
+            #ARIESdict = aries_output_unpack(ARIESraw)
             ARIESdict = json.loads(ARIESraw)
 
         trackers = update_trackers(trackers, HOPPdict, ARIESdict, plotting)
@@ -139,6 +141,7 @@ def realtime_balancer(simulate_aries=True):
 
             # Send command back to ARIES
             bytesToSend = str.encode(json.dumps(HOPPdict))
+            #bytesToSend = aries_input_pack(HOPPdict)
             sendARIESsocket.sendto(bytesToSend, sendARIESaddress)
 
         # Send float to ADMS testbed

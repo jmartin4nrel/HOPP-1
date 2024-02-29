@@ -1,8 +1,61 @@
 import socket
 import json
+import struct
 import numpy as np
 import pandas as pd
 from hopp import ROOT_DIR
+
+
+def aries_input_pack(HOPP_dict):
+
+    raw_input = b""
+
+    return raw_input
+
+def aries_input_unpack(raw_input):
+
+    num_inputs = 37
+    num_bytes = num_inputs*8
+
+    datalist = []
+    idx = 0
+    while idx < num_bytes:
+        datalist.append(struct.unpack(
+            '!{}'.format('d'*1), raw_input[idx:idx+8]))
+        idx = idx + 8
+
+    HOPP_dict = {}
+
+    #TODO: parse raw datalist into HOPP_dict
+    # HOPP_dict['key'] = datalist[index]
+
+    return HOPP_dict
+
+
+def aries_output_pack(response_dict):
+
+    num_outputs = 39
+    num_bytes = num_outputs*8
+    
+    output_list = []
+
+    #TODO: parse response_dict into output_list
+    # output_list[index] = response_dict['key']
+
+    strs_list = []
+    for output in output_list:
+        strs_list.append((struct.pack('!d',output)))
+    strs = b"".join(strs_list)
+
+    return strs
+
+
+def aries_output_unpack(raw_output):
+
+    ARIES_dict = {}
+
+    return ARIES_dict
+
 
 def aries_comms():
 
@@ -59,12 +112,14 @@ def aries_comms():
                     rows[col] = sum
                 response_dict[col] = list(rows[col].values) 
             bytesToSend = str.encode(json.dumps(response_dict))
+            # bytesToSend = aries_output_pack(response_dict)
             sendSocket.sendto(bytesToSend, sendAddress)
             time_index = new_time_index
             
             # Wait to receive command from balancer
             pair = recvSocket.recvfrom(bufferSize)
             HOPPdict = json.loads(pair[0])
+            #HOPPdict = aries_input_unpack(raw_input):
             HOPPcommand = HOPPdict['batt_command_kw']
             aries_signals.loc[(new_time_index+pd.Timedelta('1s')):,'batt'] = HOPPcommand
 
