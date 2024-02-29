@@ -30,6 +30,7 @@ class FuelConfig(BaseClass):
     model_name: str = field(default="SimpleReactor", validator=contains(["SimpleReactor"]))
     simple_fin_config: Optional[dict] = field(default=None)
     model_input_file: Optional[str] = field(default=None)
+    lca: Optional[dict] = field(default=None)
     
     
     def default():

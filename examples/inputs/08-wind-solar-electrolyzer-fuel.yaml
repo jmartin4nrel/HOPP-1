@@ -1,20 +1,28 @@
 name: "Example 08"
 
 # SiteInfo
-site: !include flatirons_site.yaml
+site: !include methanol_site.yaml
 
 # Technologies
 technologies:
   pv:
     system_capacity_kw: 50000
+    lca:
+      co2_kg_kwh: 0.02238638471
   wind:
     num_turbines: 10
     turbine_rating_kw: 5000
+    lca:
+      co2_kg_kwh: 0.02949369802 
   grid:
     interconnect_kw: 50000
+    lca:
+      co2_kg_kwh: 0.6004253623 # NETL Grid Mix Explorer 4.2 - Texas Reliability Entity 2020
   fuel:
     fuel_prod_kg_s: 3.64992
     fuel_produced: 'methanol'
+    lca:
+      co2_kg_kg: 0.12522615094
     simple_fin_config:
       input_dollar_yr: 2020
       toc: 136000000.
@@ -22,6 +30,8 @@ technologies:
       voc_kg: 0.67682
   co2:
     co2_kg_s: 1.0
+    lca:
+      co2_kg_kg: 0.14
     co2_model: 'SimpleNGCC'
     capture_model: 'AmineScrub'
 
@@ -34,6 +44,10 @@ config:
     fcr_real: 0.0707
     output_dollar_year: 2020
     inflation: 0.025
+  lca_options:
+    model: 'simple'
+    lca_tech: 'fuel'
+    lca_emissions: ['co2_kg']
   simulation_options:
     pv:
       skip_financial: true

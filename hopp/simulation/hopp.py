@@ -37,6 +37,7 @@ class Hopp(BaseClass):
             self.config.get("cost_info"),
             self.config.get("simulation_options"),
             self.config.get("finance_options"),
+            self.config.get("lca_options"),
         )
 
         # self.system.ppa_price = self.config['grid_config']['ppa_price']

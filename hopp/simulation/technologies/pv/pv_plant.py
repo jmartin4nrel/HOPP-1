@@ -46,6 +46,7 @@ class PVConfig(BaseClass):
     dc_degradation: Optional[List[float]] = field(default=None)
     approx_nominal_efficiency: Optional[float] = field(default=0.19)
     module_unit_mass: Optional[float] = field(default=11.092)
+    lca: Optional[dict] = field(default=None)
 
 
 @define

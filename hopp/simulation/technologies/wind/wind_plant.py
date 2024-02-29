@@ -57,6 +57,8 @@ class WindConfig(BaseClass):
     floris_config: Optional[Union[dict, str, Path]] = field(default=None)
     timestep: Optional[Tuple[int, int]] = field(default=None)
     fin_model: Optional[Union[dict, FinancialModelType]] = field(default=None)
+    lca: Optional[dict] = field(default=None)
+    
 
     def __attrs_post_init__(self):
         if self.model_name == 'floris' and self.timestep is None:

@@ -64,6 +64,7 @@ class BatteryStatelessConfig(BaseClass):
     maximum_SOC: float = field(default=90, validator=range_val(0, 100))
     initial_SOC: float = field(default=10, validator=range_val(0, 100))
     fin_model: Union[dict, CustomFinancialModel] = field(default=None)
+    lca: Optional[dict] = field(default=None)
 
 
 @define

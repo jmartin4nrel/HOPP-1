@@ -1,5 +1,5 @@
 import os
-
+from typing import Optional, List, Union
 from attrs import define, field
 import PySAM.Singleowner as Singleowner
 
@@ -21,6 +21,7 @@ class TroughConfig(CspConfig):
     """
     tech_name: str = field(validator=contains(["tcsmolten_salt", "trough_physical"]), default="trough_physical")
     name: str = field(default="TroughPlant")
+    lca: Optional[dict] = field(default=None)
 
 
 @define

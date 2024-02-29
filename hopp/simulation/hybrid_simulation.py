@@ -199,6 +199,7 @@ class HybridSimulation(BaseClass):
     cost_info: Optional[dict] = field(default=None)
     simulation_options: Optional[dict] = field(default=None)
     finance_options: Optional[dict] = field(default=None)
+    lca_options: Optional[dict] = field(default=None)
 
     pv: Optional[Union[PVPlant, DetailedPVPlant]] = field(init=False, default=None)
     wind: Optional[WindPlant] = field(init=False, default=None)
@@ -805,6 +806,39 @@ class HybridSimulation(BaseClass):
         pass
 
 
+    def calculate_lca(self):
+        '''
+        Calculates a life cycle assesment for individual sub-systems and the hybrid system as a whole
+        '''
+
+        # Accumulates total annual emissions output from different sources
+        self.lca = {} 
+        for em in self.lca_options['lca_emissions']:
+            self.lca[em+'_yr'] = 0
+        for system in self.technologies.keys():
+            model = getattr(self, system)
+            for em in self.lca_options['lca_emissions']:
+                if isinstance(model,PowerSource):
+                    output_kwh_yr =  model.annual_energy_kwh
+                    em_kwh = model.config.lca[em+'_kwh']
+                    self.lca[em+'_yr'] += output_kwh_yr*em_kwh
+                if isinstance(model,FlowSource):
+                    output_kg_yr =  model.annual_mass_kg
+                    em_kg = model.config.lca[em+'_kg']
+                    self.lca[em+'_yr'] += output_kg_yr*em_kg
+
+        # Find the tech that is the end product and divide by its flow/power
+        product_system = self.lca_options['lca_tech']
+        model = getattr(self, product_system)
+        for em in self.lca_options['lca_emissions']:
+            if isinstance(model,PowerSource):
+                output_kwh_yr =  model.annual_energy_kwh
+                self.lca[em+'_kwh'] = self.lca[em+'_yr'] / output_kwh_yr
+            if isinstance(model,FlowSource):
+                output_kg_yr =  model.annual_mass_kg
+                self.lca[em+'_kg'] = self.lca[em+'_yr'] / output_kg_yr
+    
+
     def simulate(self,
                  project_life: int = 25,
                  lifetime_sim = False):
@@ -816,6 +850,8 @@ class HybridSimulation(BaseClass):
         :return:
         """
         self.simulate_generation(project_life, lifetime_sim)
+        if self.lca_options is not None:
+            self.calculate_lca()
         if 'model' in self.finance_options.keys():
             if 'simple' == self.finance_options['model']:
                 self.simple_financials()

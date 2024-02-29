@@ -29,6 +29,7 @@ class CO2Config(BaseClass):
     co2_model: str = field(default="SimpleNGCC", validator=contains(["SimpleNGCC"]))
     capture_model: str = field(default="AmineScrub", validator=contains(["AmineScrub","None"]))
     model_input_file: Optional[str] = field(default=None)
+    lca: Optional[dict] = field(default=None)
     
     
     def default():

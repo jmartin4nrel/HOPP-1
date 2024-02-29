@@ -1,3 +1,4 @@
+from typing import Optional, List, Union
 import os
 import numpy as np
 from math import pi, log, sin
@@ -46,6 +47,7 @@ class TowerConfig(CspConfig):
     optimize_field_before_sim: bool = field(default=True)
     scale_input_params: bool = field(default=False)
     name: str = field(default="TowerPlant")
+    lca: Optional[dict] = field(default=None)
 
 
 @define

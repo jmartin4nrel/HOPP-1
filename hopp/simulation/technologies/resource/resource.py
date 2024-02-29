@@ -36,7 +36,7 @@ class Resource(metaclass=ABCMeta):
         self.name = 'hybrid-systems'
         self.affiliation = 'NREL'
         self.reason = 'hybrid-analysis'
-        self.email = 'nicholas.diorio@nrel.gov'
+        self.email = 'jonathan.martin@nrel.gov'
         self.mailing_list = 'true'
 
         # paths

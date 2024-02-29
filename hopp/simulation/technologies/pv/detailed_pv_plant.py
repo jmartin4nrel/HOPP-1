@@ -56,6 +56,7 @@ class DetailedPVConfig(BaseClass):
     layout_model: Optional[Union[dict, PVLayout]] = field(default=None)
     fin_model: Optional[Union[str, dict, FinancialModelType]] = field(default=None)
     dc_degradation: Optional[List[float]] = field(default=None)
+    lca: Optional[dict] = field(default=None)
 
 
 @define

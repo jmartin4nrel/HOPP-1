@@ -44,6 +44,7 @@ class MHKConfig(BaseClass):
     loss_transmission: float = field(default=0., validator=range_val(0, 100))
     loss_downtime: float = field(default=0., validator=range_val(0, 100))
     loss_additional: float = field(default=0., validator=range_val(0, 100))
+    lca: Optional[dict] = field(default=None)
 
 
 @define
