@@ -11,7 +11,7 @@ from hopp.utilities.validators import gt_zero, contains
 from hopp.simulation.technologies.flow_source import FlowSource
 from hopp.simulation.technologies.sites import SiteInfo, flatirons_site
 from hopp.simulation.technologies.financial import SimpleFinance, SimpleFinanceConfig
-from hopp.simulation.technologies.fuel.simple_reactor import SimpleReactor, SimpleReactorFinance
+from hopp.simulation.technologies.fuel.simple_reactor import SimpleReactor
 from hopp.utilities.log import hybrid_logger as logger
 
 
@@ -28,7 +28,7 @@ class FuelConfig(BaseClass):
     fuel_prod_kg_s: float = field(default=1.0, validator=gt_zero)
     fuel_produced: str = field(default="hydrogen", validator=contains(["hydrogen","methanol"]))
     model_name: str = field(default="SimpleReactor", validator=contains(["SimpleReactor"]))
-    simple_fin_config: Optional[dict] = field(default=None)
+    simple_fin_config: Optional[dict] = field(default=SimpleFinanceConfig())
     model_input_file: Optional[str] = field(default=None)
     lca: Optional[dict] = field(default=None)
     

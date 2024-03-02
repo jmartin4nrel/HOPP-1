@@ -27,7 +27,7 @@ class GridPurchaseConfig(BaseClass):
     interconnect_kw: float = field(default=50000.0, validator=gt_zero)
     model_name: str = field(default="SimpleGridSales", validator=contains(["SimpleGridSales"]))
     generation_profile: list = field(default=[0.0*8760])
-    simple_fin_config: Optional[dict] = field(default=None)
+    simple_fin_config: Optional[dict] = field(default=SimpleFinanceConfig())
     model_input_file: Optional[str] = field(default=None)
     lca: Optional[dict] = field(default=None)
     

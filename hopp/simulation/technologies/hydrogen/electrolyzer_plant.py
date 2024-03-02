@@ -11,7 +11,7 @@ from hopp.utilities.validators import gt_zero, contains
 from hopp.simulation.technologies.power_source import PowerSource
 from hopp.simulation.technologies.sites import SiteInfo, flatirons_site
 from hopp.simulation.technologies.financial import SimpleFinance, SimpleFinanceConfig
-from hopp.simulation.technologies.hydrogen.simple_electrolyzer import SimpleElectrolyzer, SimpleElectrolyzerFinance
+from hopp.simulation.technologies.hydrogen.simple_electrolyzer import SimpleElectrolyzer
 from hopp.utilities.log import hybrid_logger as logger
 
 
@@ -31,7 +31,7 @@ class ElectrolyzerConfig(BaseClass):
     kg_h2o_kg_h2: float = field(default=14.2884)
     input_streams_kg_s: Optional[dict] = field(default={'water':[0.0]*8760})
     output_streams_kg_s: Optional[dict] = field(default={'hydrogen':[0.0]*8760})
-    simple_fin_config: Optional[dict] = field(default=None)
+    simple_fin_config: Optional[dict] = field(default=(SimpleFinanceConfig()))
     model_input_file: Optional[str] = field(default=None)
     lca: Optional[dict] = field(default=None)
     
