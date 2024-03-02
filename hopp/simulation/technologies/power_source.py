@@ -10,7 +10,7 @@ from hopp.simulation.technologies.dispatch.power_sources.power_source_dispatch i
 from hopp.tools.utils import array_not_scalar, equal
 from hopp.utilities.log import hybrid_logger as logger
 from hopp.simulation.base import BaseClass
-
+from hopp.simulation.technologies.financial.simple_financial_model import SimpleFinance
 
 class PowerSource(BaseClass):
     """
@@ -48,7 +48,7 @@ class PowerSource(BaseClass):
 
         if isinstance(self._financial_model, Singleowner.Singleowner):
             self.initialize_financial_values()
-        else:
+        elif not isinstance(self._financial_model, SimpleFinance):
             self._financial_model.assign(self._system_model.export(), ignore_missing_vals=True)       # copy system parameter values having same name
             self._financial_model.set_financial_inputs(system_model=self._system_model)               # for custom financial models
 

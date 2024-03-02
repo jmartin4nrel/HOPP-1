@@ -5,33 +5,33 @@ from hopp.simulation.technologies.sites import SiteInfo
 from hopp.utilities.validators import gt_zero
 # avoid circular dep
 if TYPE_CHECKING:
-    from hopp.simulation.technologies.fuel.fuel_plant import FuelConfig
+    from hopp.simulation.technologies.hydrogen.electrolyzer_plant import ElectrolyzerConfig
 
 @define
-class SimpleReactor(BaseClass):
+class SimpleElectrolyzer(BaseClass):
     """
-    Configuration class for SimpleReactor.
+    Configuration class for SimpleElectrolyzer.
 
     Args:
         site = SiteInfo object
-        config = FuelConfig object
-        name = Name
-        :param input_streams_kg_s: Dict of flows coming into the reactor
-        :param output_streams_kg_s: Dict of flows coming out of the reactor
+        config = HydrogenConfig object
     """
     site: SiteInfo = field()
-    config: "FuelConfig" = field()
-    name: str = field()
-    input_streams_kg_s: dict = {}
-    output_streams_kg_s: dict = {}
-    input_streams_kw: dict = {}
-    output_streams_kw: dict = {}
+    config: "ElectrolyzerConfig" = field()
 
 
     def __attrs_post_init__(self):
-        self.fuel_prod_kg_s = self.config.fuel_prod_kg_s
-        self.fuel_produced = self.config.fuel_produced
-        self.annual_mass_kg = None
+        self.capacity_kw = self.config.capacity_kw
+        self.generation_profile = self.config.generation_profile
+        self.gen = self.generation_profile
+        self.input_streams_kg_s = self.config.input_streams_kg_s
+        self.output_streams_kg_s = self.config.output_streams_kg_s
+        self.kwh_kg_h2 = self.config.kwh_kg_h2
+        self.kg_h2o_kg_h2 = self.config.kg_h2o_kg_h2
+        self.annual_mass_h2_kg = None
+        self.annual_energy = None
+        self.system_capacity_kw = 0
+
 
     def value(self, name: str, set_value=None):
         """
@@ -44,54 +44,40 @@ class SimpleReactor(BaseClass):
 
     def execute(self, project_life):
         '''
-        Executes a fuel plant simulation
+        Executes an electrolyzer simulation
         '''
-        fuel_kg_s = self.config.fuel_prod_kg_s
-        fuel = self.config.fuel_produced
-        self.output_streams_kg_s[fuel] = [fuel_kg_s]*8760
-        self.flow_kg_s = self.output_streams_kg_s[fuel]
-        self.annual_mass_kg = fuel_kg_s*60*60*24*365
-        if fuel == 'methanol':
-            h2ratio = 0.195
-            co2ratio = 1.423
-            kwh_kgH2 = 55.0
-            kj_kgH2 = kwh_kgH2*3600
-            kgH2O_kgH2 = 14.309
-            self.input_streams_kg_s['hydrogen'] = [i*h2ratio for i in self.output_streams_kg_s[fuel]]
-            self.input_streams_kg_s['water'] = [i*kgH2O_kgH2 for i in self.input_streams_kg_s['hydrogen']]
-            self.input_streams_kw['electricity'] = [i*kj_kgH2 for i in self.input_streams_kg_s['hydrogen']]
-            self.input_streams_kg_s['carbon dioxide'] = [i*co2ratio for i in self.output_streams_kg_s[fuel]]
-            
-        
+        self.output_streams_kg_s['hydrogen'] = [i*self.kwh_kg_h2 for i in self.generation_profile]
+        self.input_streams_kg_s['water'] = [i*self.kg_h2o_kg_h2 for i in self.output_streams_kg_s['hydrogen']]
+        self.annual_energy = sum(self.generation_profile)
+
 
 @define
-class SimpleReactorFinance(BaseClass):
+class SimpleElectrolyzerFinance(BaseClass):
     """
-    Configuration class for SimpleReactorFinance.
+    Configuration class for SimpleElectrolyzerFinance.
 
     Args:
-        config = FuelConfig object
+        config = ElectrolyzerConfig object
         life_yr: lifetime, years
         doll_yr: dollar year that subsequent arguments are reported in
         capex = capital expenses
         fopex_ann = fixed operating expenses per annum
-        vopex_kg = variable operating expenses per kg product
+        vopex_kwh = variable operating expenses per kwh product
         fcr = fixed charged rate
     """
-    config: "FuelConfig" = field()
+    config: "ElectrolyzerConfig" = field()
     life_yr: int = field(validator=gt_zero, default=30)
     doll_yr: int = field(validator=gt_zero, default=2020)
     capex: float = field(validator=gt_zero, default=1e6)
     fopex_ann: float = field(validator=gt_zero, default=1e3)
-    vopex_kg: float = field(validator=gt_zero, default=1e0)
+    vopex_kwh: float = field(validator=gt_zero, default=1e0)
     fcr: float = field(validator=gt_zero, default=0.07)
 
     test_value = 0.1
     input_dict = {'test':test_value}
 
     def __attrs_post_init__(self):
-        self.cap_kg_s = self.config.fuel_prod_kg_s
-        self.product = self.config.fuel_produced
+        self.capacity_kw = self.config.capacity_kw
 
     def assign(self, input_dict, ignore_missing_vals=False):
         """

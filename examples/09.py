@@ -11,6 +11,7 @@
 from hopp.simulation import HoppInterface
 from hopp.simulation.technologies.hydrogen.electrolysis import run_h2_PEM
 import numpy as np
+import copy
 import matplotlib.pyplot as plt
 
 # %% [markdown]
@@ -32,10 +33,10 @@ hi = HoppInterface("./inputs/08-wind-solar-electrolyzer-fuel.yaml")
 # %%
 # Run just the reactor model
 hi.system.fuel.simulate_flow(1)
-total_elec_kw = hi.system.fuel._system_model.input_streams_kw['electricity']
+total_elec_kw = np.mean((hi.system.fuel._system_model.input_streams_kw['electricity']))
 
 # Use the calculated co2 input flowrate to size the co2 source plant
-co2_kg_s = hi.system.fuel._system_model.input_streams_kg_s['carbon dioxide']
+co2_kg_s = np.mean(hi.system.fuel._system_model.input_streams_kg_s['carbon dioxide'])
 getattr(hi.system,'co2').value('co2_kg_s',co2_kg_s)
 
 # Calculate the (discrete) wind plant size needed based on an estimated capacity factor and the desired percentage of the total wind/pv output from wind
@@ -54,21 +55,22 @@ percent_wind = wind_cap_kw*wind_cap_factor/total_elec_kw*100
 # d = hi.system.wind.rotor_diameter
 # n = hi.system.wind.num_turbines
 # side = 10*d*n**.5
-# site = getattr(hi.system,'site')
-# setattr(site,'vertices',np.array([[0,0],[0,side],[side,side],[side,0]]))
-# hi.system.layout.wind.reset_grid(n)
+# getattr(hi.system.site,'vertices',np.array([[0,0],[0,side],[side,side],[side,0]]))
 
 # Calculate the (continuous) pv plant size needed based on an estimated capacity factor and the wind plant size
 percent_pv = 100-percent_wind
-pv_cap_factor = 0.288
+pv_cap_factor = 0.288 
 pv_cap_kw = total_elec_kw*percent_pv/100/pv_cap_factor
 getattr(hi.system,'pv').value('system_capacity_kw',pv_cap_kw)
 
 # Calculate the electrolyzer and interconnect size needed based on an estimated capacity factor
 electrolyzer_cap_factor = 0.97
 electrolyzer_cap_kw = total_elec_kw/electrolyzer_cap_factor
-getattr(hi.system,'grid').value('interconnect_kw',electrolyzer_cap_kw)
-
+sales_cap_kw = wind_cap_kw+pv_cap_kw-electrolyzer_cap_kw
+getattr(hi.system,'grid').value('interconnect_kw',wind_cap_kw+pv_cap_kw)
+getattr(hi.system,'grid_sales').value('interconnect_kw',sales_cap_kw)
+getattr(hi.system,'grid_purchase').value('interconnect_kw',electrolyzer_cap_kw)
+getattr(hi.system,'electrolyzer').value('capacity_kw',electrolyzer_cap_kw)
 
 # %% [markdown]
 # ### Run the Simulation and Set the Load
@@ -99,103 +101,51 @@ while total_kwh > needed_kwh:
         makeup_kw = makeup_kwh/sum(when_below)/timestep_h
         cap_thresh = makeup_kw/electrolyzer_cap_kw
 
-# Make load schedule (in MEGAwatts)
-load_schedule = [i/1000 for i in hi.system.generation_profile['hybrid']]
+# Make electrolyzer/sales/purchase profiles
+sell_kw = [0.0]*8760
+buy_kw = [0.0]*8760
+load_schedule = list(hi.system.generation_profile['hybrid'])
 for i, gen in enumerate(load_schedule):
     if when_above[i]:
-        load_schedule[i] = electrolyzer_cap_kw/1000
+        sell_kw[i] = electrolyzer_cap_kw-gen
+        load_schedule[i] = electrolyzer_cap_kw
     elif when_below[i]:
-        load_schedule[i] = electrolyzer_cap_kw*cap_thresh/1000
-hi.system.site.desired_schedule = load_schedule
-hi.system.site.follow_desired_schedule = True
+        load_schedule[i] = electrolyzer_cap_kw*cap_thresh
+        buy_kw[i] = electrolyzer_cap_kw*cap_thresh-gen
+hi.system.electrolyzer.generation_profile = load_schedule
+hi.system.grid_sales.generation_profile = sell_kw
+hi.system.grid_purchase.generation_profile = buy_kw
 
 # Simulate plant for 30 years, getting curtailment (will be sold to grid) and missed load (will be purchased from grid)
 plant_life = 1 #years
 hi.simulate(plant_life)
-sell_kw = hi.system.grid.schedule_curtailed
-buy_kw = hi.system.grid.missed_load
 
 
 # %% [markdown]
-# ### Set electrolyzer and project parameters
-# in this example, we're simulating an on-grid electrolyzer system. We define electrolyzer stack size as close to 50 MW as posssible to meet the total capacity. The other inputs are reasonable default values, and will be discussed further in future examples.
-
-# %%
-electrolyzer_size_mw = electrolyzer_cap_kw/1000
-simulation_length = 8760 #1 year
-use_degradation_penalty=True
-number_electrolyzer_stacks = round(electrolyzer_size_mw/50)
-grid_connection_scenario = 'off-grid'
-EOL_eff_drop = 10
-pem_control_type = 'basic'
-user_defined_pem_param_dictionary = {
-    "Modify BOL Eff": False,
-    "BOL Eff [kWh/kg-H2]": [],
-    "Modify EOL Degradation Value": True,
-    "EOL Rated Efficiency Drop": EOL_eff_drop,
-}
-
-# %% [markdown]
-# ### Retrieve power generation profile from wind and solar components
+# ### Retrieve power generation and flow profiles from components
 # 
-# ``solar_plant_power`` is the solar generation profile, and ``wind_plant_power`` is the wind generation profile, which combine to ``renewable_generation_profile``. Then, power is bought (``bought_power``) and sold (``sold_power``) from the grid to send a relatively flat input profile (``electrolyzer_profile``) to the electrolyzer. These are in units of kWh.
+# ``solar_plant_power`` is the solar generation profile, and ``wind_plant_power`` is the wind generation profile, which combine to ``renewable_generation_profile``. Then, power is bought (``bought_power``) and sold (``sold_power``) from the grid to send a relatively flat input profile (``electrolyzer_profile``) to the electrolyzer. These are in units of kWh. Then, hydrogen and methanol profiles are in terms of kg/s by default in the hopp structure, and converted to kg/hr
 
 # %%
 hybrid_plant = hi.system
-solar_plant_power = np.array(hybrid_plant.pv.generation_profile[0:simulation_length])
-wind_plant_power = np.array(hybrid_plant.wind.generation_profile[0:simulation_length])
+solar_plant_power = np.array(hybrid_plant.pv.generation_profile)
+wind_plant_power = np.array(hybrid_plant.wind.generation_profile)
 renewable_generation_profile = solar_plant_power + wind_plant_power
-sold_power = np.array(sell_kw[0:simulation_length])
-bought_power = np.array(buy_kw[0:simulation_length])
-electrolyzer_profile = solar_plant_power + wind_plant_power - sold_power + bought_power
+sold_power = np.array(hybrid_plant.grid_sales.generation_profile)
+bought_power = np.array(hybrid_plant.grid_purchase.generation_profile)
+electrolyzer_profile = np.array(hybrid_plant.electrolyzer.generation_profile)
 
-# %% [markdown]
-# ### Run the electrolyzer
-# 
-# The key electrolyzer inputs are:
-# - ``hybrid_plant_generation_profile``: energy input to the electrolyzer
-# - ``electrolyzer_size_mw``: total installed electrolyzer capacity
-# - ``number_electrolyzer_stacks``: how many individual stacks make up the electrolyzer system.
-# 
-# The outputs are:
-# - ``h2_results``: aggregated performance information
-# - ``H2_Timeseries``: hourly time-series of hydrogen production and other key parameters
-# - ``H2_Summary``: averages or totals of performance data over the entire simulation
-# - ``energy_input_to_electrolyzer``: for this example (off-grid scenario), this is the same as ``hybrid_plant_generation_profile``.
-
-# %%
-h2_results, H2_Timeseries, H2_Summary,energy_input_to_electrolyzer =\
-run_h2_PEM.run_h2_PEM(electrolyzer_profile,
-electrolyzer_size_mw,
-plant_life, number_electrolyzer_stacks,[],
-pem_control_type,100,user_defined_pem_param_dictionary,
-use_degradation_penalty,grid_connection_scenario,[])
-
-# %% [markdown]
-# ### Get the time-series data and rated hydrogen production
-
-# %%
 # Total hydrogen output timeseries (kg-H2/hour)
-hydrogen_production_kg_pr_hr = H2_Timeseries['hydrogen_hourly_production']
+hydrogen_production_kg_s = hybrid_plant.electrolyzer._system_model.output_streams_kg_s['hydrogen']
+hydrogen_production_kg_pr_hr = hydrogen_production_kg_s*3600
 # Rated/maximum hydrogen production from electrolysis system
-max_h2_pr_h2 = h2_results['new_H2_Results']['Rated BOL: H2 Production [kg/hr]']
+max_h2_pr_h2 = np.max(hydrogen_production_kg_pr_hr)
+avg_h2_pr_hr = np.mean(hydrogen_production_kg_pr_hr)
 #x-values as hours of year
 hours_of_year = np.arange(0,len(hydrogen_production_kg_pr_hr),1)
-
-# %% [markdown]
-# ### Send hydrogen production to the methanol reactor
-# 
-# In this very simple version of the methanol reactor model (SimpleReactor), the hydrogen output is just linearly scaled to methanol output
-
-# %%
-# Get ratio of hydrogen to methanol in reactor
-h2in = hi.system.fuel._system_model.input_streams_kg_s['hydrogen']
-meoh_out = hi.system.fuel.fuel_prod_kg_s
-meoh_h2_ratio = meoh_out/h2in
-
-# Scale hydrogen production to methanol production
-methanol_production_kg_pr_hr = [i*meoh_h2_ratio for i in hydrogen_production_kg_pr_hr]
-max_meoh_pr_hr = max_h2_pr_h2*meoh_h2_ratio
+methanol_production_kg_s = hybrid_plant.fuel._system_model.output_streams_kg_s['methanol']
+methanol_production_kg_pr_hr = methanol_production_kg_s*3600
+max_meoh_pr_hr = np.max(methanol_production_kg_pr_hr)
 avg_meoh_pr_hr = np.mean(methanol_production_kg_pr_hr)
 
 # %% [markdown]
@@ -210,13 +160,14 @@ avg_meoh_pr_hr = np.mean(methanol_production_kg_pr_hr)
 # 
 
 # %%
-hour_start = 0
-n_hours = 8760
+hour_start = 2000
+n_hours = 72
 hour_end = hour_start + n_hours
 
 fig,ax=plt.subplots(3,1,sharex=True)
 fig.set_figwidth(8.0)
 fig.set_figheight(9.0)
+
 
 ax[0].plot(hours_of_year[hour_start:hour_end],solar_plant_power[hour_start:hour_end]/1e3,lw=2,ls='--',c='orange',label='Solar')
 ax[0].plot(hours_of_year[hour_start:hour_end],wind_plant_power[hour_start:hour_end]/1e3,lw=2,ls=':',c='blue',label='Wind')
@@ -233,12 +184,19 @@ ax[1].set_ylabel('Total Energy [MWh]',fontsize=14)
 ax[1].set_xlim((hour_start,hour_end-1))
 ax[1].legend()
 
-ax[2].plot(hours_of_year[hour_start:hour_end],methanol_production_kg_pr_hr[hour_start:hour_end],lw=2,c='green',label='Methanol Produced')
-ax[2].plot(hours_of_year[hour_start:hour_end],avg_meoh_pr_hr*np.ones(n_hours),lw=2,ls='--',c='red',label='Average methanol')
+ax[2].plot(hours_of_year[hour_start:hour_end],hydrogen_production_kg_pr_hr[hour_start:hour_end],lw=2,c='green',label='Hydrogen Produced')
+ax[2].plot(hours_of_year[hour_start:hour_end],avg_h2_pr_hr*np.ones(n_hours),lw=2,ls='--',c='red',label='Average hydrogen')
 ax[2].legend(loc='center right')
-ax[2].set_ylabel('Methanol [kg/hr]',fontsize=14)
+ax[2].set_ylabel('Hydrogen [kg/hr]',fontsize=14)
 ax[2].set_xlabel('Time [hour of year]',fontsize=14)
 ax[2].set_xlim((hour_start,hour_end-1))
+
+# ax[2].plot(hours_of_year[hour_start:hour_end],methanol_production_kg_pr_hr[hour_start:hour_end],lw=2,c='green',label='Methanol Produced')
+# ax[2].plot(hours_of_year[hour_start:hour_end],avg_meoh_pr_hr*np.ones(n_hours),lw=2,ls='--',c='red',label='Average methanol')
+# ax[2].legend(loc='center right')
+# ax[2].set_ylabel('Methanol [kg/hr]',fontsize=14)
+# ax[2].set_xlabel('Time [hour of year]',fontsize=14)
+# ax[2].set_xlim((hour_start,hour_end-1))
 
 fig.tight_layout()
 

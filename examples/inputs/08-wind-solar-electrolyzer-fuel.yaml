@@ -13,16 +13,39 @@ technologies:
     num_turbines: 10
     turbine_rating_kw: 5000
     lca:
-      co2_kg_kwh: 0.02949369802 
+      co2_kg_kwh: 0.02949369802
+  electrolyzer:
+    capacity_kw: 100
+    lca:
+      co2_kg_kwh: 0.00082327113
+    simple_fin_config:
+      input_dollar_yr: 2020
+      toc: 0.
+      foc_yr: 0.
+      voc_kg: 0.
   grid:
     interconnect_kw: 50000
     lca:
+      co2_kg_kwh: 0.0
+  grid_purchase:
+    interconnect_kw: 50000
+    simple_fin_config:
+      input_dollar_yr: 2020
+      voc_kwh: 0.
+    lca:
       co2_kg_kwh: 0.6004253623 # NETL Grid Mix Explorer 4.2 - Texas Reliability Entity 2020
+  grid_sales:
+    interconnect_kw: 50000
+    simple_fin_config:
+      input_dollar_yr: 2020
+      voc_kwh: 0.
+    lca:
+      co2_kg_kwh: -0.6004253623 # NETL Grid Mix Explorer 4.2 - Texas Reliability Entity 2020
   fuel:
     fuel_prod_kg_s: 3.64992
     fuel_produced: 'methanol'
     lca:
-      co2_kg_kg: 0.12522615094
+      co2_kg_kg: 0.020296
     simple_fin_config:
       input_dollar_yr: 2020
       toc: 136000000.
@@ -56,4 +79,6 @@ config:
     grid:
       skip_financial: true
     co2:
+      skip_financial: true
+    electrolyzer:
       skip_financial: true

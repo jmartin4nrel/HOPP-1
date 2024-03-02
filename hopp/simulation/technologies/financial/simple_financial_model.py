@@ -107,7 +107,10 @@ class SimpleFinance(CustomFinancialModel):
         self.tasc = tasc
         
         # Calculate levelized costs
-        self.lc_kwh = (tasc*self.fcr_real+foc_yr)/output_kwh_yr+voc_kwh
+        if output_kwh_yr != 0:
+            self.lc_kwh = (tasc*self.fcr_real+foc_yr)/output_kwh_yr+voc_kwh
+        else:
+            self.lc_kwh = 0
 
 
 

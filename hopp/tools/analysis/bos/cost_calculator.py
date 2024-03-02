@@ -99,15 +99,15 @@ class CostCalculator():
         total_installed_cost += fuel_installed_cost
         return wind_installed_cost, solar_installed_cost, storage_installed_cost, fuel_installed_cost, co2_installed_cost, total_installed_cost
 
-    def calculate_total_costs(self, wind_mw, pv_mw, storage_mw=0., storage_mwh=0., fuel_kg_s=0., co2_kg_s=0):
+    def calculate_total_costs(self, wind_mw, pv_mw, storage_mw=0., storage_mwh=0., fuel_kg_s=0., co2_kg_s=0., electrolyzer_mw=0.):
         """
         Calculates total installed cost of plant (BOS Cost + Installed Cost).
         Modifies the capex or opex costs as specified in cost_reductions if modify_costs is True
         :return: Total installed cost of plant (BOS Cost + Installed Cost)
         """
 
-        wind_installed_cost, solar_installed_cost, storage_installed_cost, fuel_installed_cost, co2_installed_cost, total_installed_cost = \
-            self.calculate_installed_costs(wind_mw, pv_mw, storage_mw, storage_mwh, fuel_kg_s, co2_kg_s)
+        wind_installed_cost, solar_installed_cost, storage_installed_cost, fuel_installed_cost, co2_installed_cost, electrolyzer_installed_cost, total_installed_cost = \
+            self.calculate_installed_costs(wind_mw, pv_mw, storage_mw, storage_mwh, fuel_kg_s, co2_kg_s, electrolyzer_mw)
 
         if self.bos_cost_source.lower() == 'costpermw':
             wind_bos_cost, solar_bos_cost, storage_bos_cost, total_bos_cost, _ = \
@@ -124,6 +124,7 @@ class CostCalculator():
         total_storage_cost = storage_installed_cost + storage_bos_cost
         total_fuel_cost = fuel_installed_cost
         total_co2_cost = co2_installed_cost
+        total_electrolyzer_cost = electrolyzer_installed_cost
         total_project_cost = total_installed_cost + total_bos_cost
 
         if self.modify_costs:
@@ -153,7 +154,7 @@ class CostCalculator():
             # Not modifying wind or solar costs
 
         logger.info("Total Project Cost (Installed Cost + BOS Cost): {}".format(total_project_cost))
-        return total_solar_cost, total_wind_cost, total_storage_cost, total_fuel_cost, total_co2_cost, total_project_cost
+        return total_solar_cost, total_wind_cost, total_storage_cost, total_fuel_cost, total_co2_cost, total_electrolyzer_cost, total_project_cost
 
 
 def create_cost_calculator(interconnection_mw: float,

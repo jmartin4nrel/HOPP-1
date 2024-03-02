@@ -17,8 +17,11 @@ from hopp.simulation.technologies.csp.trough_plant import TroughConfig, TroughPl
 from hopp.simulation.technologies.wave.mhk_wave_plant import MHKWavePlant, MHKConfig
 from hopp.simulation.technologies.battery import Battery, BatteryConfig, BatteryStateless, BatteryStatelessConfig
 from hopp.simulation.technologies.grid import Grid, GridConfig
+from hopp.simulation.technologies.grid_sales import GridSales, GridSalesConfig
+from hopp.simulation.technologies.grid_purchase import GridPurchase, GridPurchaseConfig
 from hopp.simulation.technologies.fuel.fuel_plant import FuelPlant, FuelConfig
 from hopp.simulation.technologies.co2.co2_plant import CO2Plant, CO2Config
+from hopp.simulation.technologies.hydrogen.electrolyzer_plant import ElectrolyzerPlant, ElectrolyzerConfig
 from hopp.simulation.technologies.financial import SimpleFinance, SimpleFinanceConfig
 from hopp.simulation.technologies.reopt import REopt
 from hopp.simulation.technologies.layout.hybrid_layout import HybridLayout
@@ -38,12 +41,13 @@ PowerSourceTypes = Union[
     TroughPlant,
     Battery,
     BatteryStateless,
-    Grid
+    Grid, GridSales, GridPurchase,
+    ElectrolyzerPlant
 ]
 
 class HybridSimulationOutput:
     """Class for creating :class:`HybridSimulation` output structure"""
-    _keys = ("pv", "wind", "wave", "battery", "tower", "trough", "hybrid","fuel","co2")
+    _keys = ("pv", "wind", "wave", "battery", "tower", "trough", "hybrid","fuel","co2","electrolyzer","grid_sales","grid_purchase")
 
     def __init__(self, power_sources):
         """
@@ -108,6 +112,9 @@ class TechnologiesConfig(BaseClass):
             Otherwise, defaults to `BatteryConfig`.
         grid: Grid config
         fuel: Fuel config
+        electrolyzer: Electrolyzer config
+        grid_sales: Grid sales config
+        grid_purchase: Grid purchase config
 
     """
     pv: Optional[Union[PVConfig, DetailedPVConfig]] = field(default=None)
@@ -117,8 +124,11 @@ class TechnologiesConfig(BaseClass):
     trough: Optional[TroughConfig] = field(default=None)
     battery: Optional[Union[BatteryConfig, BatteryStatelessConfig]] = field(default=None)
     grid: Optional[GridConfig] = field(default=None)
+    grid_sales: Optional[GridSalesConfig] = field(default=None)
+    grid_purchase: Optional[GridPurchaseConfig] = field(default=None)
     fuel: Optional[FuelConfig] = field(default=None)
     co2: Optional[CO2Config] = field(default=None)
+    electrolyzer: Optional[ElectrolyzerConfig] = field(default=None)
 
     @classmethod
     def from_dict(cls, data: dict):
@@ -157,11 +167,20 @@ class TechnologiesConfig(BaseClass):
         if "grid" in data:
             config["grid"] = GridConfig.from_dict(data["grid"])
 
+        if "grid_sales" in data:
+            config["grid_sales"] = GridSalesConfig.from_dict(data["grid_sales"])
+
+        if "grid_purchase" in data:
+            config["grid_purchase"] = GridPurchaseConfig.from_dict(data["grid_purchase"])
+
         if "fuel" in data:
             config["fuel"] = FuelConfig.from_dict(data["fuel"])
 
         if "co2" in data:
             config["co2"] = CO2Config.from_dict(data["co2"])
+        
+        if "electrolyzer" in data:
+            config["electrolyzer"] = ElectrolyzerConfig.from_dict(data["electrolyzer"])
 
         for key, tech in data.items():
             if "simple_fin_config" in tech.keys():
@@ -208,6 +227,8 @@ class HybridSimulation(BaseClass):
     trough: Optional[TroughPlant] = field(init=False, default=None)
     battery: Optional[Union[Battery, BatteryStateless]] = field(init=False, default=None)
     grid: Optional[Grid] = field(init=False, default=None)
+    grid_purchase: Optional[GridPurchase] = field(init=False, default=None)
+    grid_sales: Optional[GridSales] = field(init=False, default=None)
     fuel: Optional[FuelPlant] = field(init=False, default=None)
     co2: Optional[CO2Plant] = field(init=False, default=None)
     technologies: Dict[str, PowerSourceTypes] = field(init=False)
@@ -319,8 +340,34 @@ class HybridSimulation(BaseClass):
             logger.info("Created HybridSystem.co2 with system size {} kg/s".format(
                 co2_config.co2_kg_s))
             
+        electrolyzer_config = self.tech_config.electrolyzer
+
+        if electrolyzer_config is not None:
+            self.electrolyzer = ElectrolyzerPlant(self.site, config=electrolyzer_config)
+            self.technologies["electrolyzer"] = self.electrolyzer
+
+            logger.info("Created HybridSystem.electrolyzer with system size {} kw".format(
+                electrolyzer_config.capacity_kw))
         
+        grid_sales_config = self.tech_config.grid_sales
         
+        if grid_sales_config is not None:
+            self.grid_sales = GridSales(self.site, config=grid_sales_config)
+            self.technologies["grid_sales"] = self.grid_sales
+
+            logger.info("Created HybridSystem.grid_sales with system size {} kw".format(
+                grid_sales_config.interconnect_kw))
+        
+        grid_purchase_config = self.tech_config.grid_purchase
+        
+        if grid_purchase_config is not None:
+            self.grid_purchase = GridPurchase(self.site, config=grid_purchase_config)
+            self.technologies["grid_purchase"] = self.grid_purchase
+
+            logger.info("Created HybridSystem.grid_purchase with system size {} kw".format(
+                grid_purchase_config.interconnect_kw))
+        
+
         self.check_consistent_financial_models()
 
         self.layout = HybridLayout(self.site, self.technologies)
@@ -442,14 +489,18 @@ class HybridSimulation(BaseClass):
             fuel_kg_s = self.fuel.system_capacity_kg_s
         if self.co2:
             co2_kg_s = self.co2.system_capacity_kg_s
+        if self.electrolyzer:
+            electrolyzer_mw = self.electrolyzer.system_capacity_kw / 1000
 
         # TODO: add tower and trough to cost_model functionality
-        pv_cost, wind_cost, storage_cost, fuel_cost, co2_cost, total_cost = self.cost_model.calculate_total_costs(wind_mw,
-                                                                                                                    pv_mw,
-                                                                                                                    battery_mw,
-                                                                                                                    battery_mwh,
-                                                                                                                    fuel_kg_s,
-                                                                                                                    co2_kg_s)
+        pv_cost, wind_cost, storage_cost, fuel_cost, co2_cost, electrolyzer_cost, total_cost = \
+            self.cost_model.calculate_total_costs(wind_mw,
+                                                    pv_mw,
+                                                    battery_mw,
+                                                    battery_mwh,
+                                                    fuel_kg_s,
+                                                    co2_kg_s,
+                                                    electrolyzer_mw)
         if self.pv:
             self.pv.total_installed_cost = pv_cost
         if self.wind:
@@ -471,6 +522,9 @@ class HybridSimulation(BaseClass):
         if self.co2:
             self.co2.total_installed_cost = co2_cost
             total_cost += self.co2.total_installed_cost
+        if self.electrolyzer:
+            self.electrolyzer.total_installed_cost = electrolyzer_cost
+            total_cost += self.electrolyzer.total_installed_cost
 
         self.grid.total_installed_cost = total_cost
         logger.info("HybridSystem set hybrid total installed cost to to {}".format(total_cost))
@@ -694,7 +748,7 @@ class HybridSimulation(BaseClass):
         """
         self.setup_performance_models()
         # simulate non-dispatchable systems
-        non_dispatchable_systems = ['pv', 'wind','wave','fuel','co2']
+        non_dispatchable_systems = ['pv', 'wind','wave','fuel','co2','electrolyzer','grid_sales','grid_purchase']
         for system in non_dispatchable_systems:
             model = getattr(self, system)
             if model:
@@ -714,7 +768,7 @@ class HybridSimulation(BaseClass):
         total_gen_max_feasible_year1 = np.zeros(self.site.n_timesteps)
 
         for system in self.technologies.keys():
-            if system != 'grid':
+            if system != 'grid' and system != 'electrolyzer' and system != 'grid_sales' and system != 'grid_purchase':
                 model = getattr(self, system)
                 if isinstance(model, PowerSource):
                     hybrid_size_kw += model.system_capacity_kw
@@ -797,6 +851,9 @@ class HybridSimulation(BaseClass):
         for system in self.technologies.keys():
             model = getattr(self, system)
             if isinstance(model._financial_model,SimpleFinance):
+                if system in self.sim_options.keys():
+                    if 'skip_financial' in self.sim_options[system].keys():
+                        continue
                 if isinstance(model,PowerSource):
                     output_kwh_yr =  model.annual_energy_kwh
                     model._financial_model.calc_levelized_cost_energy(output_kwh_yr)
