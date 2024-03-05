@@ -46,8 +46,8 @@ class SimpleReactor(BaseClass):
         '''
         Executes a fuel plant simulation
         '''
-        fuel_kg_s = self.config.fuel_prod_kg_s
-        fuel = self.config.fuel_produced
+        fuel_kg_s = self.fuel_prod_kg_s
+        fuel = self.fuel_produced
         self.output_streams_kg_s[fuel] = [fuel_kg_s]*8760
         self.flow_kg_s = self.output_streams_kg_s[fuel]
         self.annual_mass_kg = fuel_kg_s*60*60*24*365

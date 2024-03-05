@@ -21,7 +21,7 @@ class SimpleElectrolyzer(BaseClass):
 
 
     def __attrs_post_init__(self):
-        self.capacity_kw = self.config.capacity_kw
+        self.system_capacity_kw = self.config.system_capacity_kw
         self.generation_profile = self.config.generation_profile
         self.gen = self.generation_profile
         self.input_streams_kg_s = self.config.input_streams_kg_s
@@ -30,7 +30,6 @@ class SimpleElectrolyzer(BaseClass):
         self.kg_h2o_kg_h2 = self.config.kg_h2o_kg_h2
         self.annual_mass_h2_kg = None
         self.annual_energy = None
-        self.system_capacity_kw = 0
 
 
     def value(self, name: str, set_value=None):
@@ -77,7 +76,7 @@ class SimpleElectrolyzerFinance(BaseClass):
     input_dict = {'test':test_value}
 
     def __attrs_post_init__(self):
-        self.capacity_kw = self.config.capacity_kw
+        self.system_capacity_kw = self.config.system_capacity_kw
 
     def assign(self, input_dict, ignore_missing_vals=False):
         """

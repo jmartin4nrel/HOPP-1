@@ -28,7 +28,7 @@ class FuelConfig(BaseClass):
     fuel_prod_kg_s: float = field(default=1.0, validator=gt_zero)
     fuel_produced: str = field(default="hydrogen", validator=contains(["hydrogen","methanol"]))
     model_name: str = field(default="SimpleReactor", validator=contains(["SimpleReactor"]))
-    simple_fin_config: Optional[dict] = field(default=SimpleFinanceConfig())
+    simple_fin_config: Optional[dict] = field(default=None)
     model_input_file: Optional[str] = field(default=None)
     lca: Optional[dict] = field(default=None)
     
@@ -61,6 +61,7 @@ class FuelPlant(FlowSource):
             system_model = SimpleReactor(self.site,self.config,self.config.fuel_produced)
             if self.config.simple_fin_config:
                 financial_model = SimpleFinance(self.config.simple_fin_config)
+                financial_model.system_capacity_kg_s = self.config.fuel_prod_kg_s
             else:
                 financial_model = Singleowner.default('WindPowerSingleOwner')
 

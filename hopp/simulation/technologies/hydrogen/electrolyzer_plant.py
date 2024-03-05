@@ -21,17 +21,17 @@ class ElectrolyzerConfig(BaseClass):
     Configuration class for ElectrolyzerPlant.
 
     Args:
-        capacity_kw: The capacity in kw
+        system_capacity_kw: The capacity in kw
 
     """
-    capacity_kw: float = field(default=1.0, validator=gt_zero)
+    system_capacity_kw: float = field(default=1.0, validator=gt_zero)
     model_name: str = field(default="SimpleElectrolyzer", validator=contains(["SimpleElectrolyzer"]))
     generation_profile: list = field(default=[0.0]*8760)
     kwh_kg_h2: float = field(default=54.66)
     kg_h2o_kg_h2: float = field(default=14.2884)
     input_streams_kg_s: Optional[dict] = field(default={'water':[0.0]*8760})
     output_streams_kg_s: Optional[dict] = field(default={'hydrogen':[0.0]*8760})
-    simple_fin_config: Optional[dict] = field(default=(SimpleFinanceConfig()))
+    simple_fin_config: Optional[dict] = field(default=(None))
     model_input_file: Optional[str] = field(default=None)
     lca: Optional[dict] = field(default=None)
     
@@ -64,21 +64,13 @@ class ElectrolyzerPlant(PowerSource):
             system_model = SimpleElectrolyzer(self.site,self.config)
             if self.config.simple_fin_config:
                 financial_model = SimpleFinance(self.config.simple_fin_config)
+                financial_model.system_capacity_kw = self.config.system_capacity_kw
             else:
                 financial_model = Singleowner.default('WindPowerSingleOwner')
 
         super().__init__("ElectrolyzerPlant", self.site, system_model, financial_model)
 
-        self.capacity_kw = self.config.capacity_kw
-        self.system_capacity_kw = self.config.capacity_kw
-
-    @property
-    def capacity_kw(self):
-        return self._system_model.value("capacity_kw")
-    
-    @capacity_kw.setter
-    def capacity_kw(self, kw: float):
-        self._system_model.value("capacity_kw",kw)
+        self.system_capacity_kw = self.config.system_capacity_kw
 
     @property
     def system_capacity_kw(self):
@@ -103,3 +95,11 @@ class ElectrolyzerPlant(PowerSource):
     @gen.setter
     def gen(self, kw: float):
         self._system_model.value("gen",kw)
+
+    @property
+    def annual_energy_kwh(self):
+        return self._system_model.value("annual_energy")
+    
+    @annual_energy_kwh.setter
+    def annual_energy_kwh(self, kwh: float):
+        self._system_model.value("annual_energy",kwh)

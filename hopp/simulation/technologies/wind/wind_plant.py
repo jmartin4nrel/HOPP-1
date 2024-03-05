@@ -13,7 +13,7 @@ from hopp.simulation.technologies.wind.floris import Floris
 from hopp.simulation.technologies.power_source import PowerSource
 from hopp.simulation.technologies.sites import SiteInfo
 from hopp.simulation.technologies.layout.wind_layout import WindLayout, WindBoundaryGridParameters
-from hopp.simulation.technologies.financial import CustomFinancialModel, FinancialModelType
+from hopp.simulation.technologies.financial import CustomFinancialModel, FinancialModelType, SimpleFinance, SimpleFinanceConfig
 from hopp.utilities.log import hybrid_logger as logger
 
 
@@ -57,6 +57,7 @@ class WindConfig(BaseClass):
     floris_config: Optional[Union[dict, str, Path]] = field(default=None)
     timestep: Optional[Tuple[int, int]] = field(default=None)
     fin_model: Optional[Union[dict, FinancialModelType]] = field(default=None)
+    simple_fin_config: Optional[dict] = field(default=None)
     lca: Optional[dict] = field(default=None)
     
 
@@ -72,7 +73,7 @@ class WindConfig(BaseClass):
 class WindPlant(PowerSource):
     site: SiteInfo
     config: WindConfig
-
+    simple_fin_config: SimpleFinanceConfig = field(default=None)
     config_name: str = field(init=False, default="WindPowerSingleOwner")
     _rating_range_kw: Tuple[int, int] = field(init=False)
 
@@ -90,6 +91,10 @@ class WindPlant(PowerSource):
             print('FLORIS is the system model...')
             system_model = Floris(self.site, self.config)
             financial_model = Singleowner.default(self.config_name)
+        elif self.config.simple_fin_config:
+            system_model = Windpower.default(self.config_name)
+            financial_model = SimpleFinance(self.config.simple_fin_config)
+            financial_model.system_capacity_kw = system_model.Farm.system_capacity
         else:
             if self.config.model_input_file is None:
                 system_model = Windpower.default(self.config_name)

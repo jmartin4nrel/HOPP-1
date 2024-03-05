@@ -9,7 +9,7 @@ from hopp.simulation.technologies.sites import SiteInfo
 from hopp.simulation.technologies.power_source import PowerSource
 from hopp.simulation.technologies.layout.pv_module import get_module_attribs
 from hopp.simulation.technologies.layout.pv_layout import PVLayout, PVGridParameters
-from hopp.simulation.technologies.financial.custom_financial_model import CustomFinancialModel
+from hopp.simulation.technologies.financial import CustomFinancialModel, SimpleFinance, SimpleFinanceConfig
 from hopp.simulation.base import BaseClass
 from hopp.utilities.validators import gt_zero
 
@@ -46,6 +46,7 @@ class PVConfig(BaseClass):
     dc_degradation: Optional[List[float]] = field(default=None)
     approx_nominal_efficiency: Optional[float] = field(default=0.19)
     module_unit_mass: Optional[float] = field(default=11.092)
+    simple_fin_config: Optional[dict] = field(default=None)
     lca: Optional[dict] = field(default=None)
 
 
@@ -61,14 +62,17 @@ class PVPlant(PowerSource):
     """
     site: SiteInfo
     config: PVConfig
-
+    simple_fin_config: SimpleFinanceConfig = field(default=None)
     config_name: str = field(init=False, default="PVWattsSingleOwner")
 
     def __attrs_post_init__(self):
         system_model = Pvwatts.default(self.config_name)
 
         # Parse input for a financial model
-        if isinstance(self.config.fin_model, str):
+        if self.config.simple_fin_config:
+            financial_model = SimpleFinance(self.config.simple_fin_config)
+            financial_model.system_capacity_kw = self.config.system_capacity_kw
+        elif isinstance(self.config.fin_model, str):
             financial_model = Singleowner.default(self.config.fin_model)
         elif isinstance(self.config.fin_model, dict):
             financial_model = CustomFinancialModel(self.config.fin_model)

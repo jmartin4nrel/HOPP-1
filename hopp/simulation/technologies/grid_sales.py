@@ -27,7 +27,7 @@ class GridSalesConfig(BaseClass):
     interconnect_kw: float = field(default=50000.0, validator=gt_zero)
     model_name: str = field(default="SimpleGridSales", validator=contains(["SimpleGridSales"]))
     generation_profile: list = field(default=[0.0*8760])
-    simple_fin_config: Optional[dict] = field(default=SimpleFinanceConfig())
+    simple_fin_config: Optional[dict] = field(default=None)
     model_input_file: Optional[str] = field(default=None)
     lca: Optional[dict] = field(default=None)
     
@@ -60,6 +60,7 @@ class GridSales(PowerSource):
             system_model = SimpleGridSales(self.site,self.config)
             if self.config.simple_fin_config:
                 financial_model = SimpleFinance(self.config.simple_fin_config)
+                financial_model.system_capacity_kw = self.config.interconnect_kw
             else:
                 financial_model = Singleowner.default('WindPowerSingleOwner')
 
@@ -98,3 +99,11 @@ class GridSales(PowerSource):
     @gen.setter
     def gen(self, kw: float):
         self._system_model.value("gen",kw)
+
+    @property
+    def annual_energy_kwh(self):
+        return self._system_model.value("annual_energy")
+    
+    @annual_energy_kwh.setter
+    def annual_energy_kwh(self, kwh: float):
+        self._system_model.value("annual_energy",kwh)

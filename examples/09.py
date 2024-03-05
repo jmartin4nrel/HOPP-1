@@ -35,9 +35,12 @@ hi = HoppInterface("./inputs/08-wind-solar-electrolyzer-fuel.yaml")
 hi.system.fuel.simulate_flow(1)
 total_elec_kw = np.mean((hi.system.fuel._system_model.input_streams_kw['electricity']))
 
-# Use the calculated co2 input flowrate to size the co2 source plant
+# Use the calculated co2 input flowrate to size the co2 source NGCC plant (and its NG flow)
 co2_kg_s = np.mean(hi.system.fuel._system_model.input_streams_kg_s['carbon dioxide'])
 getattr(hi.system,'co2').value('co2_kg_s',co2_kg_s)
+hi.system.co2.simulate_flow(1)
+ng_kg_s = np.mean(hi.system.co2._system_model.input_streams_kg_s['natural gas'])
+getattr(hi.system,'ng').value('ng_kg_s',ng_kg_s)
 
 # Calculate the (discrete) wind plant size needed based on an estimated capacity factor and the desired percentage of the total wind/pv output from wind
 percent_wind = 90
@@ -46,6 +49,7 @@ wind_cap_kw = total_elec_kw*percent_wind/100/wind_cap_factor
 turb_rating_kw = getattr(hi.system,'wind').value('turb_rating')
 num_turbines = int(np.round(wind_cap_kw/turb_rating_kw,0))
 getattr(hi.system,'wind').value('num_turbines',num_turbines)
+hi.system.wind._financial_model.system_capacity_kw = hi.system.wind._system_model.Farm.system_capacity
 wind_cap_kw = num_turbines*turb_rating_kw
 percent_wind = wind_cap_kw*wind_cap_factor/total_elec_kw*100
 
@@ -59,7 +63,7 @@ percent_wind = wind_cap_kw*wind_cap_factor/total_elec_kw*100
 
 # Calculate the (continuous) pv plant size needed based on an estimated capacity factor and the wind plant size
 percent_pv = 100-percent_wind
-pv_cap_factor = 0.288 
+pv_cap_factor = 0.22
 pv_cap_kw = total_elec_kw*percent_pv/100/pv_cap_factor
 getattr(hi.system,'pv').value('system_capacity_kw',pv_cap_kw)
 
@@ -70,7 +74,7 @@ sales_cap_kw = wind_cap_kw+pv_cap_kw-electrolyzer_cap_kw
 getattr(hi.system,'grid').value('interconnect_kw',wind_cap_kw+pv_cap_kw)
 getattr(hi.system,'grid_sales').value('interconnect_kw',sales_cap_kw)
 getattr(hi.system,'grid_purchase').value('interconnect_kw',electrolyzer_cap_kw)
-getattr(hi.system,'electrolyzer').value('capacity_kw',electrolyzer_cap_kw)
+getattr(hi.system,'electrolyzer').value('system_capacity_kw',electrolyzer_cap_kw)
 
 # %% [markdown]
 # ### Run the Simulation and Set the Load
@@ -206,6 +210,8 @@ MJ_MMBTU = 1055.
 
 print("Annual methanol production, tonne/yr: {:f}".format(hi.system.fuel.annual_mass_kg/1000))
 print("Levelized cost of methanol (LCOM), $/kg: {:.2f}".format(hi.system.fuel._financial_model.lc_kg))
+print("Levelized cost of methanol (LCOM), $/kg: {:.2f}".format(hi.system.lc))
+print(hi.system.lc_breakdown)
 # print("Levelized cost of methanol (LCOM), $/lb: {:.2f}".format(hi.system.fuel._financial_model.lc_kg/lb_kg))
 # print("Levelized cost of methanol (LCOM), $/tonne: {:.2f}".format(hi.system.fuel._financial_model.lc_kg*1000))
 # print("Levelized cost of methanol (LCOM), $/MJ: {:.2f}".format(hi.system.fuel._financial_model.lc_kg/MJ_kg))

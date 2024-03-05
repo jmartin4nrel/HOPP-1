@@ -25,8 +25,7 @@ class SimpleGridSales(BaseClass):
         self.interconnect_kw = self.config.interconnect_kw
         self.generation_profile = self.config.generation_profile
         self.gen = self.generation_profile
-        self.annual_energy_kwh = None
-        self.system_capacity_kw = 0
+        self.system_capacity_kw = self.config.interconnect_kw
 
 
     def value(self, name: str, set_value=None):
@@ -42,7 +41,7 @@ class SimpleGridSales(BaseClass):
         '''
         Executes a grid sales simulation
         '''
-        self.annual_energy_kwh = sum(self.generation_profile)
+        self.annual_energy = sum(self.generation_profile)
 
 
 @define
@@ -62,8 +61,7 @@ class SimpleGridPurchase(BaseClass):
         self.interconnect_kw = self.config.interconnect_kw
         self.generation_profile = self.config.generation_profile
         self.gen = self.generation_profile
-        self.annual_energy_kwh = None
-        self.system_capacity_kw = 0
+        self.system_capacity_kw = self.config.interconnect_kw
 
 
     def value(self, name: str, set_value=None):
@@ -79,4 +77,4 @@ class SimpleGridPurchase(BaseClass):
         '''
         Executes a grid sales simulation
         '''
-        self.annual_energy_kwh = sum(self.generation_profile)
+        self.annual_energy = sum(self.generation_profile)

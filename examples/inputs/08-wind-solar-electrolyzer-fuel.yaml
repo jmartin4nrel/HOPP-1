@@ -9,36 +9,46 @@ technologies:
     system_capacity_kw: 50000
     lca:
       co2_kg_kwh: 0.02238638471
+    simple_fin_config:
+      input_dollar_yr: 2020
+      toc_kw: 1303.
+      foc_kw_yr: 23.
+      voc_kwh: 0.
   wind:
     num_turbines: 10
     turbine_rating_kw: 5000
     lca:
       co2_kg_kwh: 0.02949369802
+    simple_fin_config:
+      input_dollar_yr: 2020
+      toc_kw: 1405.
+      foc_kw_yr: 43.
+      voc_kwh: 0.
   electrolyzer:
-    capacity_kw: 100
+    system_capacity_kw: 100
     lca:
       co2_kg_kwh: 0.00082327113
-    # simple_fin_config:
-    #   input_dollar_yr: 2020
-    #   toc: 0.
-    #   foc_yr: 0.
-    #   voc_kg: 0.
+    simple_fin_config:
+      input_dollar_yr: 2020
+      toc: 86200000.
+      foc_yr: 4885000.
+      voc_kwh: 0.0000305
   grid:
     interconnect_kw: 50000
     lca:
       co2_kg_kwh: 0.0
   grid_purchase:
     interconnect_kw: 50000
-    # simple_fin_config:
-    #   input_dollar_yr: 2020
-    #   voc_kwh: 0.
+    simple_fin_config:
+      input_dollar_yr: 2020
+      voc_kwh: 0.01256
     lca:
       co2_kg_kwh: 0.6004253623 # NETL Grid Mix Explorer 4.2 - Texas Reliability Entity 2020
   grid_sales:
     interconnect_kw: 50000
-    # simple_fin_config:
-    #   input_dollar_yr: 2020
-    #   voc_kwh: 0.
+    simple_fin_config:
+      input_dollar_yr: 2020
+      voc_kwh: 0.00998
     lca:
       co2_kg_kwh: -0.6004253623 # NETL Grid Mix Explorer 4.2 - Texas Reliability Entity 2020
   fuel:
@@ -51,12 +61,37 @@ technologies:
       toc: 136000000.
       foc_yr: 2653000.
       voc_kg: 0.67682
+    simple_fin_config:
+      input_dollar_yr: 2020
+      toc: 136000000.
+      foc_yr: 2653000.
+      voc_kg: 0.00079
   co2:
     co2_kg_s: 1.0
     lca:
       co2_kg_kg: 0.14
     co2_model: 'SimpleNGCC'
     capture_model: 'AmineScrub'
+    # simple_fin_config:
+    #   input_dollar_yr: 2020
+    #   toc: 114400000.
+    #   foc_yr: 2973000.
+    #   voc_kg: .011633
+    # simple_fin_config:
+    #   input_dollar_yr: 2020
+    #   toc: 118500000.
+    #   foc_yr: 3092000.
+    #   voc_kg: .01186
+    simple_fin_config:
+      input_dollar_yr: 2020
+      voc_kg: .069597655
+  ng:
+    ng_kg_s: 1.0
+    simple_fin_config:
+      input_dollar_yr: 2020
+      toc: 0
+      foc_yr: 0
+      voc_kg: 0.11974
 
 # Configuration
 config:
@@ -72,13 +107,5 @@ config:
     lca_tech: 'fuel'
     lca_emissions: ['co2_kg']
   simulation_options:
-    pv:
-      skip_financial: true
-    wind:
-      skip_financial: true
     grid:
-      skip_financial: true
-    co2:
-      skip_financial: true
-    electrolyzer:
       skip_financial: true

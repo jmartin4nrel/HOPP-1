@@ -5,16 +5,16 @@ from hopp.simulation.technologies.sites import SiteInfo
 from hopp.utilities.validators import gt_zero
 # avoid circular dep
 if TYPE_CHECKING:
-    from hopp.simulation.technologies.co2.co2_plant import CO2Config
+    from hopp.simulation.technologies.naturalgas.ng_plant import NG_Config
 
 @define
-class SimpleNGCC(BaseClass):
+class SimpleNG(BaseClass):
     """
-    Configuration class for SimpleNGCC.
+    Configuration class for SimpleNG.
 
     Args:
         site = SiteInfo object
-        config = CO2Config object
+        config = NG_Config object
         name = Name
         :param input_streams_kg_s: Dict of flows coming into the plant
         :param output_streams_kg_s: Dict of flows coming out of the plant
@@ -22,17 +22,13 @@ class SimpleNGCC(BaseClass):
         :param output_streams_kw: Dict of power coming out of the plant
     """
     site: SiteInfo = field()
-    config: "CO2Config" = field()
+    config: "NG_Config" = field()
     name: str = field()
-    input_streams_kg_s: dict = {}
-    output_streams_kg_s: dict = {}
-    input_streams_kw: dict = {}
-    output_streams_kw: dict = {}
 
 
     def __attrs_post_init__(self):
-        self.co2_kg_s = self.config.co2_kg_s
-        self.annual_mass_kg = self.co2_kg_s*60*60*24*365
+        self.ng_kg_s = self.config.ng_kg_s
+        self.annual_mass_kg = self.ng_kg_s*60*60*24*365
 
     def value(self, name: str, set_value=None):
         """
@@ -45,26 +41,16 @@ class SimpleNGCC(BaseClass):
 
     def execute(self, project_life):
         '''
-        Executes a CO2 plant simulation
+        Executes a NG plant simulation
         '''
-        co2_kg_s = self.co2_kg_s
-        self.output_streams_kg_s["co2"] = co2_kg_s
-        self.flow_kg_s = [co2_kg_s]
-        self.annual_mass_kg = co2_kg_s*60*60*24*365
-        capture_model = self.config.capture_model
-        if capture_model == 'AmineScrub':
-            kwh_kg = 2.886
-            ng_increase = 0.04651
-            self.input_streams_kg_s['natural gas'] = co2_kg_s*ng_increase
-        elif capture_model == None:
-            kwh_kg = 2.9225
-        self.output_streams_kg_s['co2'] = co2_kg_s
-        self.output_streams_kw['electricity'] = co2_kg_s*kwh_kg*60*60
+        ng_kg_s = self.ng_kg_s
+        self.flow_kg_s = [ng_kg_s]
+        self.annual_mass_kg = ng_kg_s*60*60*24*365
 
 @define
-class SimpleNGCC_Finance(BaseClass):
+class SimpleNG_Finance(BaseClass):
     """
-    Configuration class for SimpleNGCC_Finance.
+    Configuration class for SimpleNG_Finance.
 
     Args:
         config = CO2Config object
@@ -75,7 +61,7 @@ class SimpleNGCC_Finance(BaseClass):
         vopex_kg = variable operating expenses per kg product
         fcr = fixed charged rate
     """
-    config: "CO2Config" = field()
+    config: "NG_Config" = field()
     life_yr: int = field(validator=gt_zero, default=30)
     doll_yr: int = field(validator=gt_zero, default=2020)
     capex: float = field(validator=gt_zero, default=1e6)
@@ -87,8 +73,8 @@ class SimpleNGCC_Finance(BaseClass):
     input_dict = {'test':test_value}
 
     def __attrs_post_init__(self):
-        self.cap_kg_s = self.config.co2_kg_s
-        self.product = "co2"
+        self.cap_kg_s = self.config.ng_kg_s
+        self.product = "natural gas"
 
     def assign(self, input_dict, ignore_missing_vals=False):
         """

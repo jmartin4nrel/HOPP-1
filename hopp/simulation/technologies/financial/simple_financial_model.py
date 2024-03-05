@@ -1,6 +1,7 @@
 from hopp.simulation.base import BaseClass
 from hopp.simulation.technologies.financial import CustomFinancialModel
 from attrs import define, field
+from typing import Optional
 
 @define
 class SimpleFinanceConfig(BaseClass):
@@ -11,13 +12,17 @@ class SimpleFinanceConfig(BaseClass):
         inflation: float = 0.02
         fcr_real: float = 0.07
         tasc_toc: float = 1.1
-        toc: float = 1e8
-        foc_yr: float = 1e6
-        voc_kg: float = 1.
-        voc_kwh: float = .1
+        toc: float = 0.
+        foc_yr: float = 0.
+        voc_kg: float = 0.
+        voc_kwh: float = 0.
         levelized_cost_kg: float = 10.
         levelized_cost_kwh: float = 1.
-
+        toc_kw: Optional[float] = field(default=None)
+        foc_kw_yr: Optional[float] = field(default=None)
+        toc_kg_s: Optional[float] = field(default=None)
+        foc_kg_s_yr: Optional[float] = field(default=None)
+        
         def default():
             return SimpleFinanceConfig(1.0)
         
@@ -45,6 +50,8 @@ default_config = SimpleFinanceConfig.default()
 class SimpleFinance(CustomFinancialModel):
     config: SimpleFinanceConfig
     config_name: str = field(init=False, default="DefaultFinanceConfig")
+    system_capacity_kw: float = 1e5
+    system_capacity_kg_s: float = 1e3
 
     def __attrs_post_init__(self):
 
@@ -58,12 +65,16 @@ class SimpleFinance(CustomFinancialModel):
         
         # toc: Total overnight cost (a.k.a. CAPEX)
         self.toc = self.config.toc
+        self.toc_kw = self.config.toc_kw
+        self.toc_kg_s = self.config.toc_kg_s
         
         # tasc: Total as-spent cost (a.k.a. CAPEX over expenditure period)
         self.tasc = 0.
         
         # foc: Fixed operating cost (a.k.a. fOPEX)
         self.foc_yr = self.config.foc_yr
+        self.foc_kw_yr = self.config.foc_kw_yr
+        self.foc_kg_s_yr = self.config.foc_kg_s_yr
         
         # voc: Variable operating cost (a.k.a. vOPEX)
         self.voc_kg = self.config.voc_kg
@@ -76,6 +87,11 @@ class SimpleFinance(CustomFinancialModel):
     
     def calc_levelized_cost_mass(self, output_kg_yr):
         
+        if self.toc_kg_s is not None:
+            self.toc = self.toc_kg_s * self.system_capacity_kg_s
+        if self.foc_kg_s_yr is not None:
+            self.foc_yr = self.foc_kg_s_yr * self.system_capacity_kg_s
+
         # Correct for inflation
         toc = self.toc*(1+self.inflation)**(self.output_dollar_yr-self.input_dollar_yr)
         self.toc = toc
@@ -91,9 +107,15 @@ class SimpleFinance(CustomFinancialModel):
         # Calculate levelized costs
         self.lc_kg = (tasc*self.fcr_real+foc_yr)/output_kg_yr+voc_kg
 
+        return self.lc_kg
 
     def calc_levelized_cost_energy(self, output_kwh_yr):
         
+        if self.toc_kw is not None:
+            self.toc = self.toc_kw * self.system_capacity_kw
+        if self.foc_kw_yr is not None:
+            self.foc_yr = self.foc_kw_yr * self.system_capacity_kw
+
         # Correct for inflation
         toc = self.toc*(1+self.inflation)**(self.output_dollar_yr-self.input_dollar_yr)
         self.toc = toc
@@ -111,6 +133,8 @@ class SimpleFinance(CustomFinancialModel):
             self.lc_kwh = (tasc*self.fcr_real+foc_yr)/output_kwh_yr+voc_kwh
         else:
             self.lc_kwh = 0
+
+        return self.lc_kwh
 
 
 

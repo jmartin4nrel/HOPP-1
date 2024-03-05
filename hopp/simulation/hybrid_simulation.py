@@ -21,6 +21,7 @@ from hopp.simulation.technologies.grid_sales import GridSales, GridSalesConfig
 from hopp.simulation.technologies.grid_purchase import GridPurchase, GridPurchaseConfig
 from hopp.simulation.technologies.fuel.fuel_plant import FuelPlant, FuelConfig
 from hopp.simulation.technologies.co2.co2_plant import CO2Plant, CO2Config
+from hopp.simulation.technologies.naturalgas.ng_plant import NG_Plant, NG_Config
 from hopp.simulation.technologies.hydrogen.electrolyzer_plant import ElectrolyzerPlant, ElectrolyzerConfig
 from hopp.simulation.technologies.financial import SimpleFinance, SimpleFinanceConfig
 from hopp.simulation.technologies.reopt import REopt
@@ -128,6 +129,7 @@ class TechnologiesConfig(BaseClass):
     grid_purchase: Optional[GridPurchaseConfig] = field(default=None)
     fuel: Optional[FuelConfig] = field(default=None)
     co2: Optional[CO2Config] = field(default=None)
+    ng: Optional[NG_Config] = field(default=None)
     electrolyzer: Optional[ElectrolyzerConfig] = field(default=None)
 
     @classmethod
@@ -178,6 +180,9 @@ class TechnologiesConfig(BaseClass):
 
         if "co2" in data:
             config["co2"] = CO2Config.from_dict(data["co2"])
+        
+        if "ng" in data:
+            config["ng"] = NG_Config.from_dict(data["ng"])
         
         if "electrolyzer" in data:
             config["electrolyzer"] = ElectrolyzerConfig.from_dict(data["electrolyzer"])
@@ -231,6 +236,7 @@ class HybridSimulation(BaseClass):
     grid_sales: Optional[GridSales] = field(init=False, default=None)
     fuel: Optional[FuelPlant] = field(init=False, default=None)
     co2: Optional[CO2Plant] = field(init=False, default=None)
+    ng: Optional[NG_Plant] = field(init=False, default=None)
     technologies: Dict[str, PowerSourceTypes] = field(init=False)
 
     dispatch_builder: HybridDispatchBuilderSolver = field(init=False)
@@ -245,7 +251,7 @@ class HybridSimulation(BaseClass):
         for tech in self.tech_config._get_model_dict().keys():
             tech_config = self.tech_config.__getattribute__(tech)
             if tech_config:
-                if 'simple_fin_config' in tech_config._get_model_dict().keys():
+                if tech_config.simple_fin_config is not None:
                     tech_config.simple_fin_config.assign(self.finance_options)
             
         pv_config = self.tech_config.pv
@@ -340,6 +346,15 @@ class HybridSimulation(BaseClass):
             logger.info("Created HybridSystem.co2 with system size {} kg/s".format(
                 co2_config.co2_kg_s))
             
+        ng_config = self.tech_config.ng
+
+        if ng_config is not None:
+            self.ng = NG_Plant(self.site, config=ng_config)
+            self.technologies["ng"] = self.ng
+
+            logger.info("Created HybridSystem.ng with system size {} kg/s".format(
+                ng_config.ng_kg_s))
+            
         electrolyzer_config = self.tech_config.electrolyzer
 
         if electrolyzer_config is not None:
@@ -347,7 +362,7 @@ class HybridSimulation(BaseClass):
             self.technologies["electrolyzer"] = self.electrolyzer
 
             logger.info("Created HybridSystem.electrolyzer with system size {} kw".format(
-                electrolyzer_config.capacity_kw))
+                electrolyzer_config.system_capacity_kw))
         
         grid_sales_config = self.tech_config.grid_sales
         
@@ -748,7 +763,7 @@ class HybridSimulation(BaseClass):
         """
         self.setup_performance_models()
         # simulate non-dispatchable systems
-        non_dispatchable_systems = ['pv', 'wind','wave','fuel','co2','electrolyzer','grid_sales','grid_purchase']
+        non_dispatchable_systems = ['pv', 'wind','wave','fuel','co2','ng','electrolyzer','grid_sales','grid_purchase']
         for system in non_dispatchable_systems:
             model = getattr(self, system)
             if model:
@@ -848,18 +863,38 @@ class HybridSimulation(BaseClass):
         """
         Runs the simple finanical model for individual sub-systems and the hybrid system as a whole
         """
+        
+        # Accumulates total annual costs from different sources
+        self.lc = 0
+        self.lc_breakdown = {}
+        cost_tech = self.finance_options['cost_tech']
+        cost_model =getattr(self, cost_tech)
         for system in self.technologies.keys():
             model = getattr(self, system)
             if isinstance(model._financial_model,SimpleFinance):
                 if system in self.sim_options.keys():
-                    if 'skip_financial' in self.sim_options[system].keys():
+                    if 'skip_financial' in self.sim_options[system].keys() and self.sim_options[system]['skip_financial']:
                         continue
                 if isinstance(model,PowerSource):
                     output_kwh_yr =  model.annual_energy_kwh
-                    model._financial_model.calc_levelized_cost_energy(output_kwh_yr)
+                    lc = model._financial_model.calc_levelized_cost_energy(output_kwh_yr)
+                    if isinstance(cost_model,PowerSource):
+                        prod_output_kwh_yr = cost_model.annual_energy_kwh
+                        prod_lc = lc*output_kwh_yr/prod_output_kwh_yr
+                    if isinstance(cost_model,FlowSource):
+                        prod_output_kg_yr = cost_model.annual_mass_kg
+                        prod_lc = lc*output_kwh_yr/prod_output_kg_yr
                 if isinstance(model,FlowSource):
                     output_kg_yr =  model.annual_mass_kg
-                    model._financial_model.calc_levelized_cost_mass(output_kg_yr)
+                    lc = model._financial_model.calc_levelized_cost_mass(output_kg_yr)
+                    if isinstance(cost_model,PowerSource):
+                        prod_output_kwh_yr = cost_model.annual_energy_kwh
+                        prod_lc = lc*output_kg_yr/prod_output_kwh_yr
+                    if isinstance(cost_model,FlowSource):
+                        prod_output_kg_yr = cost_model.annual_mass_kg
+                        prod_lc = lc*output_kg_yr/prod_output_kg_yr
+                self.lc += prod_lc
+                self.lc_breakdown[system] = prod_lc
         pass
 
 
@@ -874,15 +909,16 @@ class HybridSimulation(BaseClass):
             self.lca[em+'_yr'] = 0
         for system in self.technologies.keys():
             model = getattr(self, system)
-            for em in self.lca_options['lca_emissions']:
-                if isinstance(model,PowerSource):
-                    output_kwh_yr =  model.annual_energy_kwh
-                    em_kwh = model.config.lca[em+'_kwh']
-                    self.lca[em+'_yr'] += output_kwh_yr*em_kwh
-                if isinstance(model,FlowSource):
-                    output_kg_yr =  model.annual_mass_kg
-                    em_kg = model.config.lca[em+'_kg']
-                    self.lca[em+'_yr'] += output_kg_yr*em_kg
+            if model.config.lca is not None:
+                for em in self.lca_options['lca_emissions']:
+                    if isinstance(model,PowerSource):
+                        output_kwh_yr =  model.annual_energy_kwh
+                        em_kwh = model.config.lca[em+'_kwh']
+                        self.lca[em+'_yr'] += output_kwh_yr*em_kwh
+                    if isinstance(model,FlowSource):
+                        output_kg_yr =  model.annual_mass_kg
+                        em_kg = model.config.lca[em+'_kg']
+                        self.lca[em+'_yr'] += output_kg_yr*em_kg
 
         # Find the tech that is the end product and divide by its flow/power
         product_system = self.lca_options['lca_tech']
