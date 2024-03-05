@@ -905,20 +905,24 @@ class HybridSimulation(BaseClass):
 
         # Accumulates total annual emissions output from different sources
         self.lca = {} 
+        self.lca_breakdown = {}
         for em in self.lca_options['lca_emissions']:
             self.lca[em+'_yr'] = 0
         for system in self.technologies.keys():
             model = getattr(self, system)
+            self.lca_breakdown[system] = {}
             if model.config.lca is not None:
                 for em in self.lca_options['lca_emissions']:
                     if isinstance(model,PowerSource):
                         output_kwh_yr =  model.annual_energy_kwh
                         em_kwh = model.config.lca[em+'_kwh']
                         self.lca[em+'_yr'] += output_kwh_yr*em_kwh
+                        self.lca_breakdown[system][em+'_yr'] = output_kwh_yr*em_kwh
                     if isinstance(model,FlowSource):
                         output_kg_yr =  model.annual_mass_kg
                         em_kg = model.config.lca[em+'_kg']
                         self.lca[em+'_yr'] += output_kg_yr*em_kg
+                        self.lca_breakdown[system][em+'_yr'] = output_kg_yr*em_kwh
 
         # Find the tech that is the end product and divide by its flow/power
         product_system = self.lca_options['lca_tech']

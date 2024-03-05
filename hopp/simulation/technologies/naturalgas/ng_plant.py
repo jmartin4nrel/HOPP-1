@@ -24,8 +24,8 @@ class NG_Config(BaseClass):
         ng_kg_s: The NG production rate in kg/s
 
     """
-    ng_kg_s: float = field(default=1.0, validator=gt_zero)
-    ng_model: str = field(default="SimpleNG", validator=contains(["SimpleNG"]))
+    ng_kg_s: float = field(default=1.0)
+    ng_model: str = field(default="SimpleNG")
     simple_fin_config: Optional[dict] = field(default=None)
     model_input_file: Optional[str] = field(default=None)
     lca: Optional[dict] = field(default=None)
@@ -81,3 +81,11 @@ class NG_Plant(FlowSource):
     @system_capacity_kg_s.setter
     def system_capacity_kg_s(self, kg_s: float):
          self._system_model.value("ng_kg_s",kg_s)
+
+    @property
+    def annual_mass_kg(self):
+        return self._system_model.value("annual_mass_kg")
+    
+    @annual_mass_kg.setter
+    def annual_mass_kg(self, kg: float):
+        self._system_model.value("annual_mass_kg",kg)

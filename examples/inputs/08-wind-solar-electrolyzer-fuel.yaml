@@ -25,13 +25,15 @@ technologies:
       foc_kw_yr: 43.
       voc_kwh: 0.
   electrolyzer:
-    system_capacity_kw: 100
+    system_capacity_kw: 140
     lca:
       co2_kg_kwh: 0.00082327113
     simple_fin_config:
       input_dollar_yr: 2020
-      toc: 86200000.
-      foc_yr: 4885000.
+      toc: 39946000.
+      toc_kw: 340.48
+      foc_yr: 2984400.
+      foc_kw_yr: 13.99
       voc_kwh: 0.0000305
   grid:
     interconnect_kw: 50000
@@ -43,45 +45,39 @@ technologies:
       input_dollar_yr: 2020
       voc_kwh: 0.01256
     lca:
-      co2_kg_kwh: 0.6004253623 # NETL Grid Mix Explorer 4.2 - Texas Reliability Entity 2020
+      co2_kg_kwh: 0.3187 # Cambium TX
   grid_sales:
     interconnect_kw: 50000
     simple_fin_config:
       input_dollar_yr: 2020
       voc_kwh: 0.00998
     lca:
-      co2_kg_kwh: -0.6004253623 # NETL Grid Mix Explorer 4.2 - Texas Reliability Entity 2020
+      co2_kg_kwh: 0.3187 # Cambium TX
   fuel:
     fuel_prod_kg_s: 3.64992
     fuel_produced: 'methanol'
+    reactor_tech: 'RCC recycle' # CO2 hydrogenation # 
+    catalyst: 'CZA'
+    # lca:
+    #   co2_kg_kg: 0.020296
+    # simple_fin_config:
+    #   input_dollar_yr: 2020
+    #   toc: 136000000.
+    #   foc_yr: 2653000.
+    #   voc_kg: 0.00079
     lca:
-      co2_kg_kg: 0.020296
+      co2_kg_kg: 0.078312
     simple_fin_config:
       input_dollar_yr: 2020
-      toc: 136000000.
-      foc_yr: 2653000.
-      voc_kg: 0.67682
-    simple_fin_config:
-      input_dollar_yr: 2020
-      toc: 136000000.
-      foc_yr: 2653000.
-      voc_kg: 0.00079
+      toc: 33300000.
+      foc_yr: 1529000.
+      voc_kg: 0.03581
   co2:
     co2_kg_s: 1.0
     lca:
       co2_kg_kg: 0.14
     co2_model: 'SimpleNGCC'
-    capture_model: 'AmineScrub'
-    # simple_fin_config:
-    #   input_dollar_yr: 2020
-    #   toc: 114400000.
-    #   foc_yr: 2973000.
-    #   voc_kg: .011633
-    # simple_fin_config:
-    #   input_dollar_yr: 2020
-    #   toc: 118500000.
-    #   foc_yr: 3092000.
-    #   voc_kg: .01186
+    capture_model: None # 'AmineScrub' # 
     simple_fin_config:
       input_dollar_yr: 2020
       voc_kg: .069597655

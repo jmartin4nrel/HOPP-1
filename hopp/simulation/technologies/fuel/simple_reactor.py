@@ -31,6 +31,8 @@ class SimpleReactor(BaseClass):
     def __attrs_post_init__(self):
         self.fuel_prod_kg_s = self.config.fuel_prod_kg_s
         self.fuel_produced = self.config.fuel_produced
+        self.reactor_tech = self.config.reactor_tech
+        self.catalyst = self.config.catalyst
         self.annual_mass_kg = None
 
     def value(self, name: str, set_value=None):
@@ -48,15 +50,25 @@ class SimpleReactor(BaseClass):
         '''
         fuel_kg_s = self.fuel_prod_kg_s
         fuel = self.fuel_produced
+        reactor = self.reactor_tech
+        catalyst = self.catalyst
         self.output_streams_kg_s[fuel] = [fuel_kg_s]*8760
         self.flow_kg_s = self.output_streams_kg_s[fuel]
         self.annual_mass_kg = fuel_kg_s*60*60*24*365
         if fuel == 'methanol':
-            h2ratio = 0.195
-            co2ratio = 1.423
-            kwh_kgH2 = 55.0
-            kj_kgH2 = kwh_kgH2*3600
-            kgH2O_kgH2 = 14.309
+            if reactor == 'CO2 hydrogenation':
+                h2ratio = 0.195
+                co2ratio = 1.423
+                kwh_kgH2 = 54.66
+                kj_kgH2 = kwh_kgH2*3600
+                kgH2O_kgH2 = 14.309
+            if reactor == 'RCC recycle':
+                if catalyst == 'CZA':
+                    h2ratio = 0.327
+                    co2ratio = 9.118
+                    kwh_kgH2 = 54.66
+                    kj_kgH2 = kwh_kgH2*3600
+                    kgH2O_kgH2 = 14.309
             self.input_streams_kg_s['hydrogen'] = [i*h2ratio for i in self.output_streams_kg_s[fuel]]
             self.input_streams_kg_s['water'] = [i*kgH2O_kgH2 for i in self.input_streams_kg_s['hydrogen']]
             self.input_streams_kw['electricity'] = [i*kj_kgH2 for i in self.input_streams_kg_s['hydrogen']]

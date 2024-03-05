@@ -56,8 +56,9 @@ class SimpleNGCC(BaseClass):
             kwh_kg = 2.886
             ng_increase = 0.04651
             self.input_streams_kg_s['natural gas'] = co2_kg_s*ng_increase
-        elif capture_model == None:
+        elif capture_model == 'None':
             kwh_kg = 2.9225
+            self.input_streams_kg_s['natural gas'] = 0.
         self.output_streams_kg_s['co2'] = co2_kg_s
         self.output_streams_kw['electricity'] = co2_kg_s*kwh_kg*60*60
 

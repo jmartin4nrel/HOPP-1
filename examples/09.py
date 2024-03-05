@@ -35,23 +35,39 @@ hi = HoppInterface("./inputs/08-wind-solar-electrolyzer-fuel.yaml")
 hi.system.fuel.simulate_flow(1)
 total_elec_kw = np.mean((hi.system.fuel._system_model.input_streams_kw['electricity']))
 
-# Use the calculated co2 input flowrate to size the co2 source NGCC plant (and its NG flow)
+# Use the calculated co2 input flowrate to size the co2 source plant, switch off costs if using raw flue gas
 co2_kg_s = np.mean(hi.system.fuel._system_model.input_streams_kg_s['carbon dioxide'])
 getattr(hi.system,'co2').value('co2_kg_s',co2_kg_s)
+if hi.system.tech_config.co2.capture_model == 'None':
+    hi.system.co2._financial_model.voc_kg = 0.
+    hi.system.tech_config.co2.lca['co2_kg_kg'] = 0.
+    hi.system.ng._system_model.annual_mass_kg = 0.
 hi.system.co2.simulate_flow(1)
 ng_kg_s = np.mean(hi.system.co2._system_model.input_streams_kg_s['natural gas'])
+hi.system.ng._system_model.ng_kg_s = ng_kg_s
 getattr(hi.system,'ng').value('ng_kg_s',ng_kg_s)
+hi.system.tech_config.ng.ng_kg_s = ng_kg_s
+hi.system.ng.config.ng_kg_s = ng_kg_s
+hi.system.ng.ng_kg_s = ng_kg_s
 
 # Calculate the (discrete) wind plant size needed based on an estimated capacity factor and the desired percentage of the total wind/pv output from wind
 percent_wind = 90
+percent_overbuild = 0.5
+overbuild_elec_kw = total_elec_kw*(100+percent_overbuild)/100
 wind_cap_factor = 0.42
-wind_cap_kw = total_elec_kw*percent_wind/100/wind_cap_factor
+wind_cap_kw = overbuild_elec_kw*percent_wind/100/wind_cap_factor
 turb_rating_kw = getattr(hi.system,'wind').value('turb_rating')
 num_turbines = int(np.round(wind_cap_kw/turb_rating_kw,0))
 getattr(hi.system,'wind').value('num_turbines',num_turbines)
 hi.system.wind._financial_model.system_capacity_kw = hi.system.wind._system_model.Farm.system_capacity
-wind_cap_kw = num_turbines*turb_rating_kw
-percent_wind = wind_cap_kw*wind_cap_factor/total_elec_kw*100
+hi.system.wind.simulate_power(1)
+wind_cap_factor = getattr(hi.system,'wind').value('capacity_factor')/100
+wind_cap_kw = overbuild_elec_kw*percent_wind/100/wind_cap_factor
+num_turbines = np.ceil(wind_cap_kw/turb_rating_kw)
+getattr(hi.system,'wind').value('num_turbines',num_turbines)
+wind_cap_kw = hi.system.wind._system_model.Farm.system_capacity
+hi.system.wind._financial_model.system_capacity_kw = wind_cap_kw
+percent_wind = wind_cap_kw*wind_cap_factor/overbuild_elec_kw*100
 
 # # Widen site to match number of turbines needed
 # Site = hi.system.site
@@ -64,7 +80,11 @@ percent_wind = wind_cap_kw*wind_cap_factor/total_elec_kw*100
 # Calculate the (continuous) pv plant size needed based on an estimated capacity factor and the wind plant size
 percent_pv = 100-percent_wind
 pv_cap_factor = 0.22
-pv_cap_kw = total_elec_kw*percent_pv/100/pv_cap_factor
+pv_cap_kw = overbuild_elec_kw*percent_pv/100/pv_cap_factor
+getattr(hi.system,'pv').value('system_capacity_kw',pv_cap_kw)
+hi.system.pv.simulate_power(1)
+pv_cap_factor = hi.system.pv._system_model.Outputs.capacity_factor/100
+pv_cap_kw = overbuild_elec_kw*percent_pv/100/pv_cap_factor
 getattr(hi.system,'pv').value('system_capacity_kw',pv_cap_kw)
 
 # Calculate the electrolyzer and interconnect size needed based on an estimated capacity factor
@@ -208,15 +228,11 @@ lb_kg = 2.208
 MJ_kg = 20.1
 MJ_MMBTU = 1055.
 
+print((np.sum(sum(sold_power)+sum(bought_power)))/np.sum(electrolyzer_profile))
 print("Annual methanol production, tonne/yr: {:f}".format(hi.system.fuel.annual_mass_kg/1000))
-print("Levelized cost of methanol (LCOM), $/kg: {:.2f}".format(hi.system.fuel._financial_model.lc_kg))
-print("Levelized cost of methanol (LCOM), $/kg: {:.2f}".format(hi.system.lc))
+print("Levelized cost of methanol (LCOM), $/kg: {:.3f}".format(hi.system.lc))
 print(hi.system.lc_breakdown)
-# print("Levelized cost of methanol (LCOM), $/lb: {:.2f}".format(hi.system.fuel._financial_model.lc_kg/lb_kg))
-# print("Levelized cost of methanol (LCOM), $/tonne: {:.2f}".format(hi.system.fuel._financial_model.lc_kg*1000))
-# print("Levelized cost of methanol (LCOM), $/MJ: {:.2f}".format(hi.system.fuel._financial_model.lc_kg/MJ_kg))
-# print("Levelized cost of methanol (LCOM), $/MMBTU: {:.2f}".format(hi.system.fuel._financial_model.lc_kg/MJ_kg*MJ_MMBTU))
-# print("Levelized cost of methanol (LCOM), $/MMBTU: {:.2f}".format(hi.system.fuel._financial_model.lc_kg/MJ_kg*MJ_MMBTU))
-print("Carbon Intensity (CI), kg/kg-MeOH: {:.2f}".format(hi.system.lca['co2_kg_kg']))
+print("Carbon Intensity (CI), kg/kg-MeOH: {:.3f}".format(hi.system.lca['co2_kg_kg']))
+print(hi.system.lca_breakdown)
 
 

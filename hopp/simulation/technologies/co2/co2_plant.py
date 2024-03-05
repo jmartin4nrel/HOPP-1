@@ -91,3 +91,11 @@ class CO2Plant(FlowSource):
     @system_capacity_kg_s.setter
     def system_capacity_kg_s(self, kg_s: float):
          self._system_model.value("co2_kg_s",kg_s)
+
+    @property
+    def annual_mass_kg(self):
+        return self._system_model.value("annual_mass_kg")
+    
+    @annual_mass_kg.setter
+    def annual_mass_kg(self, kg: float):
+        self._system_model.value("annual_mass_kg",kg)

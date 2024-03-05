@@ -88,9 +88,9 @@ class SimpleFinance(CustomFinancialModel):
     def calc_levelized_cost_mass(self, output_kg_yr):
         
         if self.toc_kg_s is not None:
-            self.toc = self.toc_kg_s * self.system_capacity_kg_s
+            self.toc  = self.config.toc + self.toc_kg_s * self.system_capacity_kg_s
         if self.foc_kg_s_yr is not None:
-            self.foc_yr = self.foc_kg_s_yr * self.system_capacity_kg_s
+            self.foc_yr = self.config.foc_yr + self.foc_kg_s_yr * self.system_capacity_kg_s
 
         # Correct for inflation
         toc = self.toc*(1+self.inflation)**(self.output_dollar_yr-self.input_dollar_yr)
@@ -105,16 +105,20 @@ class SimpleFinance(CustomFinancialModel):
         self.tasc = tasc
         
         # Calculate levelized costs
-        self.lc_kg = (tasc*self.fcr_real+foc_yr)/output_kg_yr+voc_kg
+        if output_kg_yr == 0.:
+            lc = 0.
+        else:
+            lc = (tasc*self.fcr_real+foc_yr)/output_kg_yr+voc_kg
+        self.lc_kg = lc
 
         return self.lc_kg
 
     def calc_levelized_cost_energy(self, output_kwh_yr):
         
         if self.toc_kw is not None:
-            self.toc = self.toc_kw * self.system_capacity_kw
+            self.toc = self.config.toc + self.toc_kw * self.system_capacity_kw
         if self.foc_kw_yr is not None:
-            self.foc_yr = self.foc_kw_yr * self.system_capacity_kw
+            self.foc_yr = self.config.foc_yr + self.foc_kw_yr * self.system_capacity_kw
 
         # Correct for inflation
         toc = self.toc*(1+self.inflation)**(self.output_dollar_yr-self.input_dollar_yr)
@@ -129,10 +133,10 @@ class SimpleFinance(CustomFinancialModel):
         self.tasc = tasc
         
         # Calculate levelized costs
-        if output_kwh_yr != 0:
+        if output_kwh_yr != 0.:
             self.lc_kwh = (tasc*self.fcr_real+foc_yr)/output_kwh_yr+voc_kwh
         else:
-            self.lc_kwh = 0
+            self.lc_kwh = 0.
 
         return self.lc_kwh
 

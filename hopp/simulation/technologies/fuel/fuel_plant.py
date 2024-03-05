@@ -26,8 +26,10 @@ class FuelConfig(BaseClass):
 
     """
     fuel_prod_kg_s: float = field(default=1.0, validator=gt_zero)
-    fuel_produced: str = field(default="hydrogen", validator=contains(["hydrogen","methanol"]))
-    model_name: str = field(default="SimpleReactor", validator=contains(["SimpleReactor"]))
+    fuel_produced: str = field(default="hydrogen")
+    reactor_tech: str = field(default="co2_hydrogenation")
+    model_name: str = field(default="SimpleReactor")
+    catalyst: Optional[str] = field(default=None)
     simple_fin_config: Optional[dict] = field(default=None)
     model_input_file: Optional[str] = field(default=None)
     lca: Optional[dict] = field(default=None)
@@ -69,6 +71,7 @@ class FuelPlant(FlowSource):
 
         self.fuel_prod_kg_s = self.config.fuel_prod_kg_s
         self.fuel_produced = self.config.fuel_produced
+        self.reactor_tech = self.config.reactor_tech
 
     @property
     def fuel_prod_kg_s(self):
@@ -93,3 +96,11 @@ class FuelPlant(FlowSource):
     @system_capacity_kg_s.setter
     def system_capacity_kg_s(self, kg_s: float):
          self._system_model.value("fuel_prod_kg_s",kg_s)
+
+    @property
+    def annual_mass_kg(self):
+        return self._system_model.value("annual_mass_kg")
+    
+    @annual_mass_kg.setter
+    def annual_mass_kg(self, kg: float):
+        self._system_model.value("annual_mass_kg",kg)
