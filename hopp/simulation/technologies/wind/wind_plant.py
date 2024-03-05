@@ -93,6 +93,22 @@ class WindPlant(PowerSource):
             financial_model = Singleowner.default(self.config_name)
         elif self.config.simple_fin_config:
             system_model = Windpower.default(self.config_name)
+            system_model.Losses.avail_bop_loss = 0
+            system_model.Losses.avail_grid_loss = 0
+            system_model.Losses.avail_turb_loss = 0
+            system_model.Losses.elec_eff_loss = 0
+            system_model.Losses.elec_parasitic_loss = 0
+            system_model.Losses.env_degrad_loss = 0
+            system_model.Losses.env_env_loss = 0
+            system_model.Losses.env_icing_loss = 0
+            system_model.Losses.ops_env_loss = 0
+            system_model.Losses.ops_grid_loss = 0
+            system_model.Losses.ops_load_loss = 0
+            system_model.Losses.turb_generic_loss = 0
+            system_model.Losses.turb_hysteresis_loss = 0
+            system_model.Losses.turb_perf_loss = 0
+            system_model.Losses.turb_specific_loss = 0
+            system_model.Losses.wake_ext_loss = 0
             financial_model = SimpleFinance(self.config.simple_fin_config)
             financial_model.system_capacity_kw = system_model.Farm.system_capacity
         else:

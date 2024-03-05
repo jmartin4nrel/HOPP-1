@@ -44,7 +44,7 @@ getattr(hi.system,'ng').value('ng_kg_s',ng_kg_s)
 
 # Calculate the (discrete) wind plant size needed based on an estimated capacity factor and the desired percentage of the total wind/pv output from wind
 percent_wind = 90
-wind_cap_factor = 0.35
+wind_cap_factor = 0.42
 wind_cap_kw = total_elec_kw*percent_wind/100/wind_cap_factor
 turb_rating_kw = getattr(hi.system,'wind').value('turb_rating')
 num_turbines = int(np.round(wind_cap_kw/turb_rating_kw,0))
