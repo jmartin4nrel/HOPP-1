@@ -28,7 +28,7 @@ def aries_input_unpack(raw_input):
     idx = 0
     while idx < num_bytes:
         data = struct.unpack(
-            '!d', raw_input[idx:idx+8])
+            '!d', raw_input[idx:idx+8])[0]
         idx = idx + 8
         dl_vals.append(data)
 

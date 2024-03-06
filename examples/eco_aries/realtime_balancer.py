@@ -6,6 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from comms_tracking import setup_tracking, update_trackers, updateSOCplot
 from aries_comms import aries_output_unpack, aries_input_pack
+from hopp import ROOT_DIR
 
 def batt_balance(HOPPdict, ARIESdict, trackers):
 
@@ -71,7 +72,7 @@ def realtime_balancer(simulate_aries=True):
 
     bufferSize_HOPP  = 4096*2
     bufferSize_ARIES  = 4096*2
-    plotting = False
+    plotting = True
 
     # Setup UDP receive from HOPP
     localIP     = "127.0.0.1"
@@ -102,6 +103,14 @@ def realtime_balancer(simulate_aries=True):
     sendHOPPaddress  = (localIP, localPort)
     sendHOPPsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 
+    # Read in ARIES placeholder signal
+    aries_sig_fn = ROOT_DIR.parent / 'examples' / 'outputs' / 'placeholder_ARIES.csv'
+    aries_signals = pd.read_csv(aries_sig_fn,parse_dates=True,index_col=0,infer_datetime_format=True)
+
+    # TODO: Read in wave generation signals
+    # wave_gen_fn = ???
+    # wave_gen_signals = pd.read_csv()
+
     # Set up trackers and plots if necessary
     if plotting:
         plt.ion()
@@ -113,6 +122,24 @@ def realtime_balancer(simulate_aries=True):
         HOPPpair = recvHOPPsocket.recvfrom(bufferSize_HOPP)
         HOPPraw = HOPPpair[0]
         HOPPdict = json.loads(HOPPraw)
+
+        # Replace insolation and wind speeds with real-time wind speeds
+        aries_time = trackers[1]
+        if len(aries_time) == 0:
+            aries_time = [aries_signals.index.values[0]]
+        insol = aries_signals.loc[aries_time[-1],'poa']
+        HOPPdict['commands']['pv_insol'] = insol
+        for turb_num in range(len(HOPPdict['gen']['wind'])):
+            wind_spd = aries_signals.loc[aries_time[-1],'wind_vel_{:02}'.format(turb_num)]
+            HOPPdict['commands']['wind_spd_'+str(turb_num+1)] = wind_spd
+
+        #TODO: Read in real-time wave power profiles from WEC_sim outputs (from Naveen?)
+        # for wec_num in range(len(HOPPdict['gen']['wave'])):
+        # if len(aries_time) == 0:
+        #     aries_time = [aries_signals.index.values[0]]
+        # for turb_num in range(len(HOPPdict['gen']['wind'])):
+        #     wave_gen = wave_gen_signals.loc[aries_time[-1],'???']
+        #     HOPPdict['commands']['wave_gen_'+str(turb_num+1)] = wind_spd
 
         if simulate_aries:
 
