@@ -65,7 +65,7 @@ def hopp_comms():
 
             # Double up the generation timepoints to make stepped plot with hopp_time2
             gen_dict = {}
-            gen_list = ["wind", "wave", "pv", "batt", "elyzer"," hybrid"]
+            gen_list = ["wind", "wave", "pv", "batt", "elyzer","hybrid"]
             for i, gen1 in enumerate([wind_gen, wave_gen, pv_gen, batt_gen, elyzer_load, hybrid_gen]):
                 gen_dict[gen_list[i]] = list(gen1[start_timestep:end_timestep])
 
@@ -76,19 +76,33 @@ def hopp_comms():
             batt_soc[(end_timestep+1):] = batt_soc[end_timestep+1]
             batt_soc = list(batt_soc[start_timestep:(end_timestep+1)])
 
-            # Build command dict
-            bess_kw = hi.system.generation_profile['battery'][hopp_timestep]
             elyzer_kw = hi.system.generation_profile['hybrid'][hopp_timestep]
-            command_dict = {'bess_kw':bess_kw,'elyzer_kw':elyzer_kw}
+
+            # Build command dict
+            # TODO: Assign the correct comm_dict inputs, and additional wind/wave keys
+            bess_kw = hi.system.generation_profile['battery'][hopp_timestep]
+            pv_insol = hi.system.generation_profile['pv'][hopp_timestep]
+            comm_dict = {'bess_kw':bess_kw,'pv_insol':pv_insol}
+            wind_spd = {}
+            for i in range(1, 25):
+                wind_spd['wind_spd_' + str(i)] = hi.system.generation_profile['wind'][hopp_timestep]
+            comm_dict.update(wind_spd)
+            wave_prod = {}
+            for i in range(1, 11):
+                wave_prod['wave_prod_' + str(i)] = hi.system.generation_profile['wave'][hopp_timestep]
+            comm_dict.update(wave_prod)
+            comm_dict.update({'peripheral_load': 0})
+
 
             # Update timestep
             new_timestep = hopp_timestep
 
         # Give send json-encoded dict to ARIES
-        whole_dict = {'commands':command_dict,
+        whole_dict = {'commands':comm_dict,
                     'gen':gen_dict,
                     'soc':batt_soc,
-                    'batt_limits':batt_lim_dict}
+                    'batt_limits':batt_lim_dict,
+                    'elyzer_kw':elyzer_kw}
         bytesToSend = str.encode(json.dumps(whole_dict))
         sendSocket.sendto(bytesToSend, sendAddress)
 

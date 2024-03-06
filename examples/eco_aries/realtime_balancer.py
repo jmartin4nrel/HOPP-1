@@ -13,8 +13,7 @@ def batt_balance(HOPPdict, ARIESdict, trackers):
     aries_xdata = trackers[2]
 
     # Get commanded electrolyzer output from HOPP
-    comm_dict = HOPPdict['commands']
-    elyzer_kw = comm_dict['elyzer_kw']
+    elyzer_kw = HOPPdict['elyzer_kw']
 
     # Get generation from ARIES
     wind_kw = ARIESdict['wind']
@@ -64,14 +63,15 @@ def batt_balance(HOPPdict, ARIESdict, trackers):
         else:
             new_batt_kw = np.min([new_batt_kw,0])
 
-    HOPPdict['batt_command_kw'] = new_batt_kw
+    HOPPdict['commands']['bess_kw'] = new_batt_kw
     
     return HOPPdict, trackers
 
 def realtime_balancer(simulate_aries=True):
 
-    bufferSize  = 4096
-    plotting = True
+    bufferSize_HOPP  = 4096*2
+    bufferSize_ARIES  = 4096*2
+    plotting = False
 
     # Setup UDP receive from HOPP
     localIP     = "127.0.0.1"
@@ -102,12 +102,6 @@ def realtime_balancer(simulate_aries=True):
     sendHOPPaddress  = (localIP, localPort)
     sendHOPPsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 
-    # Setup UDP send to ADMS
-    localIP     = "127.0.0.1"
-    localPort   = 20005
-    sendADMSaddress  = (localIP, localPort)
-    sendADMSsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-
     # Set up trackers and plots if necessary
     if plotting:
         plt.ion()
@@ -116,17 +110,16 @@ def realtime_balancer(simulate_aries=True):
     while(True):
 
         # Receive data from HOPP
-        HOPPpair = recvHOPPsocket.recvfrom(bufferSize)
+        HOPPpair = recvHOPPsocket.recvfrom(bufferSize_HOPP)
         HOPPraw = HOPPpair[0]
         HOPPdict = json.loads(HOPPraw)
-        comm_dict = HOPPdict['commands']
 
         if simulate_aries:
 
             # Receive data from ARIES
-            ARIESpair = recvARIESsocket.recvfrom(bufferSize)
+            ARIESpair = recvARIESsocket.recvfrom(bufferSize_ARIES)
             ARIESraw = ARIESpair[0]
-            #ARIESdict = aries_output_unpack(ARIESraw)
+            # ARIESdict = aries_output_unpack(ARIESraw)
             ARIESdict = json.loads(ARIESraw)
 
         trackers = update_trackers(trackers, HOPPdict, ARIESdict, plotting)
@@ -140,14 +133,9 @@ def realtime_balancer(simulate_aries=True):
         if simulate_aries:
 
             # Send command back to ARIES
-            bytesToSend = str.encode(json.dumps(HOPPdict))
-            #bytesToSend = aries_input_pack(HOPPdict)
+            # bytesToSend = str.encode(json.dumps(HOPPdict))
+            bytesToSend = aries_input_pack(HOPPdict)
             sendARIESsocket.sendto(bytesToSend, sendARIESaddress)
-
-        # Send float to ADMS testbed
-        bytesToSend = b"".join([struct.pack('!f',1234),
-                                struct.pack('!f',5678)])
-        sendADMSsocket.sendto(bytesToSend, sendADMSaddress)
 
         # Send ARIES time back to HOPP
         bytesToSend = str.encode(json.dumps(str(ARIESdict['aries_time'][-1])))
