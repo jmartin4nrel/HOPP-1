@@ -80,7 +80,17 @@ class HybridDispatchBuilderSolver:
         # Blocks (technologies)         #
         #################################
         module = getattr(__import__("hopp").simulation.technologies, "dispatch")
-        for source, tech in self.power_sources.items():
+
+        #################################
+        # Implemented technologies      #
+        #################################
+        implemented_tech_list = ['wind', 'pv', 'battery', 'grid', 'wave', 'trough', 'tower']
+        implemented_tech = {}
+        for imp_tech_name in implemented_tech_list:
+            if imp_tech_name in list(self.power_sources.keys()):
+                implemented_tech[imp_tech_name] = self.power_sources[imp_tech_name]
+
+        for source, tech in implemented_tech.items():
             if source == 'battery':
                 tech._dispatch = self.options.battery_dispatch_class(
                     model,
@@ -104,7 +114,7 @@ class HybridDispatchBuilderSolver:
         self._dispatch = HybridDispatch(
             model,
             model.forecast_horizon,
-            self.power_sources,
+            implemented_tech,
             self.options)
         return model
 

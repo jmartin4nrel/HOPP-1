@@ -5,7 +5,7 @@ from hopp.simulation.technologies.sites import SiteInfo
 from hopp.utilities.validators import gt_zero
 # avoid circular dep
 if TYPE_CHECKING:
-    from hopp.simulation.technologies.naturalgas.ng_plant import NG_Config
+    from hopp.simulation.technologies.naturalgas.ng_plant import NGConfig
 
 @define
 class SimpleNG(BaseClass):
@@ -14,7 +14,7 @@ class SimpleNG(BaseClass):
 
     Args:
         site = SiteInfo object
-        config = NG_Config object
+        config = NGConfig object
         name = Name
         :param input_streams_kg_s: Dict of flows coming into the plant
         :param output_streams_kg_s: Dict of flows coming out of the plant
@@ -22,7 +22,7 @@ class SimpleNG(BaseClass):
         :param output_streams_kw: Dict of power coming out of the plant
     """
     site: SiteInfo = field()
-    config: "NG_Config" = field()
+    config: "NGConfig" = field()
     name: str = field()
 
 
@@ -61,7 +61,7 @@ class SimpleNG_Finance(BaseClass):
         vopex_kg = variable operating expenses per kg product
         fcr = fixed charged rate
     """
-    config: "NG_Config" = field()
+    config: "NGConfig" = field()
     life_yr: int = field(validator=gt_zero, default=30)
     doll_yr: int = field(validator=gt_zero, default=2020)
     capex: float = field(validator=gt_zero, default=1e6)

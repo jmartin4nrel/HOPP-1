@@ -21,7 +21,7 @@ from hopp.simulation.technologies.grid_sales import GridSales, GridSalesConfig
 from hopp.simulation.technologies.grid_purchase import GridPurchase, GridPurchaseConfig
 from hopp.simulation.technologies.fuel.fuel_plant import FuelPlant, FuelConfig
 from hopp.simulation.technologies.co2.co2_plant import CO2Plant, CO2Config
-from hopp.simulation.technologies.naturalgas.ng_plant import NG_Plant, NG_Config
+from hopp.simulation.technologies.naturalgas.ng_plant import NGPlant, NGConfig
 from hopp.simulation.technologies.hydrogen.electrolyzer_plant import ElectrolyzerPlant, ElectrolyzerConfig
 from hopp.simulation.technologies.financial import SimpleFinance, SimpleFinanceConfig
 from hopp.simulation.technologies.reopt import REopt
@@ -129,7 +129,7 @@ class TechnologiesConfig(BaseClass):
     grid_purchase: Optional[GridPurchaseConfig] = field(default=None)
     fuel: Optional[FuelConfig] = field(default=None)
     co2: Optional[CO2Config] = field(default=None)
-    ng: Optional[NG_Config] = field(default=None)
+    ng: Optional[NGConfig] = field(default=None)
     electrolyzer: Optional[ElectrolyzerConfig] = field(default=None)
 
     @classmethod
@@ -182,7 +182,7 @@ class TechnologiesConfig(BaseClass):
             config["co2"] = CO2Config.from_dict(data["co2"])
         
         if "ng" in data:
-            config["ng"] = NG_Config.from_dict(data["ng"])
+            config["ng"] = NGConfig.from_dict(data["ng"])
         
         if "electrolyzer" in data:
             config["electrolyzer"] = ElectrolyzerConfig.from_dict(data["electrolyzer"])
@@ -236,7 +236,7 @@ class HybridSimulation(BaseClass):
     grid_sales: Optional[GridSales] = field(init=False, default=None)
     fuel: Optional[FuelPlant] = field(init=False, default=None)
     co2: Optional[CO2Plant] = field(init=False, default=None)
-    ng: Optional[NG_Plant] = field(init=False, default=None)
+    ng: Optional[NGPlant] = field(init=False, default=None)
     technologies: Dict[str, PowerSourceTypes] = field(init=False)
 
     dispatch_builder: HybridDispatchBuilderSolver = field(init=False)
@@ -349,7 +349,7 @@ class HybridSimulation(BaseClass):
         ng_config = self.tech_config.ng
 
         if ng_config is not None:
-            self.ng = NG_Plant(self.site, config=ng_config)
+            self.ng = NGPlant(self.site, config=ng_config)
             self.technologies["ng"] = self.ng
 
             logger.info("Created HybridSystem.ng with system size {} kg/s".format(

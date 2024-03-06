@@ -8,7 +8,7 @@ import PySAM.BatteryStateful as BatteryModel
 import PySAM.BatteryTools as BatteryTools
 import PySAM.Singleowner as Singleowner
 from hopp.simulation.base import BaseClass
-from hopp.simulation.technologies.financial import FinancialModelType, CustomFinancialModel
+from hopp.simulation.technologies.financial import FinancialModelType, CustomFinancialModel, SimpleFinance, SimpleFinanceConfig
 
 from hopp.simulation.technologies.power_source import PowerSource
 from hopp.simulation.technologies.sites.site_info import SiteInfo
@@ -102,6 +102,7 @@ class BatteryConfig(BaseClass):
     maximum_SOC: float = field(default=90, validator=range_val(0, 100))
     initial_SOC: float = field(default=10, validator=range_val(0, 100))
     fin_model: Optional[Union[dict, FinancialModelType]] = field(default=None)
+    simple_fin_config: Optional[dict] = field(default=None)
     lca: Optional[dict] = field(default=None)
 
 
@@ -132,8 +133,10 @@ class Battery(PowerSource):
             financial_model = CustomFinancialModel(self.config.fin_model)
         else:
             financial_model = self.config.fin_model
-
-        if financial_model is None:
+        
+        if self.config.simple_fin_config:
+            financial_model = SimpleFinance(self.config.simple_fin_config)
+        elif financial_model is None:
             # default
             financial_model = Singleowner.from_existing(system_model, self.config_name)
         else:

@@ -16,9 +16,9 @@ from hopp.utilities.log import hybrid_logger as logger
 
 
 @define
-class NG_Config(BaseClass):
+class NGConfig(BaseClass):
     """
-    Configuration class for NG_Plant.
+    Configuration class for NGPlant.
 
     Args:
         ng_kg_s: The NG production rate in kg/s
@@ -32,20 +32,20 @@ class NG_Config(BaseClass):
     
     
     def default():
-        return NG_Config(1.0)
+        return NGConfig(1.0)
     
-default_config = NG_Config.default()
+default_config = NGConfig.default()
 
 @define
-class NG_Plant(FlowSource):
+class NGPlant(FlowSource):
     site: SiteInfo
-    config: NG_Config
-    config_name: str = field(init=False, default="DefaultNG_Plant")
+    config: NGConfig
+    config_name: str = field(init=False, default="DefaultNGPlant")
     simple_fin_config: SimpleFinanceConfig = field(default=None)
 
     def __attrs_post_init__(self):
         """
-        NG_Plant
+        NGPlant
 
         Args:
             site: Site information
@@ -62,7 +62,7 @@ class NG_Plant(FlowSource):
         else:
             financial_model = Singleowner.default('WindPowerSingleOwner')
 
-        super().__init__("NG_Plant", self.site, system_model, financial_model)
+        super().__init__("NGPlant", self.site, system_model, financial_model)
 
         self.ng_kg_s = self.config.ng_kg_s
 

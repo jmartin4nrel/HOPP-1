@@ -24,6 +24,19 @@ technologies:
       toc_kw: 1405.
       foc_kw_yr: 43.
       voc_kwh: 0.
+  # battery:
+  #   system_capacity_kwh: 400000
+  #   system_capacity_kw: 100000
+  #   minimum_SOC: 10.0
+  #   maximum_SOC: 100.0
+  #   initial_SOC: 90.0
+  #   simple_fin_config:
+  #     input_dollar_yr: 2020
+  #     toc_kw: 1727.
+  #     foc_kw_yr: 43.
+  #     voc_kwh: 0.
+  #   lca:
+  #     co2_kg_kwh: 0.1
   electrolyzer:
     system_capacity_kw: 140
     lca:
@@ -56,28 +69,28 @@ technologies:
   fuel:
     fuel_prod_kg_s: 3.64992
     fuel_produced: 'methanol'
-    reactor_tech: 'RCC recycle' # CO2 hydrogenation # 
+    reactor_tech: CO2 hydrogenation # 'RCC recycle' # 
     catalyst: 'CZA'
-    # lca:
-    #   co2_kg_kg: 0.020296
-    # simple_fin_config:
-    #   input_dollar_yr: 2020
-    #   toc: 136000000.
-    #   foc_yr: 2653000.
-    #   voc_kg: 0.00079
     lca:
-      co2_kg_kg: 0.078312
+      co2_kg_kg: 0.020296
     simple_fin_config:
       input_dollar_yr: 2020
-      toc: 33300000.
-      foc_yr: 1529000.
-      voc_kg: 0.03581
+      toc: 136000000.
+      foc_yr: 2653000.
+      voc_kg: 0.00079
+    # lca:
+    #   co2_kg_kg: 0.078312
+    # simple_fin_config:
+    #   input_dollar_yr: 2020
+    #   toc: 33300000.
+    #   foc_yr: 1529000.
+    #   voc_kg: 0.03581
   co2:
     co2_kg_s: 1.0
     lca:
       co2_kg_kg: 0.14
     co2_model: 'SimpleNGCC'
-    capture_model: None # 'AmineScrub' # 
+    capture_model: 'AmineScrub' # None # 
     simple_fin_config:
       input_dollar_yr: 2020
       voc_kg: .069597655
@@ -105,3 +118,10 @@ config:
   simulation_options:
     grid:
       skip_financial: true
+  dispatch_options:
+    battery_dispatch: simple
+    solver: cbc
+    n_look_ahead_periods: 48
+    grid_charging: true
+    pv_charging_only: false
+    include_lifecycle_count: false

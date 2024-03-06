@@ -52,7 +52,7 @@ hi.system.ng.ng_kg_s = ng_kg_s
 
 # Calculate the (discrete) wind plant size needed based on an estimated capacity factor and the desired percentage of the total wind/pv output from wind
 percent_wind = 90
-percent_overbuild = 0.5
+percent_overbuild = 1
 overbuild_elec_kw = total_elec_kw*(100+percent_overbuild)/100
 wind_cap_factor = 0.42
 wind_cap_kw = overbuild_elec_kw*percent_wind/100/wind_cap_factor

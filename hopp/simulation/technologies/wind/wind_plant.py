@@ -90,7 +90,11 @@ class WindPlant(PowerSource):
         if self.config.model_name == 'floris':
             print('FLORIS is the system model...')
             system_model = Floris(self.site, self.config)
-            financial_model = Singleowner.default(self.config_name)
+            if self.config.simple_fin_config:
+                financial_model = SimpleFinance(self.config.simple_fin_config)
+                financial_model.system_capacity_kw = system_model.system_capacity
+            else:
+                financial_model = Singleowner.default(self.config_name)
         elif self.config.simple_fin_config:
             system_model = Windpower.default(self.config_name)
             system_model.Losses.avail_bop_loss = 0
