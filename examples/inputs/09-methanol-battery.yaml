@@ -1,0 +1,23 @@
+technologies:
+  pv:
+    system_capacity_kw: 58178.5247296959
+  wind:
+    num_turbines: 61
+    turbine_rating_kw: 5000
+  battery:
+    system_capacity_kwh: 400000
+    system_capacity_kw: 100000
+    minimum_SOC: 10.0
+    maximum_SOC: 90.0
+    initial_SOC: 50.0
+  grid:
+    interconnect_kw: 363178.52472969587
+
+config:
+  dispatch_options:
+    battery_dispatch: simple
+    solver: cbc
+    n_look_ahead_periods: 48
+    grid_charging: true
+    pv_charging_only: false
+    include_lifecycle_count: false

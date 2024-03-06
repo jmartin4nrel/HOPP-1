@@ -13,6 +13,8 @@ from hopp.simulation.technologies.hydrogen.electrolysis import run_h2_PEM
 import numpy as np
 import copy
 import matplotlib.pyplot as plt
+from hopp.simulation.technologies.sites import SiteInfo, flatirons_site
+from hopp.utilities import load_yaml
 
 # %% [markdown]
 # ### Create the HOPP Model
@@ -143,6 +145,28 @@ hi.system.grid_purchase.generation_profile = buy_kw
 # Simulate plant for 30 years, getting curtailment (will be sold to grid) and missed load (will be purchased from grid)
 plant_life = 1 #years
 hi.simulate(plant_life)
+
+
+# %% [markdown]
+# ### Make SAM-based HybridSimulation with battery that can do dispatch
+
+# %%
+site = SiteInfo(
+        flatirons_site,
+        solar_resource_file=hi.system.site.solar_resource_file,
+        wind_resource_file=hi.system.site.wind_resource_file,
+        grid_resource_file=hi.system.site.grid_resource_file,
+        desired_schedule=load_schedule,
+        solar=True,
+        wind=True,
+        wave=False
+    )
+
+hopp_config = load_yaml("./inputs/09-methanol-battery.yaml")
+# set SiteInfo instance
+hopp_config["site"] = site
+
+hi_batt = HoppInterface(hopp_config)
 
 
 # %% [markdown]
