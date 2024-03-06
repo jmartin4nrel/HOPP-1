@@ -80,7 +80,7 @@ def aries_comms():
 
     # Read in ARIES placeholder signal
     aries_sig_fn = ROOT_DIR.parent / 'examples' / 'outputs' / 'placeholder_ARIES.csv'
-    aries_signals = pd.read_csv(aries_sig_fn,parse_dates=True,index_col=False,infer_datetime_format=True)
+    aries_signals = pd.read_csv(aries_sig_fn,parse_dates=True,index_col=0,infer_datetime_format=True)
 
     # Setup UDP send
     localIP     = "127.0.0.1"
