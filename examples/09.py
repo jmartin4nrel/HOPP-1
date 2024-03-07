@@ -156,7 +156,7 @@ site = SiteInfo(
         solar_resource_file=hi.system.site.solar_resource_file,
         wind_resource_file=hi.system.site.wind_resource_file,
         grid_resource_file=hi.system.site.grid_resource_file,
-        desired_schedule=load_schedule,
+        desired_schedule=[i/1000 for i in load_schedule],
         solar=True,
         wind=True,
         wave=False
@@ -167,7 +167,7 @@ hopp_config = load_yaml("./inputs/09-methanol-battery.yaml")
 hopp_config["site"] = site
 
 hi_batt = HoppInterface(hopp_config)
-
+hi_batt.simulate(project_life=1)
 
 # %% [markdown]
 # ### Retrieve power generation and flow profiles from components

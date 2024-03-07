@@ -234,6 +234,7 @@ class HybridSimulation(BaseClass):
     grid: Optional[Grid] = field(init=False, default=None)
     grid_purchase: Optional[GridPurchase] = field(init=False, default=None)
     grid_sales: Optional[GridSales] = field(init=False, default=None)
+    electrolyzer: Optional[ElectrolyzerPlant] = field(init=False, default=None)
     fuel: Optional[FuelPlant] = field(init=False, default=None)
     co2: Optional[CO2Plant] = field(init=False, default=None)
     ng: Optional[NGPlant] = field(init=False, default=None)
@@ -493,6 +494,7 @@ class HybridSimulation(BaseClass):
         battery_mwh = 0
         fuel_kg_s = 0
         co2_kg_s = 0
+        electrolyzer_mw = 0
         if self.pv:
             pv_mw = self.pv.system_capacity_kw / 1000
         if self.wind:
@@ -949,7 +951,7 @@ class HybridSimulation(BaseClass):
         self.simulate_generation(project_life, lifetime_sim)
         if self.lca_options is not None:
             self.calculate_lca()
-        if 'model' in self.finance_options.keys():
+        if self.finance_options is not None and 'model' in self.finance_options.keys():
             if 'simple' == self.finance_options['model']:
                 self.simple_financials()
                 return

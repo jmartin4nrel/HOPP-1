@@ -19,6 +19,7 @@ class CostCalculator():
                  storage_installed_cost_mwh,
                  fuel_installed_cost_kg_s,
                  co2_installed_cost_kg_s,
+                 electrolyzer_installed_cost_mw,
                  wind_bos_cost_mw=0,
                  pv_bos_cost_mw=0,
                  storage_bos_cost_mw=0,
@@ -69,6 +70,7 @@ class CostCalculator():
         self.storage_installed_cost_mwh = storage_installed_cost_mwh
         self.fuel_installed_cost_kg_s = fuel_installed_cost_kg_s
         self.co2_installed_cost_kg_s = co2_installed_cost_kg_s
+        self.electrolyzer_installed_cost_mw = electrolyzer_installed_cost_mw
         self.wind_bos_cost_mw = wind_bos_cost_mw
         self.pv_bos_cost_mw = pv_bos_cost_mw
         self.storage_bos_cost_mw = storage_bos_cost_mw
@@ -76,7 +78,8 @@ class CostCalculator():
         self.modify_costs = modify_costs
         self.cost_reductions = cost_reductions
 
-    def calculate_installed_costs(self, wind_size, pv_size, storage_size_mw=0., storage_size_mwh=0., fuel_size_kg_s=0., co2_size_kg_s=0.):
+    def calculate_installed_costs(self, wind_size, pv_size, storage_size_mw=0., storage_size_mwh=0.,
+                                  fuel_size_kg_s=0., co2_size_kg_s=0., electrolyzer_mw=0.):
         """
         Calculates installed costs for wind, solar, and hybrid based on installed cost/mw and size of plant
         :return: installed cost of wind, solar and hybrid components of plant
@@ -93,11 +96,13 @@ class CostCalculator():
             storage_installed_cost = 0
         fuel_installed_cost = self.fuel_installed_cost_kg_s * fuel_size_kg_s
         co2_installed_cost = self.co2_installed_cost_kg_s * co2_size_kg_s
+        electrolyzer_installed_cost = self.electrolyzer_installed_cost_mw * electrolyzer_mw
         total_installed_cost += wind_installed_cost
         total_installed_cost += solar_installed_cost
         total_installed_cost += storage_installed_cost
         total_installed_cost += fuel_installed_cost
-        return wind_installed_cost, solar_installed_cost, storage_installed_cost, fuel_installed_cost, co2_installed_cost, total_installed_cost
+        total_installed_cost += electrolyzer_installed_cost
+        return wind_installed_cost, solar_installed_cost, storage_installed_cost, fuel_installed_cost, co2_installed_cost, electrolyzer_installed_cost, total_installed_cost
 
     def calculate_total_costs(self, wind_mw, pv_mw, storage_mw=0., storage_mwh=0., fuel_kg_s=0., co2_kg_s=0., electrolyzer_mw=0.):
         """
@@ -169,6 +174,7 @@ def create_cost_calculator(interconnection_mw: float,
                            storage_installed_cost_mwh: float = 335000,
                            fuel_installed_cost_kg: float = 335000,
                            co2_installed_cost_kg: float = 335000,
+                           electrolyzer_installed_cost_mw: float = 960000,
                            wind_bos_cost_mw: float = 0,
                            solar_bos_cost_mw: float = 0,
                            storage_bos_cost_mw: float = 0,
