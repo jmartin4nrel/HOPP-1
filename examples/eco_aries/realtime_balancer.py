@@ -96,6 +96,20 @@ def realtime_balancer(simulate_aries=True):
         localPort   = 20003
         sendARIESaddress  = (localIP, localPort)
         sendARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+    else:
+        # Setup UDP receive from ARIES
+        localIP     = "RTDS MACHINE"
+        localPort   = 9000
+        serverAddressPort   = (localIP, localPort)
+        recvARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+        recvARIESsocket.bind(serverAddressPort)
+        recvARIESsocket.settimeout(60)
+
+        # Setup UDP send to ARIES
+        localIP     = "RTDS MACHINE"
+        localPort   = 9001
+        sendARIESaddress  = (localIP, localPort)
+        sendARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 
     # Setup UDP send to HOPP
     localIP     = "127.0.0.1"
@@ -117,6 +131,12 @@ def realtime_balancer(simulate_aries=True):
     trackers = setup_tracking(plotting)
 
     while(True):
+
+        # Receive data from ARIES
+        ARIESpair = recvARIESsocket.recvfrom(bufferSize_ARIES)
+        ARIESraw = ARIESpair[0]
+        # ARIESdict = aries_output_unpack(ARIESraw)
+        ARIESdict = json.loads(ARIESraw)
 
         # Receive data from HOPP
         HOPPpair = recvHOPPsocket.recvfrom(bufferSize_HOPP)
@@ -141,14 +161,6 @@ def realtime_balancer(simulate_aries=True):
         #     wave_gen = wave_gen_signals.loc[aries_time[-1],'???']
         #     HOPPdict['commands']['wave_gen_'+str(turb_num+1)] = wind_spd
 
-        if simulate_aries:
-
-            # Receive data from ARIES
-            ARIESpair = recvARIESsocket.recvfrom(bufferSize_ARIES)
-            ARIESraw = ARIESpair[0]
-            # ARIESdict = aries_output_unpack(ARIESraw)
-            ARIESdict = json.loads(ARIESraw)
-
         trackers = update_trackers(trackers, HOPPdict, ARIESdict, plotting)
 
         # Balance battery output from real-time output
@@ -157,17 +169,16 @@ def realtime_balancer(simulate_aries=True):
         if plotting:
             trackers = updateSOCplot(trackers, HOPPdict)
 
-        if simulate_aries:
-
-            # Send command back to ARIES
-            # bytesToSend = str.encode(json.dumps(HOPPdict))
-            bytesToSend = aries_input_pack(HOPPdict)
-            sendARIESsocket.sendto(bytesToSend, sendARIESaddress)
-
         # Send ARIES time back to HOPP
         bytesToSend = str.encode(json.dumps(str(ARIESdict['aries_time'][-1])))
         sendHOPPsocket.sendto(bytesToSend, sendHOPPaddress)
 
+        # Send command back to ARIES
+        # bytesToSend = str.encode(json.dumps(HOPPdict))
+        bytesToSend = aries_input_pack(HOPPdict)
+        sendARIESsocket.sendto(bytesToSend, sendARIESaddress)
+
+        
 
 if __name__ == '__main__':
 
