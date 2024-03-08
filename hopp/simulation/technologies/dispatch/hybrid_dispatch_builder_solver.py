@@ -373,27 +373,44 @@ class HybridDispatchBuilderSolver:
         else:
             logger.info("Dispatch optimization not required...")
             return
-        ti = list(range(0, self.site.n_timesteps, self.options.n_roll_periods))
-        self.dispatch.initialize_parameters()
+        if self.options.limit_dispatch:
+            dispatch_times = self.options.limit_dispatch_idxs
+            start_indx = dispatch_times['start_indx']
+            end_indx = dispatch_times['end_indx']
+            initial_soc = dispatch_times['initial_soc']
+            ti = list(range(start_indx, end_indx, self.options.n_roll_periods))
+            
+            self.dispatch.update_time_series_parameters(start_indx) # It APPEARS time_duration is time step duration in hours
+            self.power_sources['battery'].dispatch.initialize_parameters()
+            self.power_sources['battery'].dispatch.update_dispatch_initial_soc(initial_soc)
+            
+        else:
+            ti = list(range(0, self.site.n_timesteps, self.options.n_roll_periods))
+            self.dispatch.initialize_parameters()
 
+        print("Number of periods to optimize: {:.0f}".format(len(ti)))
         if self.clustering is None:
             # Solving the year in series
+            prev_pct_complete = 0
             for i, t in enumerate(ti):
                 if self.options.is_test_start_year or self.options.is_test_end_year:
                     if (self.options.is_test_start_year and i < 5) or (self.options.is_test_end_year and i > 359):
                         start_time = time.time()
                         self.simulate_with_dispatch(t)
                         sim_w_dispath_time = time.time()
-                        logger.info('Day {} dispatch optimized.'.format(i))
-                        logger.info("      %6.2f seconds required to simulate with dispatch" % (sim_w_dispath_time - start_time))
+                        print('Day {} dispatch optimized.'.format(i))
+                        print("      %6.2f seconds required to simulate with dispatch" % (sim_w_dispath_time - start_time))
                     else:
                         continue
                         # TODO: can we make the csp and battery model run with heuristic dispatch here?
                         #  Maybe calling a simulate_with_heuristic() method
                 else:
-                    if (i % 73) == 0:
-                        logger.info("\t {:.0f} % complete".format(i*20/73))
-                    self.simulate_with_dispatch(t)
+                    pct_complete = int(i/len(ti)*100)
+                    if (i == 0) or (pct_complete > prev_pct_complete):
+                        print("\t {:.0f} % complete".format(pct_complete))
+                        prev_pct_complete = pct_complete
+                    initial_soc = self.dispatch.power_sources['battery']._system_model.StatePack.SOC
+                    self.simulate_with_dispatch(t, initial_soc=initial_soc)
         else:
 
             initial_states = {tech:{'day':[], 'soc':[], 'load':[]} for tech in ['trough', 'tower', 'battery'] if tech in self.power_sources.keys()}  # List of known charge states at 12 am from completed simulations

@@ -13,19 +13,22 @@ from hopp.simulation.technologies.hydrogen.electrolysis import run_h2_PEM
 import numpy as np
 import copy
 import matplotlib.pyplot as plt
-from hopp.simulation.technologies.sites import SiteInfo, flatirons_site
+from hopp.simulation.technologies.sites import SiteInfo, methanol_site
 from hopp.utilities import load_yaml
 
 # %% [markdown]
 # ### Create the HOPP Model
 # To generate the HOPP Model, instantiate the `HoppInterface` class and supply the required YAML configuration. In this example, the yaml activates the "simple" financial model that has fewer, stripped-down inputs and outputs as compared to the PySAM model.
 # 
-# Within the YAML configuration, you have the flexibility to define the plant's location details and configure the associated technologies, in this case wind, solar pv, and a fuel plant that generates methanol from hydrogen and CO2.
+# Within the YAML configuration, you have the flexibility to define the plant's location details and configure the associated technologies, in this case wind, solar wind, and a fuel plant that generates methanol from hydrogen and CO2.
 # 
 # In this example, we use the Flatirons site as a sample location and configure the wind and solar data for this particular site using pre-existing data files.
 
 # %%
 hi = HoppInterface("./inputs/08-wind-solar-electrolyzer-fuel.yaml")
+
+hi.system.pv._system_model.SystemDesign.dc_ac_ratio = 1.28
+hi.system.pv._system_model.SystemDesign.losses = 14.3
 
 # %% [markdown]
 # ### Use the fuel plant to size the wind, solar, co2 source, and electrolyzer
@@ -90,7 +93,7 @@ pv_cap_kw = overbuild_elec_kw*percent_pv/100/pv_cap_factor
 getattr(hi.system,'pv').value('system_capacity_kw',pv_cap_kw)
 
 # Calculate the electrolyzer and interconnect size needed based on an estimated capacity factor
-electrolyzer_cap_factor = 0.97
+electrolyzer_cap_factor = 0.90
 electrolyzer_cap_kw = total_elec_kw/electrolyzer_cap_factor
 sales_cap_kw = wind_cap_kw+pv_cap_kw-electrolyzer_cap_kw
 getattr(hi.system,'grid').value('interconnect_kw',wind_cap_kw+pv_cap_kw)
@@ -152,7 +155,7 @@ hi.simulate(plant_life)
 
 # %%
 site = SiteInfo(
-        flatirons_site,
+        methanol_site,
         solar_resource_file=hi.system.site.solar_resource_file,
         wind_resource_file=hi.system.site.wind_resource_file,
         grid_resource_file=hi.system.site.grid_resource_file,
@@ -167,6 +170,34 @@ hopp_config = load_yaml("./inputs/09-methanol-battery.yaml")
 hopp_config["site"] = site
 
 hi_batt = HoppInterface(hopp_config)
+
+# hi_batt.system.dispatch_factors = (1.0,)*8760
+
+hi_batt.system.pv._system_model.SystemDesign.dc_ac_ratio = 1.28
+hi_batt.system.pv._system_model.SystemDesign.losses = 14.3
+
+hi_batt.system.wind._system_model.Losses.avail_bop_loss = 0
+hi_batt.system.wind._system_model.Losses.avail_grid_loss = 0
+hi_batt.system.wind._system_model.Losses.avail_turb_loss = 0
+hi_batt.system.wind._system_model.Losses.elec_eff_loss = 0
+hi_batt.system.wind._system_model.Losses.elec_parasitic_loss = 0
+hi_batt.system.wind._system_model.Losses.env_degrad_loss = 0
+hi_batt.system.wind._system_model.Losses.env_env_loss = 0
+hi_batt.system.wind._system_model.Losses.env_icing_loss = 0
+hi_batt.system.wind._system_model.Losses.ops_env_loss = 0
+hi_batt.system.wind._system_model.Losses.ops_grid_loss = 0
+hi_batt.system.wind._system_model.Losses.ops_load_loss = 0
+hi_batt.system.wind._system_model.Losses.turb_generic_loss = 0
+hi_batt.system.wind._system_model.Losses.turb_hysteresis_loss = 0
+hi_batt.system.wind._system_model.Losses.turb_perf_loss = 0
+hi_batt.system.wind._system_model.Losses.turb_specific_loss = 0
+hi_batt.system.wind._system_model.Losses.wake_ext_loss = 0
+
+
+# %% [markdown]
+# ### Run dispatch
+
+# %%
 hi_batt.simulate(project_life=1)
 
 # %% [markdown]
@@ -208,7 +239,7 @@ avg_meoh_pr_hr = np.mean(methanol_production_kg_pr_hr)
 # 
 
 # %%
-hour_start = 2000
+hour_start = 1992
 n_hours = 72
 hour_end = hour_start + n_hours
 
@@ -216,21 +247,38 @@ fig,ax=plt.subplots(3,1,sharex=True)
 fig.set_figwidth(8.0)
 fig.set_figheight(9.0)
 
+batt_plant = hi_batt.system
+batt_solar_plant_power = np.array(batt_plant.pv.generation_profile)
+batt_wind_plant_power = np.array(batt_plant.wind.generation_profile)
+batt_power = np.array(batt_plant.battery.generation_profile)
+batt_SOC = np.array(batt_plant.battery.outputs.SOC)
+batt_plant_power = np.add(renewable_generation_profile,batt_power)
+batt_bought = np.maximum(0,electrolyzer_profile-batt_plant_power)
+batt_sold = -np.maximum(0,batt_plant_power-electrolyzer_profile)
 
-ax[0].plot(hours_of_year[hour_start:hour_end],solar_plant_power[hour_start:hour_end]/1e3,lw=2,ls='--',c='orange',label='Solar')
-ax[0].plot(hours_of_year[hour_start:hour_end],wind_plant_power[hour_start:hour_end]/1e3,lw=2,ls=':',c='blue',label='Wind')
-ax[0].plot(hours_of_year[hour_start:hour_end],renewable_generation_profile[hour_start:hour_end]/1e3,lw=2,alpha=0.5,c='green',label='Wind + Solar')
-ax[0].set_ylabel('Renewable Energy [MWh]',fontsize=14)
+
+ax[0].plot(hours_of_year[hour_start:hour_end],batt_solar_plant_power[hour_start:hour_end]/1e3,lw=2,ls='-',c='orange',alpha=0.5,label='Solar')
+ax[0].plot(hours_of_year[hour_start:hour_end],batt_wind_plant_power[hour_start:hour_end]/1e3,lw=2,ls='-',c='blue',alpha=0.5,label='Wind')
+# ax[0].plot(hours_of_year[hour_start:hour_end],batt_power[hour_start:hour_end]/1e3,lw=2,ls='-',c=[.5,.5,0],label='Battery')
+ax[0].plot(hours_of_year[hour_start:hour_end],batt_SOC[hour_start:hour_end],lw=2,ls='-',c=[1,.5,0],alpha=0.5,label='Battery SOC')
+# ax[0].plot(hours_of_year[hour_start:hour_end],solar_plant_power[hour_start:hour_end]/1e3,lw=2,ls='--',c='orange',label='Solar')
+# ax[0].plot(hours_of_year[hour_start:hour_end],wind_plant_power[hour_start:hour_end]/1e3,lw=2,ls='--',c='blue',label='Wind')
+ax[0].plot(hours_of_year[hour_start:hour_end],renewable_generation_profile[hour_start:hour_end]/1e3,lw=3,alpha=0.5,c='green',label='Wind + Solar')
+ax[0].plot(hours_of_year[hour_start:hour_end],batt_plant_power[hour_start:hour_end]/1e3,lw=2,ls=':',c='green',label='Wind + Solar + Battery')
+ax[0].set_ylabel('Renewable Energy [MW]',fontsize=14)
 ax[0].set_xlim((hour_start,hour_end-1))
-ax[0].legend()
+ax[0].legend(ncol=2)
 
-ax[1].plot(hours_of_year[hour_start:hour_end],renewable_generation_profile[hour_start:hour_end]/1e3,lw=2,alpha=0.5,c='green',label='Wind + Solar')
-ax[1].plot(hours_of_year[hour_start:hour_end],bought_power[hour_start:hour_end]/1e3,lw=2,ls='--',c='red',label='Bought from Grid')
-ax[1].plot(hours_of_year[hour_start:hour_end],sold_power[hour_start:hour_end]/1e3,lw=2,ls=':',c='purple',label='Sold to Grid')
-ax[1].plot(hours_of_year[hour_start:hour_end],electrolyzer_profile[hour_start:hour_end]/1e3,lw=2,alpha=0.5,c='black',label='Electrolyzer')
-ax[1].set_ylabel('Total Energy [MWh]',fontsize=14)
+# ax[1].plot(hours_of_year[hour_start:hour_end],renewable_generation_profile[hour_start:hour_end]/1e3,lw=2,alpha=0.5,c='green',label='Wind + Solar')
+# ax[0].plot(hours_of_year[hour_start:hour_end],batt_plant_power[hour_start:hour_end]/1e3,lw=2,c='green',label='Wind + Solar + Battery')
+ax[1].plot(hours_of_year[hour_start:hour_end],bought_power[hour_start:hour_end]/1e3,lw=2,alpha=0.5,c='red',label='Grid Purchase')
+ax[1].plot(hours_of_year[hour_start:hour_end],sold_power[hour_start:hour_end]/1e3,lw=2,alpha=0.5,c='purple',label='Grid Sales')
+ax[1].plot(hours_of_year[hour_start:hour_end],batt_bought[hour_start:hour_end]/1e3,lw=2,ls=':',c='red',label='Grid Purchase with Battery')
+ax[1].plot(hours_of_year[hour_start:hour_end],batt_sold[hour_start:hour_end]/1e3,lw=2,ls=':',c='purple',label='Grid Sales with Battery')
+ax[1].plot(hours_of_year[hour_start:hour_end],electrolyzer_profile[hour_start:hour_end]/1e3,lw=3,alpha=0.5,c='black',label='Electrolyzer')
+ax[1].set_ylabel('Total Energy [MW]',fontsize=14)
 ax[1].set_xlim((hour_start,hour_end-1))
-ax[1].legend()
+ax[1].legend(ncol=3)
 
 ax[2].plot(hours_of_year[hour_start:hour_end],hydrogen_production_kg_pr_hr[hour_start:hour_end],lw=2,c='green',label='Hydrogen Produced')
 ax[2].plot(hours_of_year[hour_start:hour_end],avg_h2_pr_hr*np.ones(n_hours),lw=2,ls='--',c='red',label='Average hydrogen')

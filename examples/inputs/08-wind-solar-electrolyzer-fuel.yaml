@@ -24,19 +24,19 @@ technologies:
       toc_kw: 1405.
       foc_kw_yr: 43.
       voc_kwh: 0.
-  # battery:
-  #   system_capacity_kwh: 400000
-  #   system_capacity_kw: 100000
-  #   minimum_SOC: 10.0
-  #   maximum_SOC: 100.0
-  #   initial_SOC: 90.0
-  #   simple_fin_config:
-  #     input_dollar_yr: 2020
-  #     toc_kw: 1727.
-  #     foc_kw_yr: 43.
-  #     voc_kwh: 0.
-  #   lca:
-  #     co2_kg_kwh: 0.1
+  battery:
+    system_capacity_kwh: 1600000
+    system_capacity_kw: 200000
+    minimum_SOC: 10.0
+    maximum_SOC: 90.0
+    initial_SOC: 50.0
+    simple_fin_config:
+      input_dollar_yr: 2020
+      toc_kw: 1727.
+      foc_kw_yr: 43.
+      voc_kwh: 0.
+    lca:
+      co2_kg_kwh: 0.1
   electrolyzer:
     system_capacity_kw: 140
     lca:

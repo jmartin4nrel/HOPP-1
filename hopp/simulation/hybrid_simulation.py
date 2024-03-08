@@ -16,6 +16,7 @@ from hopp.simulation.technologies.csp.tower_plant import TowerConfig, TowerPlant
 from hopp.simulation.technologies.csp.trough_plant import TroughConfig, TroughPlant
 from hopp.simulation.technologies.wave.mhk_wave_plant import MHKWavePlant, MHKConfig
 from hopp.simulation.technologies.battery import Battery, BatteryConfig, BatteryStateless, BatteryStatelessConfig
+from hopp.simulation.technologies.battery.simple_battery import SimpleBattery
 from hopp.simulation.technologies.grid import Grid, GridConfig
 from hopp.simulation.technologies.grid_sales import GridSales, GridSalesConfig
 from hopp.simulation.technologies.grid_purchase import GridPurchase, GridPurchaseConfig
@@ -766,10 +767,15 @@ class HybridSimulation(BaseClass):
         self.setup_performance_models()
         # simulate non-dispatchable systems
         non_dispatchable_systems = ['pv', 'wind','wave','fuel','co2','ng','electrolyzer','grid_sales','grid_purchase']
+        if isinstance(self.battery._system_model, SimpleBattery):
+            non_dispatchable_systems.append('battery')
+            self.dispatch_builder.needs_dispatch = False
         for system in non_dispatchable_systems:
             model = getattr(self, system)
             if model:
-                if isinstance(model, PowerSource):
+                if isinstance(model._system_model, SimpleBattery):
+                    model.simulate_power()
+                elif isinstance(model, PowerSource):
                     model.simulate_power(project_life, lifetime_sim)
                 elif isinstance(model, FlowSource):
                     model.simulate_flow(project_life, lifetime_sim) 
@@ -787,7 +793,7 @@ class HybridSimulation(BaseClass):
         for system in self.technologies.keys():
             if system != 'grid' and system != 'electrolyzer' and system != 'grid_sales' and system != 'grid_purchase':
                 model = getattr(self, system)
-                if isinstance(model, PowerSource):
+                if isinstance(model, PowerSource) and not isinstance(model._system_model, SimpleBattery):
                     hybrid_size_kw += model.system_capacity_kw
                     hybrid_nominal_capacity += model.calc_nominal_capacity(self.interconnect_kw)
                     project_life_gen = np.tile(model.generation_profile, int(project_life / (len(model.generation_profile) // self.site.n_timesteps)))

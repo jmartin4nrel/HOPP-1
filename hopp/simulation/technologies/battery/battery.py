@@ -12,6 +12,7 @@ from hopp.simulation.technologies.financial import FinancialModelType, CustomFin
 
 from hopp.simulation.technologies.power_source import PowerSource
 from hopp.simulation.technologies.sites.site_info import SiteInfo
+from hopp.simulation.technologies.battery.simple_battery import SimpleBattery
 
 from hopp.utilities.log import hybrid_logger as logger
 from hopp.utilities.validators import contains, gt_zero, range_val
@@ -102,6 +103,7 @@ class BatteryConfig(BaseClass):
     maximum_SOC: float = field(default=90, validator=range_val(0, 100))
     initial_SOC: float = field(default=10, validator=range_val(0, 100))
     fin_model: Optional[Union[dict, FinancialModelType]] = field(default=None)
+    generation_profile: Optional[list] = field(default=[0.0]*8760)
     simple_fin_config: Optional[dict] = field(default=None)
     lca: Optional[dict] = field(default=None)
 
@@ -127,47 +129,54 @@ class Battery(PowerSource):
     def __attrs_post_init__(self):
         """
         """
-        system_model = BatteryModel.default(self.config.chemistry)
-
-        if isinstance(self.config.fin_model, dict):
-            financial_model = CustomFinancialModel(self.config.fin_model)
-        else:
-            financial_model = self.config.fin_model
-        
-        if self.config.simple_fin_config:
+        if isinstance(self.config.simple_fin_config, SimpleFinanceConfig):
             financial_model = SimpleFinance(self.config.simple_fin_config)
-        elif financial_model is None:
-            # default
-            financial_model = Singleowner.from_existing(system_model, self.config_name)
+            system_model = SimpleBattery(self.site, self.config)
         else:
-            financial_model = self.import_financial_model(financial_model, system_model, self.config_name)
+            system_model = BatteryModel.default(self.config.chemistry)
+
+            if isinstance(self.config.fin_model, dict):
+                financial_model = CustomFinancialModel(self.config.fin_model)
+            else:
+                financial_model = self.config.fin_model
+            
+            if self.config.simple_fin_config:
+                financial_model = SimpleFinance(self.config.simple_fin_config)
+            elif financial_model is None:
+                # default
+                financial_model = Singleowner.from_existing(system_model, self.config_name)
+            else:
+                financial_model = self.import_financial_model(financial_model, system_model, self.config_name)
 
         super().__init__("Battery", self.site, system_model, financial_model)
 
-        self.outputs = BatteryOutputs(n_timesteps=self.site.n_timesteps, n_periods_per_day=self.site.n_periods_per_day)
         self.system_capacity_kw = self.config.system_capacity_kw
-        self.chemistry = self.config.chemistry
-        BatteryTools.battery_model_sizing(self._system_model,
-                                          self.config.system_capacity_kw,
-                                          self.config.system_capacity_kwh,
-                                          self.system_voltage_volts,
-                                          module_specs=Battery.module_specs)
-        self._system_model.ParamsPack.h = 20
-        self._system_model.ParamsPack.Cp = 900
-        self._system_model.ParamsCell.resistance = 0.001
-        self._system_model.ParamsCell.C_rate = self.config.system_capacity_kw / self.config.system_capacity_kwh
-
-        # Minimum set of parameters to set to get statefulBattery to work
-        self._system_model.value("control_mode", 0.0)
-        self._system_model.value("input_current", 0.0)
-        self._system_model.value("dt_hr", 1.0)
-        self._system_model.value("minimum_SOC", self.config.minimum_SOC)
-        self._system_model.value("maximum_SOC", self.config.maximum_SOC)
-        self._system_model.value("initial_SOC", self.config.initial_SOC)
-
         self._dispatch = None
 
-        logger.info("Initialized battery with parameters and state {}".format(self._system_model.export()))
+        if not isinstance(system_model, SimpleBattery):
+
+            self.outputs = BatteryOutputs(n_timesteps=self.site.n_timesteps, n_periods_per_day=self.site.n_periods_per_day)
+            self.chemistry = self.config.chemistry
+            BatteryTools.battery_model_sizing(self._system_model,
+                                            self.config.system_capacity_kw,
+                                            self.config.system_capacity_kwh,
+                                            self.system_voltage_volts,
+                                            module_specs=Battery.module_specs)
+            self._system_model.ParamsPack.h = 20
+            self._system_model.ParamsPack.Cp = 900
+            self._system_model.ParamsCell.resistance = 0.001
+            self._system_model.ParamsCell.C_rate = self.config.system_capacity_kw / self.config.system_capacity_kwh
+
+            # Minimum set of parameters to set to get statefulBattery to work
+            self._system_model.value("control_mode", 0.0)
+            self._system_model.value("input_current", 0.0)
+            self._system_model.value("dt_hr", 1.0)
+            self._system_model.value("minimum_SOC", self.config.minimum_SOC)
+            self._system_model.value("maximum_SOC", self.config.maximum_SOC)
+            self._system_model.value("initial_SOC", self.config.initial_SOC)
+
+            
+            logger.info("Initialized battery with parameters and state {}".format(self._system_model.export()))
 
     def setup_system_model(self):
         """Executes Stateful Battery setup"""
@@ -198,11 +207,17 @@ class Battery(PowerSource):
     @property
     def system_capacity_kwh(self) -> float:
         """Battery energy capacity [kWh]"""
-        return self._system_model.ParamsPack.nominal_energy
+        if isinstance(self._system_model, SimpleBattery):
+            return self._system_model.value("system_capacity_kwh")
+        else:
+            return self._system_model.ParamsPack.nominal_energy
 
     @system_capacity_kwh.setter
     def system_capacity_kwh(self, size_kwh: float):
-        self.system_capacity_voltage = (size_kwh, self.system_voltage_volts)
+        if isinstance(self._system_model, SimpleBattery):
+            self.system_capacity_kwh = size_kwh
+        else:
+            self.system_capacity_voltage = (size_kwh, self.system_voltage_volts)
 
     @property
     def system_capacity_kw(self) -> float:
@@ -249,8 +264,11 @@ class Battery(PowerSource):
 
     def setup_performance_model(self):
         """Executes Stateful Battery setup"""
-        self._system_model.setup()
-
+        if isinstance(self._system_model, SimpleBattery):
+            pass
+        else:
+            self._system_model.setup()
+            
     def simulate_with_dispatch(self, n_periods: int, sim_start_time: Optional[int] = None):
         """
         Step through dispatch solution for battery and simulate battery
@@ -442,7 +460,10 @@ class Battery(PowerSource):
     @property
     def generation_profile(self) -> Sequence:
         if self.system_capacity_kwh:
-            return self.outputs.gen
+            if isinstance(self._system_model, SimpleBattery):
+                return self._system_model.generation_profile
+            else:
+                return self.outputs.gen
         else:
             return [0] * self.site.n_timesteps
 
@@ -457,6 +478,9 @@ class Battery(PowerSource):
     @property
     def annual_energy_kwh(self) -> float:
         if self.system_capacity_kw > 0:
-            return sum(self.outputs.gen)
+            if isinstance(self._system_model, SimpleBattery):
+                return self._system_model.system_capacity_kw
+            else:
+                return sum(self.outputs.gen)
         else:
             return 0
