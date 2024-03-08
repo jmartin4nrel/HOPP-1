@@ -767,9 +767,10 @@ class HybridSimulation(BaseClass):
         self.setup_performance_models()
         # simulate non-dispatchable systems
         non_dispatchable_systems = ['pv', 'wind','wave','fuel','co2','ng','electrolyzer','grid_sales','grid_purchase']
-        if isinstance(self.battery._system_model, SimpleBattery):
-            non_dispatchable_systems.append('battery')
-            self.dispatch_builder.needs_dispatch = False
+        if self.battery is not None:
+            if isinstance(self.battery._system_model, SimpleBattery):
+                non_dispatchable_systems.append('battery')
+                self.dispatch_builder.needs_dispatch = False
         for system in non_dispatchable_systems:
             model = getattr(self, system)
             if model:
@@ -886,6 +887,14 @@ class HybridSimulation(BaseClass):
                 if isinstance(model,PowerSource):
                     output_kwh_yr =  model.annual_energy_kwh
                     lc = model._financial_model.calc_levelized_cost_energy(output_kwh_yr)
+                    if isinstance(model, GridPurchase):
+                        lc -= model._financial_model.voc_kwh
+                        factorized_purchase = np.multiply(self.dispatch_factors,model.generation_profile)
+                        if np.sum(model.generation_profile) != 0.0:
+                            factorized_voc_kwh = np.sum(model._financial_model.voc_kwh*factorized_purchase)/np.sum(model.generation_profile)
+                        else:
+                            factorized_voc_kwh = model._financial_model.voc_kwh
+                        lc += factorized_voc_kwh
                     if isinstance(cost_model,PowerSource):
                         prod_output_kwh_yr = cost_model.annual_energy_kwh
                         prod_lc = lc*output_kwh_yr/prod_output_kwh_yr
@@ -911,6 +920,10 @@ class HybridSimulation(BaseClass):
         Calculates a life cycle assesment for individual sub-systems and the hybrid system as a whole
         '''
 
+        # Find the tech that is the end product and divide by its flow/power
+        product_system = self.lca_options['lca_tech']
+        lca_model = getattr(self, product_system)
+        
         # Accumulates total annual emissions output from different sources
         self.lca = {} 
         self.lca_breakdown = {}
@@ -926,11 +939,23 @@ class HybridSimulation(BaseClass):
                         em_kwh = model.config.lca[em+'_kwh']
                         self.lca[em+'_yr'] += output_kwh_yr*em_kwh
                         self.lca_breakdown[system][em+'_yr'] = output_kwh_yr*em_kwh
+                        if isinstance(lca_model,PowerSource):
+                            lca_kwh_yr = lca_model.annual_energy_kwh
+                            self.lca_breakdown[system][em+'_kwh'] = output_kwh_yr*em_kwh/lca_kwh_yr
+                        if isinstance(lca_model,FlowSource):
+                            lca_kg_yr = lca_model.annual_mass_kg
+                            self.lca_breakdown[system][em+'_kg'] = output_kwh_yr*em_kwh/lca_kg_yr
                     if isinstance(model,FlowSource):
                         output_kg_yr =  model.annual_mass_kg
                         em_kg = model.config.lca[em+'_kg']
                         self.lca[em+'_yr'] += output_kg_yr*em_kg
-                        self.lca_breakdown[system][em+'_yr'] = output_kg_yr*em_kwh
+                        self.lca_breakdown[system][em+'_yr'] = output_kg_yr*em_kg
+                        if isinstance(lca_model,PowerSource):
+                            lca_kwh_yr = lca_model.annual_energy_kwh
+                            self.lca_breakdown[system][em+'_kwh'] = output_kg_yr*em_kg/lca_kwh_yr
+                        if isinstance(lca_model,FlowSource):
+                            lca_kg_yr = lca_model.annual_mass_kg
+                            self.lca_breakdown[system][em+'_kg'] = output_kg_yr*em_kg/lca_kg_yr
 
         # Find the tech that is the end product and divide by its flow/power
         product_system = self.lca_options['lca_tech']

@@ -26,6 +26,7 @@ class SimpleReactor(BaseClass):
     output_streams_kg_s: dict = {}
     input_streams_kw: dict = {}
     output_streams_kw: dict = {}
+    flow_kg_s: list = [0.0]*8760
 
 
     def __attrs_post_init__(self):
@@ -34,6 +35,7 @@ class SimpleReactor(BaseClass):
         self.reactor_tech = self.config.reactor_tech
         self.catalyst = self.config.catalyst
         self.annual_mass_kg = None
+        self.flow_kg_s = [self.fuel_prod_kg_s]*8760
 
     def value(self, name: str, set_value=None):
         """

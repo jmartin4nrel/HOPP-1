@@ -24,19 +24,20 @@ technologies:
       toc_kw: 1405.
       foc_kw_yr: 43.
       voc_kwh: 0.
-  battery:
-    system_capacity_kwh: 1600000
-    system_capacity_kw: 200000
-    minimum_SOC: 10.0
-    maximum_SOC: 90.0
-    initial_SOC: 50.0
-    simple_fin_config:
-      input_dollar_yr: 2020
-      toc_kw: 1727.
-      foc_kw_yr: 43.
-      voc_kwh: 0.
-    lca:
-      co2_kg_kwh: 0.1
+  # # "battery" is electrolysis ramping
+  # battery:
+  #   system_capacity_kwh: 1600000
+  #   system_capacity_kw: 200000
+  #   minimum_SOC: 10.0
+  #   maximum_SOC: 90.0
+  #   initial_SOC: 50.0
+  #   simple_fin_config:
+  #     input_dollar_yr: 2020
+  #     toc_kw: 1727.
+  #     foc_kw_yr: 43.
+  #     voc_kwh: 0.
+  #   lca:
+  #     co2_kg_kwh: 0.1
   electrolyzer:
     system_capacity_kw: 140
     lca:
@@ -75,15 +76,17 @@ technologies:
       co2_kg_kg: 0.020296
     simple_fin_config:
       input_dollar_yr: 2020
-      toc: 136000000.
-      foc_yr: 2653000.
+      # toc: 136000000.
+      # foc_yr: 2653000.
+      toc_kg_s: 37261091.
+      foc_kg_s_yr: 726865.
       voc_kg: 0.00079
     # lca:
     #   co2_kg_kg: 0.078312
     # simple_fin_config:
     #   input_dollar_yr: 2020
-    #   toc: 33300000.
-    #   foc_yr: 1529000.
+    #   toc_kg_s: 9123488.
+    #   foc_kg_s_yr: 418913.
     #   voc_kg: 0.03581
   co2:
     co2_kg_s: 1.0
@@ -101,6 +104,8 @@ technologies:
       toc: 0
       foc_yr: 0
       voc_kg: 0.11974
+    lca:
+      co2_kg_kg: 0.00
 
 # Configuration
 config:

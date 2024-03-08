@@ -91,11 +91,12 @@ class FuelPlant(FlowSource):
 
     @property
     def system_capacity_kg_s(self):
-        return self._system_model.value("fuel_prod_kg_s")
+        gen = self._system_model.value("flow_kg_s")
+        return max(gen)
     
     @system_capacity_kg_s.setter
     def system_capacity_kg_s(self, kg_s: float):
-         self._system_model.value("fuel_prod_kg_s",kg_s)
+         self._system_model.value("system_capacity_kg_s",kg_s)
 
     @property
     def annual_mass_kg(self):

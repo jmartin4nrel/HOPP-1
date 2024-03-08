@@ -132,6 +132,7 @@ class Battery(PowerSource):
         if isinstance(self.config.simple_fin_config, SimpleFinanceConfig):
             financial_model = SimpleFinance(self.config.simple_fin_config)
             system_model = SimpleBattery(self.site, self.config)
+            financial_model.system_capacity_kw = self.config.system_capacity_kw
         else:
             system_model = BatteryModel.default(self.config.chemistry)
 
@@ -215,7 +216,7 @@ class Battery(PowerSource):
     @system_capacity_kwh.setter
     def system_capacity_kwh(self, size_kwh: float):
         if isinstance(self._system_model, SimpleBattery):
-            self.system_capacity_kwh = size_kwh
+            self._system_model.system_capacity_kwh = size_kwh
         else:
             self.system_capacity_voltage = (size_kwh, self.system_voltage_volts)
 
@@ -226,6 +227,8 @@ class Battery(PowerSource):
 
     @system_capacity_kw.setter
     def system_capacity_kw(self, size_kw: float):
+        if isinstance(self._system_model, SimpleBattery):
+            self._system_model.system_capacity_kw = size_kw
         self._financial_model.value("system_capacity", size_kw)
         self._system_capacity_kw = size_kw
 

@@ -20,7 +20,8 @@ data:
 solar_resource_file: ""
 wind_resource_file: ""
 wave_resource_file: ""
-grid_resource_file: ""
+grid_resource_file:  ""
+# grid_resource_file: "resource_files/grid/pricing-data-2015-IronMtn-002_factors.csv"
 hub_height: 80.0
 capacity_hours: []
 desired_schedule: []
