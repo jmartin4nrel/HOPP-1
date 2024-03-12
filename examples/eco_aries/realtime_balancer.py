@@ -135,8 +135,8 @@ def realtime_balancer(simulate_aries=True):
         # Receive data from ARIES
         ARIESpair = recvARIESsocket.recvfrom(bufferSize_ARIES)
         ARIESraw = ARIESpair[0]
-        # ARIESdict = aries_output_unpack(ARIESraw)
-        ARIESdict = json.loads(ARIESraw)
+        ARIESdict = aries_output_unpack(ARIESraw)
+        # ARIESdict = json.loads(ARIESraw)
 
         # Receive data from HOPP
         HOPPpair = recvHOPPsocket.recvfrom(bufferSize_HOPP)

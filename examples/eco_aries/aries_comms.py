@@ -46,27 +46,53 @@ def aries_input_unpack(raw_input):
     return HOPP_dict
 
 
-def aries_output_pack(response_dict):
+def aries_output_pack(ARIESdict):
 
-    num_outputs = 39
-    num_bytes = num_outputs*8
+    measurements = list([val[0] for val in ARIESdict.values()])
     
-    output_list = []
-
-    #TODO: parse response_dict into output_list
-    # output_list[index] = response_dict['key']
-
     strs_list = []
-    for output in output_list:
-        strs_list.append((struct.pack('!d',output)))
-    strs = b"".join(strs_list)
 
-    return strs
+    s = bytes(measurements[0], 'utf-8')
+    strs_list.append(struct.pack("I%ds" % (len(s),), len(s), s))
+
+    idx = -1
+    for x in range(1,len(measurements)):
+        idx += 1
+        strs_list.append((struct.pack('!d', measurements[x])))
+    ARIESraw = b"".join(strs_list)
+
+    return ARIESraw
  
 
 def aries_output_unpack(raw_output):
 
+    date_bytes = 33
+    num_inputs = 39
+    num_bytes = num_inputs*8 + date_bytes
+
+    dl_vals = []
+    idx = 0
+    (i,), data = struct.unpack("I", raw_output[:4]), raw_output[4:]
+    s, data = data[:i], data[i:]
+    idx = idx + date_bytes
+    dl_vals.append(str(s.decode('UTF-8')))
+
+    while idx < num_bytes:
+        data = struct.unpack(
+            '!d', raw_output[idx:idx+8])[0]
+        idx = idx + 8
+        dl_vals.append(data)
+
+    dl_names = ['aries_time', 'pv_insol','bess_kw','elyzer','poa']
+    for i in range(1, 25):
+        dl_names.append('wind_spd_' + str(i))
+    dl_names.append('batt_soc')
+    for i in range(1, 11):
+        dl_names.append('wave_prod_' + str(i))
+    
     ARIES_dict = {}
+    for i in range(0, len(dl_vals)):
+        ARIES_dict[dl_names[i]] = dl_vals[i]
 
     return ARIES_dict
 
@@ -116,7 +142,7 @@ def aries_comms():
             rows = rows.iloc[[0,-2]]
 
             # Send data to balancer, using battery command to calculate electrolyzer output
-            response_dict = {'aries_time':[str(i) for i in rows.index.values]}
+            ARIESdict = {'aries_time':[str(i) for i in rows.index.values]}
             sum = 0.
             for col in rows.columns.values:
                 rows[col] = np.mean(aries_signals.loc[time_index:(new_time_index-pd.Timedelta('1s')),col])
@@ -124,9 +150,21 @@ def aries_comms():
                     sum += rows[col]
                 else:
                     rows[col] = sum
-                response_dict[col] = list(rows[col].values) 
-            bytesToSend = str.encode(json.dumps(response_dict))
-            # bytesToSend = aries_output_pack(response_dict)
+                ARIESdict[col] = list(rows[col].values)
+            
+            #Removing and Adding extra columns from and to ARIESdict to match number of bytes from ARIES
+            #May not match actual measurement keys or order recieved from ARIES
+            #Sends 1 date item and 39 measurements
+            del ARIESdict['wind']
+            del ARIESdict['wind_vel_max']
+            del ARIESdict['wind_vel_min']
+            ARIESdict['batt_soc'] = ARIESdict['batt']
+            for i in range(1, 11):
+                ARIESdict[str('wave_prod_' + str(i))] = ARIESdict['wave']
+            del ARIESdict['wave']
+
+            # bytesToSend = str.encode(json.dumps(ARIESdict))
+            bytesToSend = aries_output_pack(ARIESdict)
             sendSocket.sendto(bytesToSend, sendAddress)
             time_index = new_time_index
             
