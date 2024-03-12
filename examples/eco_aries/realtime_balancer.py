@@ -98,17 +98,17 @@ def realtime_balancer(simulate_aries=True):
         sendARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
     else:
         # Setup UDP receive from ARIES
-        localIP     = "RTDS MACHINE"
-        localPort   = 9000
-        serverAddressPort   = (localIP, localPort)
+        remoteIP     = "10.81.17.41"
+        remotePort   = 9010
+        serverAddressPort   = (remoteIP, remotePort)
         recvARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
         recvARIESsocket.bind(serverAddressPort)
         recvARIESsocket.settimeout(60)
 
         # Setup UDP send to ARIES
-        localIP     = "RTDS MACHINE"
-        localPort   = 9001
-        sendARIESaddress  = (localIP, localPort)
+        remoteIP     = "10.81.17.41"
+        remotePort   = 9011
+        sendARIESaddress  = (remoteIP, remotePort)
         sendARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 
     # Setup UDP send to HOPP
