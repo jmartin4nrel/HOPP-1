@@ -72,7 +72,7 @@ def realtime_balancer(simulate_aries=True):
 
     bufferSize_HOPP  = 4096*2
     bufferSize_ARIES  = 4096*2
-    plotting = True
+    plotting = False
 
     # Setup UDP receive from HOPP
     localIP     = "127.0.0.1"
@@ -98,15 +98,15 @@ def realtime_balancer(simulate_aries=True):
         sendARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
     else:
         # Setup UDP receive from ARIES
-        remoteIP     = "10.81.17.41"
-        remotePort   = 9010
+        remoteIP     = "10.81.17.104"
+        remotePort   = 9016
         serverAddressPort   = (remoteIP, remotePort)
         recvARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
         recvARIESsocket.bind(serverAddressPort)
-        recvARIESsocket.settimeout(60)
+        recvARIESsocket.settimeout(1)
 
         # Setup UDP send to ARIES
-        remoteIP     = "10.81.17.41"
+        remoteIP     = "10.81.17.104"
         remotePort   = 9011
         sendARIESaddress  = (remoteIP, remotePort)
         sendARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
@@ -133,7 +133,10 @@ def realtime_balancer(simulate_aries=True):
     while(True):
 
         # Receive data from ARIES
-        ARIESpair = recvARIESsocket.recvfrom(bufferSize_ARIES)
+        if simulate_aries:
+            ARIESpair = recvARIESsocket.recvfrom(bufferSize_ARIES)
+        else:
+            ARIESpair = recvARIESsocket.recvfrom(8*40)
         ARIESraw = ARIESpair[0]
         ARIESdict = aries_output_unpack(ARIESraw)
         # ARIESdict = json.loads(ARIESraw)
@@ -161,10 +164,10 @@ def realtime_balancer(simulate_aries=True):
         #     wave_gen = wave_gen_signals.loc[aries_time[-1],'???']
         #     HOPPdict['commands']['wave_gen_'+str(turb_num+1)] = wind_spd
 
-        trackers = update_trackers(trackers, HOPPdict, ARIESdict, plotting)
+        # trackers = update_trackers(trackers, HOPPdict, ARIESdict, plotting)
 
-        # Balance battery output from real-time output
-        HOPPdict, trackers = batt_balance(HOPPdict, ARIESdict, trackers)
+        # # Balance battery output from real-time output
+        # HOPPdict, trackers = batt_balance(HOPPdict, ARIESdict, trackers)
 
         if plotting:
             trackers = updateSOCplot(trackers, HOPPdict)
@@ -182,4 +185,4 @@ def realtime_balancer(simulate_aries=True):
 
 if __name__ == '__main__':
 
-    realtime_balancer()
+    realtime_balancer(False)
