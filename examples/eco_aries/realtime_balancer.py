@@ -68,7 +68,7 @@ def batt_balance(HOPPdict, ARIESdict, trackers):
     
     return HOPPdict, trackers
 
-def realtime_balancer(simulate_aries=True):
+def realtime_balancer(simulate_aries=True, aries_running=False):
 
     bufferSize_HOPP  = 4096*2
     bufferSize_ARIES  = 4096*2
@@ -135,8 +135,13 @@ def realtime_balancer(simulate_aries=True):
         # Receive data from ARIES
         if simulate_aries:
             ARIESpair = recvARIESsocket.recvfrom(bufferSize_ARIES)
-        else:
+        elif aries_running:
             ARIESpair = recvARIESsocket.recvfrom(8*40)
+        else:
+            fp = ROOT_DIR.parent / 'examples' / 'outputs' / 'byte_text.txt'
+            with open(fp) as reader:
+                text = reader.read()
+            ARIESpair = (str.encode(text),'')
         ARIESraw = ARIESpair[0]
         ARIESdict = aries_output_unpack(ARIESraw)
         # ARIESdict = json.loads(ARIESraw)
