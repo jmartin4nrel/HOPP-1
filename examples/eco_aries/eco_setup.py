@@ -202,8 +202,12 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
             B = 0.026944759
             C = -0.056860783
             D = -0.318909168
+            cP_over_gen_times_vel_cubed = 35.8524092
             cutin = 2.8956 # Anything less ==> 0 MW
             cutoff = 10.66192 # Anything greater ==> 15 MW
+            diameter = 242.24
+            rho = 1.225
+            pi = 3.14159
             ARIES_gen = 0
             HOPP_gen1 = 0
             num_turbs = wind_velocities.shape[2]
@@ -219,7 +223,9 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
                 speed = copy.deepcopy(wind_velocities[:,0,turb])
                 speed[np.argwhere(speed>cutoff)] = cutoff
                 speed[np.argwhere(speed<cutin)] = cutin
-                HOPPgen = A*np.power(speed,3) + B*np.power(speed,2) + C*speed + D
+                # HOPPgen = A*np.power(speed,3) + B*np.power(speed,2) + C*speed + D
+                cP_times_vel_cubed = (A*np.power(speed,3) + B*np.power(speed,2) + C*speed + D)*cP_over_gen_times_vel_cubed
+                HOPPgen = rho/2*pi*(diameter/2)**2*cP_times_vel_cubed/1e6
                 HOPP_gen1 += HOPPgen[110:134]
             ARIES_gen = np.sum(ARIES_gen)
             HOPP_gen1 = np.sum(HOPP_gen1)
