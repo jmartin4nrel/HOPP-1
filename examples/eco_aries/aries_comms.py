@@ -6,23 +6,42 @@ import pandas as pd
 from hopp import ROOT_DIR
 
 
+
 def aries_input_pack(HOPPdict):
 
-    comm_list = list(HOPPdict["commands"].values())
-    
+    # Packs dict being sent from balancer to ARIES into a labeled dict
+    # Keys match the "From UDP" variable names in IO_variables
+
+    from_UDP_HOPP = ['bess_kw','poa','wind_vel_00','wind_vel_01',
+                 'wind_vel_02','wind_vel_03','wind_vel_04','wind_vel_05',
+                 'wind_vel_06','wind_vel_07','wind_vel_08','wind_vel_09',
+                 'wind_vel_10','wind_vel_11','wind_vel_12','wind_vel_13',
+                 'wind_vel_14','wind_vel_15','wind_vel_16','wind_vel_17',
+                 'wind_vel_18','wind_vel_19','wind_vel_20','wind_vel_21',
+                 'wind_vel_22','wind_vel_23']
+
     strs_list = []
-    idx = -1
-    for x in comm_list:
-        idx += 1
-        strs_list.append((struct.pack('!d', x)))
+
+    for key in from_UDP_HOPP:
+        strs_list.append((struct.pack('!d', HOPPdict[key])))
     raw_input = b"".join(strs_list)
 
     return raw_input
 
 def aries_input_unpack(raw_input):
 
-    num_inputs = 37
-    num_bytes = num_inputs*8
+    # Unpacks raw bytes being sent from balancer to ARIES into a labeled dict
+    # Keys match the "From UDP" variable names in IO_variables
+
+    from_UDP_ARIES = ['PORD','INSOL','WindSPD',
+                    'WindSPD1','WindSPD2','WindSPD3','WindSPD4',
+                    'WindSPD5','WindSPD6','WindSPD7','WindSPD8',
+                    'WindSPD9','WindSPD10','WindSPD11','WindSPD12',
+                    'WindSPD13','WindSPD14','WindSPD15','WindSPD16',
+                    'WindSPD17','WindSPD18','WindSPD19','WindSPD20',
+                    'WindSPD21','WindSPD22','WindSPD23']
+
+    num_bytes = len(raw_input)
 
     dl_vals = []
     idx = 0
@@ -31,34 +50,35 @@ def aries_input_unpack(raw_input):
             '!d', raw_input[idx:idx+8])[0]
         idx = idx + 8
         dl_vals.append(data)
-
-    dl_names = ['bess_kw', 'pv_insol']
-    for i in range(1, 25):
-        dl_names.append('wind_spd_' + str(i))
-    for i in range(1, 11):
-        dl_names.append('wave_prod_' + str(i))
-    dl_names.append('peripheral_load')
     
-    HOPP_dict = {}
+    ARIES_dict = {}
     for i in range(0, len(dl_vals)):
-        HOPP_dict[dl_names[i]] = dl_vals[i]
+        ARIES_dict[from_UDP_ARIES[i]] = dl_vals[i]
 
-    return HOPP_dict
+    return ARIES_dict
 
 
 def aries_output_pack(ARIESdict):
 
-    measurements = list([val[0] for val in ARIESdict.values()])
-    
+    # Packs dict being sent from ARIES to balancer into raw bytes
+    # Keys match the "To UDP" variable names in IO_variables
+
+    to_UDP_ARIES = ['EPOCH_TIME_S','PML6','BESS_SOC','Ps_PV',
+                    'Electrolyzer_Ps','Electrolyzer_kg_s','WF1PGfilt',
+                    'WF1PGfilt1','WF1PGfilt2','WF1PGfilt3','WF1PGfilt4',
+                    'WF1PGfilt5','WF1PGfilt6','WF1PGfilt7','WF1PGfilt8',
+                    'WF1PGfilt9','WF1PGfilt10','WF1PGfilt11','WF1PGfilt12',
+                    'WF1PGfilt13','WF1PGfilt14','WF1PGfilt15','WF1PGfilt16',
+                    'WF1PGfilt17','WF1PGfilt18','WF1PGfilt19','WF1PGfilt20',
+                    'WF1PGfilt21','WF1PGfilt22','WF1PGfilt23','WAVE1Pcon1Filt',
+                    'WAVE1Pcon1Filt1','WAVE1Pcon1Filt2','WAVE1Pcon1Filt3',
+                    'WAVE1Pcon1Filt4','WAVE1Pcon1Filt5','WAVE1Pcon1Filt6',
+                    'WAVE1Pcon1Filt7','WAVE1Pcon1Filt8','WAVE1Pcon1Filt9']
+
     strs_list = []
 
-    s = bytes(measurements[0], 'utf-8')
-    strs_list.append(struct.pack("I%ds" % (len(s),), len(s), s))
-
-    idx = -1
-    for x in range(1,len(measurements)):
-        idx += 1
-        strs_list.append((struct.pack('!d', measurements[x])))
+    for key in to_UDP_ARIES:
+        strs_list.append((struct.pack('!d', ARIESdict[key])))
     ARIESraw = b"".join(strs_list)
 
     return ARIESraw
@@ -66,46 +86,47 @@ def aries_output_pack(ARIESdict):
 
 def aries_output_unpack(raw_output):
 
-    date_bytes = 33
-    num_inputs = 39
-    num_bytes = num_inputs*8 + date_bytes
+    # Unpacks raw bytes being sent from ARIES to balancer into dict
+    # Keys match the "To UDP" variable names in IO_variables
+
+    to_UDP_HOPP = ['aries_time','batt','soc','solar',
+                    'elyzer','elyzer_kg_s','wind0',
+                    'wind1','wind2','wind3','wind4',
+                    'wind5','wind6','wind7','wind8',
+                    'wind9','wind10','wind11','wind12',
+                    'wind13','wind14','wind15','wind16',
+                    'wind17','wind18','wind19','wind20',
+                    'wind21','wind22','wind23','wave0',
+                    'wave1','wave2','wave3',
+                    'wave4','wave5','wave6',
+                    'wave7','wave8','wave9']
+
+    num_bytes = len(raw_output)
 
     dl_vals = []
     idx = 0
-    (i,), data = struct.unpack("I", raw_output[:4]), raw_output[4:]
-    s, data = data[:i], data[i:]
-    idx = idx + date_bytes
-    dl_vals.append(str(s.decode('UTF-8')))
-
     while idx < num_bytes:
         data = struct.unpack(
             '!d', raw_output[idx:idx+8])[0]
         idx = idx + 8
         dl_vals.append(data)
-
-    dl_names = ['aries_time', 'pv_insol','bess_kw','elyzer','poa']
-    for i in range(1, 25):
-        dl_names.append('wind_spd_' + str(i))
-    dl_names.append('batt_soc')
-    for i in range(1, 11):
-        dl_names.append('wave_prod_' + str(i))
     
-    ARIES_dict = {}
+    HOPP_dict = {}
     for i in range(0, len(dl_vals)):
-        ARIES_dict[dl_names[i]] = dl_vals[i]
+        HOPP_dict[to_UDP_HOPP[i]] = dl_vals[i]
 
-    return ARIES_dict
+    return HOPP_dict
 
 
-def aries_comms():
+def aries_comms(num_inputs=26, initial_SOC=50.0):
 
-    bufferSize  = 4096*2
+    bufferSize  = num_inputs*8
 
     # Set up faster-than-realtime
     times_realtime = 60
 
     # Read in ARIES placeholder signal
-    aries_sig_fn = ROOT_DIR.parent / 'examples' / 'outputs' / 'placeholder_ARIES.csv'
+    aries_sig_fn = ROOT_DIR.parent / 'examples' / 'outputs' / 'placeholder_ARIES_no_wind_100ms.csv'
     aries_signals = pd.read_csv(aries_sig_fn,parse_dates=True,index_col=0,infer_datetime_format=True)
 
     # Setup UDP send
@@ -129,50 +150,66 @@ def aries_comms():
     time_index = start_time
 
     # Send out "ARIES-generated" data
+    started = False
     while((end_time-time_index)>pd.Timedelta(0)):
 
         # Measure elapsed time and find correct place in ARIES signal
         elpased_time = (pd.Timestamp.now()-timer_start)*times_realtime
         aries_time = start_time+elpased_time
-        new_time_index = aries_time.floor('1s')
+        if not started:
+            new_time_index = start_time
+        else:
+            new_time_index = aries_time.floor('100ms')
 
         # If at least two 1 s cycle have passed, send out the signals
-        if new_time_index > time_index + pd.Timedelta('2s'):
-            rows = aries_signals.loc[time_index:new_time_index]
-            rows = rows.iloc[[0,-2]]
+        if (new_time_index > time_index + pd.Timedelta('200ms')) or not started:
+            row = aries_signals.loc[new_time_index]
 
             # Send data to balancer, using battery command to calculate electrolyzer output
-            ARIESdict = {'aries_time':[str(i) for i in rows.index.values]}
+            ARIESdict = {'EPOCH_TIME_S':float(aries_time.to_numpy())/1e9}
             sum = 0.
-            for col in rows.columns.values:
-                rows[col] = np.mean(aries_signals.loc[time_index:(new_time_index-pd.Timedelta('1s')),col])
-                if col != 'elyzer':
-                    sum += rows[col]
+            for col in row.index.values:
+                if col == 'batt':
+                    if not started:
+                        row[col] = 0
+                    else:
+                        row[col] = HOPPdict['PORD']
                 else:
-                    rows[col] = sum
-                ARIESdict[col] = list(rows[col].values)
-            
-            #Removing and Adding extra columns from and to ARIESdict to match number of bytes from ARIES
-            #May not match actual measurement keys or order recieved from ARIES
-            #Sends 1 date item and 39 measurements
-            del ARIESdict['wind']
-            del ARIESdict['wind_vel_max']
-            del ARIESdict['wind_vel_min']
-            ARIESdict['batt_soc'] = ARIESdict['batt']
-            for i in range(1, 11):
-                ARIESdict[str('wave_prod_' + str(i))] = ARIESdict['wave']
-            del ARIESdict['wave']
+                    if not started:
+                        row[col] = aries_signals.loc[time_index,col]
+                    else:
+                        row[col] = np.mean(aries_signals.loc[time_index:(new_time_index-pd.Timedelta('100ms')),col])
+                if col != 'elyzer':
+                    sum += row[col]
+                else:
+                    row[col] = sum
 
+            # Add variables to ARIES dict
+            ARIESdict['PML6'] = row['batt']
+            ARIESdict['BESS_SOC'] = initial_SOC
+            ARIESdict['Ps_PV'] = row['solar']
+            ARIESdict['Electrolyzer_Ps'] = row['elyzer']
+            ARIESdict['Electrolyzer_kg_s'] = row['elyzer']/54.66/60/60
+            ARIESdict['WF1PGfilt'] = row['wind']/24
+            for turb_num in range(1,24):
+                ARIESdict['WF1PGfilt'+str(turb_num)] = row['wind']/24
+            ARIESdict['WAVE1Pcon1Filt'] = row['wave']/10
+            for turb_num in range(1,10):
+                ARIESdict['WAVE1Pcon1Filt'+str(turb_num)] = row['wave']/10
+            
+            # Pack and send ARIES dict over UDP
             # bytesToSend = str.encode(json.dumps(ARIESdict))
             bytesToSend = aries_output_pack(ARIESdict)
             sendSocket.sendto(bytesToSend, sendAddress)
             time_index = new_time_index
+            if not started:
+                print("Ready to start HOPP")
             
             # Wait to receive command from balancer
             HOPPrecv = recvSocket.recvfrom(bufferSize)
             HOPPdict = aries_input_unpack(HOPPrecv[0])
-            HOPPcommand = HOPPdict['bess_kw']
-            aries_signals.loc[(new_time_index+pd.Timedelta('1s')):,'batt'] = HOPPcommand
+
+            started = True
 
 
 if __name__ == '__main__':

@@ -269,7 +269,10 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
             aries_frame["batt"] = np.full(aries_frame['batt'].values.shape,batt_placeholder_kw)
             
             # Save to .csv
-            aries_frame.to_csv(ROOT_DIR.parent / "examples" / "outputs" / "placeholder_ARIES.csv")
+            aries_frame.to_csv(ROOT_DIR.parent / "examples" / "outputs" / "placeholder_ARIES_with_wind_1s.csv")
+            fine_aries_frame = aries_frame.iloc[:,:5]
+            fine_aries_frame = fine_aries_frame.resample('100 ms').interpolate('linear')
+            fine_aries_frame.to_csv(ROOT_DIR.parent / "examples" / "outputs" / "placeholder_ARIES_no_wind_100ms.csv")
 
             hopp_time3 = aries_frame.index.values
 

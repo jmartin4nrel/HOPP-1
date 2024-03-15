@@ -16,13 +16,13 @@ if __name__ == '__main__':
         aries = multiprocessing.Process(target=aries_comms)
     balancer = multiprocessing.Process(target=realtime_balancer, args=(simulate_aries,))
 
-    hopp.start()
-    time.sleep(1)
     balancer.start()
-    time.sleep(1)
+    time.sleep(5)
     if simulate_aries:
         aries.start()
-
+    time.sleep(5)
+    hopp.start()
+    
     hopp.join()
     balancer.join()
     if simulate_aries:
