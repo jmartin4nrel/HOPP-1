@@ -75,6 +75,24 @@ class SimpleReactor(BaseClass):
             self.input_streams_kg_s['water'] = [i*kgH2O_kgH2 for i in self.input_streams_kg_s['hydrogen']]
             self.input_streams_kw['electricity'] = [i*kj_kgH2 for i in self.input_streams_kg_s['hydrogen']]
             self.input_streams_kg_s['carbon dioxide'] = [i*co2ratio for i in self.output_streams_kg_s[fuel]]
+        if fuel == 'synthetic natural gas':
+            if reactor == 'sabatier':
+                h2ratio = 0.125
+                co2ratio = 2.75
+                kwh_kgH2 = 54.66
+                kj_kgH2 = kwh_kgH2*3600
+                kgH2O_kgH2 = 14.309
+            if reactor == 'RCC recycle':
+                if catalyst == 'CZA':
+                    h2ratio = 0.327
+                    co2ratio = 9.118
+                    kwh_kgH2 = 54.66
+                    kj_kgH2 = kwh_kgH2*3600
+                    kgH2O_kgH2 = 14.309
+            self.input_streams_kg_s['hydrogen'] = [i*h2ratio for i in self.output_streams_kg_s[fuel]]
+            self.input_streams_kg_s['water'] = [i*kgH2O_kgH2 for i in self.input_streams_kg_s['hydrogen']]
+            self.input_streams_kw['electricity'] = [i*kj_kgH2 for i in self.input_streams_kg_s['hydrogen']]
+            self.input_streams_kg_s['carbon dioxide'] = [i*co2ratio for i in self.output_streams_kg_s[fuel]]
             
         
 

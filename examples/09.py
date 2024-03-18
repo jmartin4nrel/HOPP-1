@@ -11,6 +11,7 @@
 from hopp.simulation import HoppInterface
 from hopp.simulation.technologies.hydrogen.electrolysis import run_h2_PEM
 import numpy as np
+import pandas as pd
 import copy
 import matplotlib.pyplot as plt
 from hopp.simulation.technologies.sites import SiteInfo, methanol_site
@@ -56,8 +57,8 @@ hi.system.ng.config.ng_kg_s = ng_kg_s
 hi.system.ng.ng_kg_s = ng_kg_s
 
 # Calculate the (discrete) wind plant size needed based on an estimated capacity factor and the desired percentage of the total wind/pv output from wind
-percent_wind = 70
-percent_overbuild = 50
+percent_wind = 90
+percent_overbuild = 0
 overbuild_elec_kw = total_elec_kw*(100+percent_overbuild)/100
 wind_cap_factor = 0.42
 wind_cap_kw = overbuild_elec_kw*percent_wind/100/wind_cap_factor
@@ -104,10 +105,12 @@ getattr(hi.system,'grid').value('interconnect_kw',wind_cap_kw+pv_cap_kw)
 getattr(hi.system,'grid_sales').value('interconnect_kw',sales_cap_kw)
 getattr(hi.system,'grid_purchase').value('interconnect_kw',electrolyzer_cap_kw)
 getattr(hi.system,'electrolyzer').value('system_capacity_kw',electrolyzer_cap_kw)
-battery_size_kw = max(overbuild_elec_kw-electrolyzer_cap_kw,0.001)
-battery_hrs = 8
-getattr(hi.system,'battery').value('system_capacity_kw',battery_size_kw)
-getattr(hi.system,'battery').value('system_capacity_kwh',battery_size_kw*battery_hrs)
+if 'battery' in hi.system.technologies.keys():
+    battery_pct_elec = 100
+    battery_size_kw = battery_pct_elec/100*electrolyzer_cap_kw*electrolyzer_cap_factor
+    battery_hrs = 8
+    getattr(hi.system,'battery').value('system_capacity_kw',battery_size_kw)
+    getattr(hi.system,'battery').value('system_capacity_kwh',battery_size_kw*battery_hrs)
 
 # %% [markdown]
 # ### Run the Simulation and Set the Load
@@ -229,18 +232,6 @@ sold_power = np.array(hybrid_plant.grid_sales.generation_profile)
 bought_power = np.array(hybrid_plant.grid_purchase.generation_profile)
 electrolyzer_profile = np.array(hybrid_plant.electrolyzer.generation_profile)
 
-# Total hydrogen output timeseries (kg-H2/hour)
-hydrogen_production_kg_s = hybrid_plant.electrolyzer._system_model.output_streams_kg_s['hydrogen']
-hydrogen_production_kg_pr_hr = hydrogen_production_kg_s*3600
-# Rated/maximum hydrogen production from electrolysis system
-max_h2_pr_h2 = np.max(hydrogen_production_kg_pr_hr)
-avg_h2_pr_hr = np.mean(hydrogen_production_kg_pr_hr)
-#x-values as hours of year
-hours_of_year = np.arange(0,len(hydrogen_production_kg_pr_hr),1)
-methanol_production_kg_s = hybrid_plant.fuel._system_model.output_streams_kg_s['methanol']
-methanol_production_kg_pr_hr = methanol_production_kg_s*3600
-max_meoh_pr_hr = np.max(methanol_production_kg_pr_hr)
-avg_meoh_pr_hr = np.mean(methanol_production_kg_pr_hr)
 
 # %% [markdown]
 # ### Shift dispatch results to electrolyzer and re-calculate costs
@@ -255,7 +246,7 @@ if 'battery' in hi.system.technologies.keys():
     getattr(hi.system,'electrolyzer').value('system_capacity_kw',electrolyzer_cap_kw)
     batt_power = np.array(batt_plant.battery.generation_profile)
     batt_SOC = np.array(batt_plant.battery.outputs.SOC)
-    electrolyzer_extra_profile = electrolyzer_profile+batt_power
+    electrolyzer_extra_profile = electrolyzer_profile-batt_power
     hi.system.electrolyzer.generation_profile = list(electrolyzer_extra_profile)
     batt_bought = np.maximum(0,electrolyzer_extra_profile-renewable_generation_profile)
     batt_sold = -np.maximum(0,renewable_generation_profile-electrolyzer_extra_profile)
@@ -284,50 +275,89 @@ hi.simulate(1)
 # 
 
 # %%
-hour_start = 1992
-n_hours = 72
+from matplotlib import dates
+
+hour_start = 2016
+n_hours = 61
 hour_end = hour_start + n_hours
 
-fig,ax=plt.subplots(4,1,sharex=True)
-fig.set_figwidth(8.0)
-fig.set_figheight(12.0)
+fig,ax=plt.subplots(2,2,sharex=False)
+fig.set_figwidth(12.0)
+fig.set_figheight(6.0)
 
-ax[0].plot(hours_of_year[hour_start:hour_end],batt_solar_plant_power[hour_start:hour_end]/1e3,lw=2,ls='-',c=[.5,.5,0],alpha=0.5,label='Solar')
-ax[0].plot(hours_of_year[hour_start:hour_end],batt_wind_plant_power[hour_start:hour_end]/1e3,lw=2,ls='-',c='blue',alpha=0.5,label='Wind')
+grid_prices = hi_batt.system.dispatch_factors
+
+# Total hydrogen output timeseries (kg-H2/hour)
+hydrogen_production_kg_s = hybrid_plant.electrolyzer._system_model.output_streams_kg_s['hydrogen']
+hydrogen_production_kg_pr_hr = np.array(hydrogen_production_kg_s*3600)
+# Rated/maximum hydrogen production from electrolysis system
+max_h2_pr_h2 = np.max(hydrogen_production_kg_pr_hr)
+avg_h2_pr_hr = np.mean(hydrogen_production_kg_pr_hr)
+#x-values as hours of year
+hours_of_year = np.arange(0,len(hydrogen_production_kg_pr_hr),1)
+hours_of_year = pd.date_range(start='01/01/2020 00:00:00',freq='1h',periods=8760)
+methanol_production_kg_s = hi.system.fuel._system_model.flow_kg_s
+methanol_production_kg_pr_hr = np.array(methanol_production_kg_s)*3600
+max_meoh_pr_hr = np.max(methanol_production_kg_pr_hr)
+avg_meoh_pr_hr = np.mean(methanol_production_kg_pr_hr)
+
+
+ax[0,0].plot(hours_of_year[hour_start:hour_end],batt_solar_plant_power[hour_start:hour_end]/1e3,lw=2,ls='-',c=[.5,.5,0],label='Solar')
+ax[0,0].plot(hours_of_year[hour_start:hour_end],batt_wind_plant_power[hour_start:hour_end]/1e3,lw=2,ls='-',c='blue',label='Wind')
 # ax[0].plot(hours_of_year[hour_start:hour_end],batt_power[hour_start:hour_end]/1e3,lw=2,ls='-',c=[.5,.5,0],label='Battery')
 # ax[0].plot(hours_of_year[hour_start:hour_end],batt_SOC[hour_start:hour_end],lw=2,ls='-',c=[1,.5,0],alpha=0.5,label='Battery SOC')
 # ax[0].plot(hours_of_year[hour_start:hour_end],solar_plant_power[hour_start:hour_end]/1e3,lw=2,ls='--',c='orange',label='Solar')
 # ax[0].plot(hours_of_year[hour_start:hour_end],wind_plant_power[hour_start:hour_end]/1e3,lw=2,ls='--',c='blue',label='Wind')
-ax[0].plot(hours_of_year[hour_start:hour_end],renewable_generation_profile[hour_start:hour_end]/1e3,lw=3,alpha=0.5,c='green',label='Wind + Solar')
+ax[0,0].plot(hours_of_year[hour_start:hour_end],renewable_generation_profile[hour_start:hour_end]/1e3,lw=3,alpha=0.5,c='green',label='Wind + Solar')
 # ax[0].plot(hours_of_year[hour_start:hour_end],batt_plant_power[hour_start:hour_end]/1e3,lw=2,ls=':',c='green',label='Wind + Solar + Battery')
-ax[0].set_ylabel('Renewable Energy [MW]',fontsize=14)
-ax[0].set_xlim((hour_start,hour_end-1))
-ax[0].legend(ncol=2)
+ax[0,0].set_ylabel('Renewable Energy [MW]',fontsize=14)
+ax[0,0].set_xlabel('Time [Month-Day Hour]',fontsize=14)
+ax[0,0].xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
+ax[0,0].set_xlim(hours_of_year[hour_start],hours_of_year[hour_end-1])
+ax[0,0].legend(ncol=1)
 
 # ax[1].plot(hours_of_year[hour_start:hour_end],renewable_generation_profile[hour_start:hour_end]/1e3,lw=2,alpha=0.5,c='green',label='Wind + Solar')
 # ax[0].plot(hours_of_year[hour_start:hour_end],batt_plant_power[hour_start:hour_end]/1e3,lw=2,c='green',label='Wind + Solar + Battery')
-ax[1].plot(hours_of_year[hour_start:hour_end],bought_power[hour_start:hour_end]/1e3,lw=2,alpha=0.5,c='red',label='Grid Purchase')
-ax[1].plot(hours_of_year[hour_start:hour_end],sold_power[hour_start:hour_end]/1e3,lw=2,alpha=0.5,c='purple',label='Grid Sales')
-if 'battery' in hi.system.technologies.keys():
-    ax[1].plot(hours_of_year[hour_start:hour_end],batt_bought[hour_start:hour_end]/1e3,lw=2,ls=':',c='red',label='Grid Purchase with Battery')
-    ax[1].plot(hours_of_year[hour_start:hour_end],batt_sold[hour_start:hour_end]/1e3,lw=2,ls=':',c='purple',label='Grid Sales with Battery')
-ax[1].set_ylabel('Total Energy [MW]',fontsize=14)
-ax[1].set_xlim((hour_start,hour_end-1))
-ax[1].legend(ncol=3)
+# ax[1,0].plot(hours_of_year[hour_start:hour_end],bought_power[hour_start:hour_end]/1e3,lw=2,alpha=0.5,c='red',label='Grid Purchase')
+# ax[1,0].plot(hours_of_year[hour_start:hour_end],sold_power[hour_start:hour_end]/1e3,lw=2,alpha=0.5,c='purple',label='Grid Sales')
+# if 'battery' in hi.system.technologies.keys():
+ax[1,0].plot(hours_of_year[hour_start:hour_end],batt_bought[hour_start:hour_end]/1e3,lw=2,c='red',label='Purchase')
+ax[1,0].plot(hours_of_year[hour_start:hour_end],batt_sold[hour_start:hour_end]/1e3,lw=2,c='purple',label='Sales')
+ax[1,0].set_ylabel('Total Energy [MW]',fontsize=14)
+ax[1,0].set_xlabel('Time [Month-Day Hour]',fontsize=14)
+ax[1,0].set_ylim((-ax[0,0].get_ylim()[1],ax[0,0].get_ylim()[1]))
+ax[1,0].legend(ncol=2,loc='upper left')
+ax[1,0].set_ylabel('Grid Exchange [MW]',fontsize=14)
+ax[1,0].xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
+ax[1,0].set_xlim(hours_of_year[hour_start],hours_of_year[hour_end-1])
+ax2 = ax[1,0].twinx()
+ax2.plot(hours_of_year[hour_start:hour_end],grid_prices[hour_start:hour_end],'k--',label='Price')
+ax2.set_ylabel('Normalized Grid Price [-]',fontsize=14)
+ax2.set_ylim([0.65,1.35])
+ax2.legend(loc='upper right')
 
-ax[2].plot(hours_of_year[hour_start:hour_end],electrolyzer_profile[hour_start:hour_end]/1e3,lw=2,alpha=0.5,c='black',label='Electrolyzer alone')
 if 'battery' in hi.system.technologies.keys():
-    ax[2].plot(hours_of_year[hour_start:hour_end],electrolyzer_extra_profile[hour_start:hour_end]/1e3,lw=2,ls=':',c='black',label='Electrolyzer with Fuel Cell')
-ax[2].set_ylabel('Total Energy [MW]',fontsize=14)
-ax[2].set_xlim((hour_start,hour_end-1))
-ax[2].legend(ncol=2)
+    ax[0,1].plot(hours_of_year[hour_start:hour_end],electrolyzer_extra_profile[hour_start:hour_end]/1e3,lw=2,alpha=0.5,c='black',label='Output')
+else:
+    ax[0,1].plot(hours_of_year[hour_start:hour_end],electrolyzer_profile[hour_start:hour_end]/1e3,lw=2,alpha=0.5,c='black',label='Output')
+ax[0,1].plot(hours_of_year[hour_start:hour_end],electrolyzer_cap_kw/1000*np.ones(n_hours),lw=2,ls=':',c='black',label='Capacity')
+ax[0,1].xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
+ax[0,1].set_xlim(hours_of_year[hour_start],hours_of_year[hour_end-1])
+ax[0,1].legend(ncol=2)
+ax[0,1].set_ylabel('Electrolyzer [MW]',fontsize=14)
+ax[0,1].set_ylim(ax[0,0].get_ylim())
+ax[0,1].set_xlabel('Time [Month-Day Hour]',fontsize=14)
 
-ax[3].plot(hours_of_year[hour_start:hour_end],hydrogen_production_kg_pr_hr[hour_start:hour_end],lw=2,c='green',label='Hydrogen Produced')
-ax[3].plot(hours_of_year[hour_start:hour_end],avg_h2_pr_hr*np.ones(n_hours),lw=2,ls='--',c='red',label='Average hydrogen')
-ax[3].legend(loc='center right')
-ax[3].set_ylabel('Hydrogen [kg/hr]',fontsize=14)
-ax[3].set_xlabel('Time [hour of year]',fontsize=14)
-ax[3].set_xlim((hour_start,hour_end-1))
+ax[1,1].plot(hours_of_year[hour_start:hour_end],hydrogen_production_kg_pr_hr[hour_start:hour_end]/1e3,lw=2,c=[1,.5,0],label='Hydrogen')
+ax[1,1].plot(hours_of_year[hour_start:hour_end],methanol_production_kg_pr_hr[hour_start:hour_end]/1e3,lw=2,ls="--",c=[1,0,.5],label='Methanol (Avg.)')
+# ax[1,1].plot(hours_of_year[hour_start:hour_end],avg_h2_pr_hr/1000*np.ones(n_hours),lw=2,ls='--',c='red',label='Average hydrogen')
+ax[1,1].legend(loc='center right')
+ax[1,1].set_ylabel('Fluid production [ton/hr]',fontsize=14)
+ax[1,1].set_xlabel('Time [Month-Day Hour]',fontsize=14)
+# ax[1,1].set_xlim((hour_start,hour_end))
+ax[1,1].set_ylim((0,max(methanol_production_kg_pr_hr)/1e3*1.1))
+ax[1,1].xaxis.set_major_formatter(dates.DateFormatter('%H:%M'))
+ax[1,1].set_xlim(hours_of_year[hour_start],hours_of_year[hour_end-1])
 
 # ax[2].plot(hours_of_year[hour_start:hour_end],methanol_production_kg_pr_hr[hour_start:hour_end],lw=2,c='green',label='Methanol Produced')
 # ax[2].plot(hours_of_year[hour_start:hour_end],avg_meoh_pr_hr*np.ones(n_hours),lw=2,ls='--',c='red',label='Average methanol')
@@ -342,11 +372,11 @@ lb_kg = 2.208
 MJ_kg = 20.1
 MJ_MMBTU = 1055.
 
-print((np.sum(sum(sold_power)+sum(bought_power)))/np.sum(electrolyzer_profile))
-print("Annual methanol production, tonne/yr: {:f}".format(hi.system.fuel.annual_mass_kg/1000))
 print("Levelized cost of methanol (LCOM), $/kg: {:.3f}".format(hi.system.lc))
-print(hi.system.lc_breakdown)
+for tech in hi.system.lc_breakdown.keys():
+    print(tech+': {:.3f}'.format(hi.system.lc_breakdown[tech]))
 print("Carbon Intensity (CI), kg/kg-MeOH: {:.3f}".format(hi.system.lca['co2_kg_kg']))
-print(hi.system.lca_breakdown)
+for tech in hi.system.lca_breakdown.keys():
+    print(tech+': {:.3f}'.format(hi.system.lca_breakdown[tech]['co2_kg_kg']))
 
 

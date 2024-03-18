@@ -887,7 +887,7 @@ class HybridSimulation(BaseClass):
                 if isinstance(model,PowerSource):
                     output_kwh_yr =  model.annual_energy_kwh
                     lc = model._financial_model.calc_levelized_cost_energy(output_kwh_yr)
-                    if isinstance(model, GridPurchase):
+                    if isinstance(model, GridPurchase) or isinstance(model, GridSales):
                         lc -= model._financial_model.voc_kwh
                         factorized_purchase = np.multiply(self.dispatch_factors,model.generation_profile)
                         if np.sum(model.generation_profile) != 0.0:
