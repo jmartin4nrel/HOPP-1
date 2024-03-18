@@ -1,6 +1,7 @@
 import socket
 import json
 import struct
+import copy
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -68,11 +69,11 @@ def batt_balance(HOPPdict, ARIESdict, trackers):
     
     return HOPPdict, trackers
 
-def realtime_balancer(simulate_aries=True, aries_running=False):
+def realtime_balancer(simulate_aries=True):
 
     bufferSize_HOPP  = 4096*8
     bufferSize_ARIES  = 40*8
-    plotting = False
+    plotting = True
 
     # Setup UDP receive from HOPP
     localIP     = "127.0.0.1"
@@ -99,19 +100,17 @@ def realtime_balancer(simulate_aries=True, aries_running=False):
 
     else:
         
-        if aries_running:
-
-            # Setup UDP receive from ARIES
-            remoteIP     = "10.81.17.104"
-            remotePort   = 9016
-            serverAddressPort   = (remoteIP, remotePort)
-            recvARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-            recvARIESsocket.bind(serverAddressPort)
-            recvARIESsocket.settimeout(60)
+        # Setup UDP receive from ARIES
+        remoteIP     = "10.81.17.104"
+        remotePort   = 9016
+        serverAddressPort   = (remoteIP, remotePort)
+        recvARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+        recvARIESsocket.bind(serverAddressPort)
+        recvARIESsocket.settimeout(60)
 
         # Setup UDP send to ARIES
         remoteIP     = "10.81.17.104"
-        remotePort   = 9011
+        remotePort   = 9015
         sendARIESaddress  = (remoteIP, remotePort)
         sendARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 
@@ -129,6 +128,7 @@ def realtime_balancer(simulate_aries=True, aries_running=False):
     if plotting:
         plt.ion()
     trackers = setup_tracking(plotting)
+    last_aries_time = None
 
     # Indicate ready to start ARIES
     print("Ready to start ARIES")
@@ -136,18 +136,15 @@ def realtime_balancer(simulate_aries=True, aries_running=False):
     while(True):
 
         # Receive data from ARIES
-        if simulate_aries:
-            ARIESpair = recvARIESsocket.recvfrom(bufferSize_ARIES)
-        elif aries_running:
-            ARIESpair = recvARIESsocket.recvfrom(bufferSize_ARIES)
-        else:
-            fp = ROOT_DIR.parent / 'examples' / 'outputs' / 'byte_text.txt'
-            with open(fp) as reader:
-                text = reader.read()
-            ARIESpair = (str.encode(text),'')
+        ARIESpair = recvARIESsocket.recvfrom(bufferSize_ARIES)
         ARIESraw = ARIESpair[0]
         ARIES_output_dict = aries_output_unpack(ARIESraw)
         # ARIESdict = json.loads(ARIESraw)
+
+        # Keep track of aries time
+        if last_aries_time is not None: last_aries_time = copy.deepcopy(aries_time)
+        aries_time = pd.Timestamp(ARIES_output_dict['aries_time']*1e9)
+        if last_aries_time is None: last_aries_time = aries_time
 
         # Receive data from HOPP
         HOPPpair = recvHOPPsocket.recvfrom(bufferSize_HOPP)
@@ -155,33 +152,41 @@ def realtime_balancer(simulate_aries=True, aries_running=False):
         HOPPdict = json.loads(HOPPraw)
 
         # Replace insolation and wind speeds with real-time wind speeds
-        aries_time = trackers[1]
-        if len(aries_time) == 0:
-            aries_time = [aries_signals.index.values[0]]
-        insol = aries_signals.loc[aries_time[-1],'poa']
+        most_recent_time = aries_signals.index.values[np.argmin(aries_time>aries_signals.index)]
+        insol = aries_signals.loc[most_recent_time,'poa']
         HOPPdict['commands']['poa'] = insol
-        for turb_num in range(len(HOPPdict['gen']['wind'])):
-            wind_spd = aries_signals.loc[aries_time[-1],'wind_vel_{:02}'.format(turb_num)]
+        num_turbs = sum(pd.Series(list(HOPPdict['commands'].keys())).str.contains('wind_spd').values)
+        for turb_num in range(num_turbs):
+            wind_spd = aries_signals.loc[most_recent_time,'wind_vel_{:02}'.format(turb_num)]
             HOPPdict['commands']['wind_vel_{:02}'.format(turb_num)] = wind_spd
 
-        # TODO: Read in real-time wave power profiles from WEC_sim outputs (from Naveen?)
-        # for wec_num in range(len(HOPPdict['gen']['wave'])):
-        # if len(aries_time) == 0:
-        #     aries_time = [aries_signals.index.values[0]]
-        # for turb_num in range(len(HOPPdict['gen']['wind'])):
-        #     wave_gen = wave_gen_signals.loc[aries_time[-1],'???']
-        #     HOPPdict['commands']['wave_gen_'+str(turb_num+1)] = wind_spd
+        # Condense wind and wave generation to one dictionary item
+        wind_gen = 0
+        num_turbs = sum(pd.Series(list(HOPPdict['commands'].keys())).str.contains('wind_spd').values)
+        for turb_num in range(num_turbs):
+            wind_gen += ARIES_output_dict['wind'+str(turb_num)]
+        ARIES_output_dict['wind'] = wind_gen
+        wave_gen = 0
+        num_wecs = sum(pd.Series(list(HOPPdict['commands'].keys())).str.contains('wave_prod').values)
+        for wec_num in range(num_wecs):
+            wave_gen += ARIES_output_dict['wave'+str(wec_num)]
+        ARIES_output_dict['wave'] = wave_gen
 
-        # trackers = update_trackers(trackers, HOPPdict, ARIESdict, plotting)
+        # Turn the ARIES output dict into a two-item list
+        ARIES_output_dict['aries_time'] = [last_aries_time, aries_time]
+        for key in ARIES_output_dict.keys():
+            if key != 'aries_time':
+                ARIES_output_dict[key] = [ARIES_output_dict[key],ARIES_output_dict[key]]
 
-        # # Balance battery output from real-time output
-        # HOPPdict, trackers = batt_balance(HOPPdict, ARIESdict, trackers)
+        trackers = update_trackers(trackers, HOPPdict, ARIES_output_dict, plotting)
+
+        # Balance battery output from real-time output
+        HOPPdict, trackers = batt_balance(HOPPdict, ARIES_output_dict, trackers)
 
         if plotting:
             trackers = updateSOCplot(trackers, HOPPdict)
 
         # Send ARIES time back to HOPP
-        aries_time = pd.Timestamp(ARIES_output_dict['aries_time']*1e9)
         bytesToSend = str.encode(json.dumps(str(aries_time)))
         sendHOPPsocket.sendto(bytesToSend, sendHOPPaddress)
 
