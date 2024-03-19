@@ -1,6 +1,6 @@
 import socket
 import json
-import struct
+import time
 import copy
 import numpy as np
 import pandas as pd
@@ -69,10 +69,10 @@ def batt_balance(HOPPdict, ARIESdict, trackers):
     
     return HOPPdict, trackers
 
-def realtime_balancer(simulate_aries=True):
+def realtime_balancer(simulate_aries=True, acceleration=1):
 
-    bufferSize_HOPP  = 4096*8
-    bufferSize_ARIES  = 40*8
+    bufferSize_HOPP  = 4096
+    bufferSize_ARIES  = 40*4
     plotting = True
 
     # Setup UDP receive from HOPP
@@ -133,6 +133,10 @@ def realtime_balancer(simulate_aries=True):
     # Indicate ready to start ARIES
     print("Ready to start ARIES")
 
+    # Sync start time to clock
+    real_start_time = time.time()
+    hopp_start_time = float(aries_signals.index.values[0])/1e9
+
     while(True):
 
         # Receive data from ARIES
@@ -143,7 +147,7 @@ def realtime_balancer(simulate_aries=True):
 
         # Keep track of aries time
         if last_aries_time is not None: last_aries_time = copy.deepcopy(aries_time)
-        aries_time = pd.Timestamp(ARIES_output_dict['aries_time']*1e9)
+        aries_time = pd.Timestamp(((time.time()-real_start_time)*acceleration+hopp_start_time)*1e9)
         if last_aries_time is None: last_aries_time = aries_time
 
         # Receive data from HOPP
@@ -200,4 +204,4 @@ def realtime_balancer(simulate_aries=True):
 
 if __name__ == '__main__':
 
-    realtime_balancer(True)
+    realtime_balancer(False)
