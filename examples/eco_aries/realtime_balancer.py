@@ -109,10 +109,11 @@ def realtime_balancer(simulate_aries=True, acceleration=1):
         recvARIESsocket.settimeout(60)
 
         # Setup UDP send to ARIES
-        remoteIP     = "10.81.17.104"
-        remotePort   = 9015
+        remoteIP     = "10.81.15.41"
+        remotePort   = 9010
         sendARIESaddress  = (remoteIP, remotePort)
         sendARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+        sendARIESsocket.connect(sendARIESaddress)
 
     # Setup UDP send to HOPP
     localIP     = "127.0.0.1"
@@ -198,7 +199,10 @@ def realtime_balancer(simulate_aries=True, acceleration=1):
         # bytesToSend = str.encode(json.dumps(HOPPdict))
         ARIES_input_dict = HOPPdict['commands']
         bytesToSend = aries_input_pack(ARIES_input_dict)
-        sendARIESsocket.sendto(bytesToSend, sendARIESaddress)
+        if simulate_aries:
+            sendARIESsocket.sendto(bytesToSend, sendARIESaddress)
+        else:
+            sendARIESsocket.send(bytesToSend)
 
         
 

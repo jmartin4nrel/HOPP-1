@@ -7,7 +7,7 @@ import time
 
 if __name__ == '__main__':
 
-    simulate_aries = False
+    simulate_aries = True
     acceleration = 4
 
     eco_setup(False)

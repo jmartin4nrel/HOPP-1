@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-plt.rcParams['font.size'] = 10
+plt.rcParams['font.size'] = 6
 
 def setup_tracking(plotting):
     
@@ -21,8 +21,8 @@ def setup_tracking(plotting):
                 lines[i,j] = []
 
         fig,ax=plt.subplots(3,2)
-        fig.set_figwidth(15.0)
-        fig.set_figheight(7.0)
+        fig.set_figwidth(10.0)
+        fig.set_figheight(5.0)
 
         lines[0,0].append(ax[0,0].plot(aries_time,aries_xdata['wave'],label=None,color=[0,0,1])[0])
         lines[0,0].append(ax[0,0].plot(aries_time,aries_xdata['solar'],label=None,color=[1,.5,0])[0])
