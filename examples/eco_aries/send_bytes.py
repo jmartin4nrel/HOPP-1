@@ -1,5 +1,8 @@
-import socket
+import random
+import sys
 import struct
+import os
+import socket
 import time
 
 # Setup UDP send to ARIES
@@ -11,6 +14,9 @@ sendARIESsocket.connect(sendARIESaddress)
 
 while True:
     
-    bytes_to_send = b"".join([struct.pack('!f',1)])
+    testvals = [ ] # sending 26 ones
+    for i in range(26):
+        testvals.append(struct.pack('!f', 1.0+float(i)))
+    bytes_to_send = b"".join(testvals)
     sendARIESsocket.send(bytes_to_send)
     time.sleep(1)
