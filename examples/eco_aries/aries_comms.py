@@ -118,12 +118,9 @@ def aries_output_unpack(raw_output):
     return HOPP_dict
 
 
-def aries_comms(num_inputs=26, initial_SOC=50.0):
+def aries_comms(num_inputs=26, initial_SOC=50.0, acceleration=1):
 
     bufferSize  = num_inputs*4
-
-    # Set up faster-than-realtime
-    times_realtime = 60
 
     # Read in ARIES placeholder signal
     aries_sig_fn = ROOT_DIR.parent / 'examples' / 'outputs' / 'placeholder_ARIES_no_wind_100ms.csv'
@@ -154,7 +151,7 @@ def aries_comms(num_inputs=26, initial_SOC=50.0):
     while((end_time-time_index)>pd.Timedelta(0)):
 
         # Measure elapsed time and find correct place in ARIES signal
-        elpased_time = (pd.Timestamp.now()-timer_start)*times_realtime
+        elpased_time = (pd.Timestamp.now()-timer_start)*acceleration
         aries_time = start_time+elpased_time
         if not started:
             new_time_index = start_time

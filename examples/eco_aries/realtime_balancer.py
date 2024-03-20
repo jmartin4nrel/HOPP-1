@@ -149,7 +149,7 @@ def realtime_balancer(simulate_aries=True, acceleration=1):
         # Keep track of aries time
         if last_aries_time is not None: last_aries_time = copy.deepcopy(aries_time)
         aries_time = pd.Timestamp(((time.time()-real_start_time)*acceleration+hopp_start_time)*1e9)
-        if last_aries_time is None: last_aries_time = aries_time
+        if last_aries_time is None: last_aries_time = pd.Timestamp(hopp_start_time*1e9)
 
         # Receive data from HOPP
         HOPPpair = recvHOPPsocket.recvfrom(bufferSize_HOPP)
