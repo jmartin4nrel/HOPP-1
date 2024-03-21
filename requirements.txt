@@ -1,6 +1,7 @@
 Cython
 NREL-PySAM==4.2.0
 Pillow
+Plotly
 Pyomo>=6.1.2
 diskcache
 fastkml
@@ -18,6 +19,7 @@ numpy-financial
 optuna
 pandas>=2.0.3
 pint
+plotly
 pvmismatch
 pyDOE2
 pymoo
@@ -40,6 +42,8 @@ openpyxl
 CoolProp
 attrs
 utm
+orbit-nrel @ git+https://github.com/WISDEM/ORBIT.git@SemiTaut_Mooring_Update
 pyyaml-include
-responses
-chardet
+electrolyzer @ git+https://github.com/jaredthomas68/electrolyzer.git@smoothing
+ProFAST @ git+https://github.com/NREL/ProFAST.git
+openmdao

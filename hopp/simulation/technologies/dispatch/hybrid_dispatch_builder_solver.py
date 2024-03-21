@@ -449,6 +449,7 @@ class HybridDispatchBuilderSolver:
         else:
             ti = list(range(0, self.site.n_timesteps, self.options.n_roll_periods))
             self.dispatch.initialize_parameters()
+            initial_soc = self.power_sources['battery'].config.initial_SOC
 
         print("Number of periods to optimize: {:.0f}".format(len(ti)))
         if self.clustering is None:
@@ -548,7 +549,7 @@ class HybridDispatchBuilderSolver:
                 else:
                     system_limit = self.site.desired_schedule[start_time:start_time + n_horizon]
 
-                transmission_limit = self.power_sources['grid'].value('grid_interconnection_limit_kwac') / 1e3
+                transmission_limit = self.power_sources['grid'].value('grid_interconnection_limit_kwac')
                 for count, value in enumerate(system_limit):
                     if value > transmission_limit:
                         logger.warning('Warning: Desired schedule is greater than transmission limit. '
@@ -600,7 +601,22 @@ class HybridDispatchBuilderSolver:
             prices = self.power_sources['grid'].dispatch.electricity_sell_price
             self.power_sources['battery'].dispatch.prices = prices
 
-        self.power_sources['battery'].dispatch.set_fixed_dispatch(tot_gen, grid_limit)
+        if  'load_following' in self.options.battery_dispatch:
+            # TODO: Look into how to define a system as load following or not in the config file
+            required_keys = ['desired_load']
+            if self.site.follow_desired_schedule:
+                # Get difference between baseload demand and power generation and control scenario variables
+                load_value = self.site.desired_schedule
+                load_difference =  [(load_value[x] - tot_gen[x]) for x in range(len(tot_gen))]
+                self.power_sources['battery'].dispatch.load_difference = load_difference
+            else:
+                raise ValueError(type(self).__name__ + " requires the following : desired_schedule")
+            # Adding goal_power for the simple battery heuristic method for power setpoint tracking 
+            goal_power = [load_value]*self.options.n_look_ahead_periods
+            ### Note: the inputs grid_limit and goal_power are in MW ###
+            self.power_sources['battery'].dispatch.set_fixed_dispatch(tot_gen, grid_limit, load_value)
+        else:
+            self.power_sources['battery'].dispatch.set_fixed_dispatch(tot_gen, grid_limit)
 
     @property
     def pyomo_model(self) -> pyomo.ConcreteModel:

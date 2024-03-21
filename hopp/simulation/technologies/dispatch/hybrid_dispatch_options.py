@@ -5,7 +5,8 @@ from hopp.simulation.technologies.dispatch.power_storage import (
     SimpleBatteryDispatchHeuristic,
     SimpleBatteryDispatch,
     NonConvexLinearVoltageBatteryDispatch,
-    ConvexLinearVoltageBatteryDispatch
+    ConvexLinearVoltageBatteryDispatch,
+    HeuristicLoadFollowingDispatch,
 )
 
 
@@ -52,6 +53,10 @@ class HybridDispatchOptions:
 
             - **clustering_divisions** (dict, default={}): Custom number of averaging periods for classification metrics for data clustering. If empty, default values will be used.
 
+            - **use_higher_hours** bool (default = False): if True, the simulation will run extra hours analysis (must be used with load following)
+
+            - **higher_hours** (dict, default = {}): Higher hour count parameters: the value of power that must be available above the schedule and the number of hours in a row   
+
     """
     def __init__(self, dispatch_options: dict = None):
         self.solver: str = 'cbc'
@@ -74,6 +79,9 @@ class HybridDispatchOptions:
         self.clustering_weights: dict = {}
         self.clustering_divisions: dict = {}
 
+        self.use_higher_hours: bool = False
+        self.higher_hours: dict = {}
+        
         self.skip_dispatch: bool = False
         self.limit_dispatch: bool = False
         self.limit_dispatch_idxs: dict = {}
@@ -107,7 +115,8 @@ class HybridDispatchOptions:
             'heuristic': SimpleBatteryDispatchHeuristic,
             'simple': SimpleBatteryDispatch,
             'non_convex_LV': NonConvexLinearVoltageBatteryDispatch,
-            'convex_LV': ConvexLinearVoltageBatteryDispatch}
+            'convex_LV': ConvexLinearVoltageBatteryDispatch,
+            'load_following_heuristic': HeuristicLoadFollowingDispatch}
         if self.battery_dispatch in self._battery_dispatch_model_options:
             self.battery_dispatch_class = self._battery_dispatch_model_options[self.battery_dispatch]
             if 'heuristic' in self.battery_dispatch:
