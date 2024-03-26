@@ -22,12 +22,12 @@ def set_objective(objective):
     __objective = objective
 
 
-def evaluate(candidate):
+def evaluate(candidate, candidate_idx):
     """
     Evaluates the given candidate
     """
     global __objective
-    return __objective(candidate)
+    return __objective(candidate, candidate_idx)
 
 # def flatten_list(nested_list: [[any]]) -> [any]:
 #     result = []

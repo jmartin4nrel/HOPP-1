@@ -878,6 +878,15 @@ class HybridSimulation(BaseClass):
         self.lc_breakdown = {}
         cost_tech = self.finance_options['cost_tech']
         cost_model =getattr(self, cost_tech)
+        # Populate hybrid_bos_mw dict with hybrid system size
+        for system in self.technologies.keys():
+            model = getattr(self, system)
+            if isinstance(model,WindPlant) or isinstance(model,PVPlant):
+                model._financial_model.hybrid_bos_mw['is_wind'] = isinstance(model,WindPlant)
+                model._financial_model.hybrid_bos_mw['is_pv'] = isinstance(model,PVPlant)
+                model._financial_model.hybrid_bos_mw['wind_mw'] = self.wind.system_capacity_kw/1000
+                model._financial_model.hybrid_bos_mw['pv_mw'] = self.pv.system_capacity_kw/1000
+                model._financial_model.hybrid_bos_mw['interconnect_mw'] = self.grid.system_capacity_kw/1000
         for system in self.technologies.keys():
             model = getattr(self, system)
             if isinstance(model._financial_model,SimpleFinance):

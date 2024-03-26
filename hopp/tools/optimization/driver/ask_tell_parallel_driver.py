@@ -73,7 +73,7 @@ class AskTellParallelDriver(AskTellDriver):
         # print('step()')
         num_candidates = optimizer.get_num_candidates()
         candidates = optimizer.ask(num_candidates)
-        evaluations = self._pool.map(evaluate, candidates)
+        evaluations = self._pool.starmap(evaluate, zip(candidates, range(len(candidates))))
         num_candidates = len(evaluations)
         # print('telling')
         # self.evaluations = list(evaluations)
@@ -82,7 +82,7 @@ class AskTellParallelDriver(AskTellDriver):
         self._num_evaluations += num_candidates
         self._num_iterations += 1
         # print('done')
-        return optimizer.stop()
+        return optimizer.stop(), candidates
     
     def get_num_evaluations(self) -> int:
         return self._num_evaluations
