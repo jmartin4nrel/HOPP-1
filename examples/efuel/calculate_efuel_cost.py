@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from hopp.simulation.technologies.sites import SiteInfo, methanol_site
 from hopp.utilities import load_yaml
 
-def calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon):
+def calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon, turndown=False, grid_pricing=False):
 
     # Create a HOPP interface with the cost and lca information for all components loaded from a .yaml 
     hi = HoppInterface("./08-wind-solar-electrolyzer-fuel.yaml")
@@ -32,6 +32,9 @@ def calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon):
     hi.system.wind._system_model.Losses.turb_perf_loss = 0
     hi.system.wind._system_model.Losses.turb_specific_loss = 0
     hi.system.wind._system_model.Losses.wake_ext_loss = 0
+    
+    hi.system.wind.rotor_diameter = 124.9
+    hi.system.wind.turb_rating = 2800.0
     
     # Calculate electricity needed
     hi.system.fuel.simulate_flow(1)
@@ -79,10 +82,16 @@ def calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon):
             solar=True,
             wind=True,
             wave=False,
+            hub_height=90.2,
         )
     hopp_config = load_yaml(hi.configuration)
+
     # set SiteInfo instance
     hopp_config["site"] = site
+    if turndown:
+        batt_kw = hi.system.battery.system_capacity_kw
+        batt_kwh = hi.system.battery.system_capacity_kwh
+    hopp_config["technologies"].pop("battery")
 
     # Create new instance of hopp interface with correct number of turbines
     hi = HoppInterface(hopp_config)
@@ -106,6 +115,9 @@ def calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon):
     hi.system.wind._system_model.Losses.turb_perf_loss = 0
     hi.system.wind._system_model.Losses.turb_specific_loss = 0
     hi.system.wind._system_model.Losses.wake_ext_loss = 0
+
+    hi.system.wind.rotor_diameter = 124.9
+    hi.system.wind.turb_rating = 2800.0
 
     # Re-calculate wind power and finalize number of turbines
     getattr(hi.system,'wind').value('num_turbines',num_turbines)
@@ -211,85 +223,88 @@ def calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon):
     plant_life = 1 #years
     hi.simulate(plant_life)
 
-    # site = SiteInfo(
-    #         methanol_site,
-    #         solar_resource_file=hi.system.site.solar_resource_file,
-    #         wind_resource_file=hi.system.site.wind_resource_file,
-    #         grid_resource_file=hi.system.site.grid_resource_file,
-    #         desired_schedule=[i/1000 for i in load_schedule],
-    #         solar=True,
-    #         wind=True,
-    #         wave=False
-    #     )
+    
 
-    # hopp_config = load_yaml("./09-methanol-battery.yaml")
-    # # set SiteInfo instance
-    # hopp_config["site"] = site
-    # hopp_config["technologies"]["wind"]["num_turbines"] = num_turbines
-    # hopp_config["technologies"]["pv"]["system_capacity_kw"] = pv_cap_kw
-    # if 'battery' in hi.system.technologies.keys():
-    #     hopp_config["technologies"]["battery"]["system_capacity_kw"] = hi.system.battery.system_capacity_kw
-    #     hopp_config["technologies"]["battery"]["system_capacity_kwh"] = hi.system.battery.system_capacity_kwh
-    # else:
-    #     hopp_config["technologies"].pop("battery")
+    if turndown:
+        site = SiteInfo(
+                methanol_site,
+                solar_resource_file=hi.system.site.solar_resource_file,
+                wind_resource_file=hi.system.site.wind_resource_file,
+                grid_resource_file=hi.system.site.grid_resource_file,
+                desired_schedule=[i/1000 for i in load_schedule],
+                solar=True,
+                wind=True,
+                wave=False
+            )
 
-    # hi_batt = HoppInterface(hopp_config)
+        hopp_config = load_yaml("./09-methanol-battery.yaml")
+        # set SiteInfo instance
+        hopp_config["site"] = site
+        hopp_config["technologies"]["wind"]["num_turbines"] = num_turbines
+        hopp_config["technologies"]["pv"]["system_capacity_kw"] = pv_cap_kw
+        if 'battery' in hi.system.technologies.keys():
+            hopp_config["technologies"]["battery"]["system_capacity_kw"] = batt_kw
+            hopp_config["technologies"]["battery"]["system_capacity_kwh"] = batt_kwh
+        else:
+            hopp_config["technologies"].pop("battery")
 
-    hi.system.dispatch_factors = (1.0,)*8760
+        hi_batt = HoppInterface(hopp_config)
 
-    # hi_batt.system.dispatch_factors = (1.0,)*8760
+    
+        if not grid_pricing:
+            hi_batt.system.dispatch_factors = (1.0,)*8760
 
-    # hi_batt.system.pv._system_model.SystemDesign.dc_ac_ratio = hi.system.pv._system_model.SystemDesign.dc_ac_ratio
-    # hi_batt.system.pv._system_model.SystemDesign.losses = hi.system.pv._system_model.SystemDesign.losses
+        hi_batt.system.pv._system_model.SystemDesign.dc_ac_ratio = hi.system.pv._system_model.SystemDesign.dc_ac_ratio
+        hi_batt.system.pv._system_model.SystemDesign.losses = hi.system.pv._system_model.SystemDesign.losses
 
-    # hi_batt.system.wind._system_model.Losses.avail_bop_loss = hi.system.wind._system_model.Losses.avail_bop_loss
-    # hi_batt.system.wind._system_model.Losses.avail_grid_loss = hi.system.wind._system_model.Losses.avail_grid_loss
-    # hi_batt.system.wind._system_model.Losses.avail_turb_loss = hi.system.wind._system_model.Losses.avail_turb_loss
-    # hi_batt.system.wind._system_model.Losses.elec_eff_loss = hi.system.wind._system_model.Losses.elec_eff_loss
-    # hi_batt.system.wind._system_model.Losses.elec_parasitic_loss = hi.system.wind._system_model.Losses.elec_parasitic_loss
-    # hi_batt.system.wind._system_model.Losses.env_degrad_loss = hi.system.wind._system_model.Losses.env_degrad_loss
-    # hi_batt.system.wind._system_model.Losses.env_env_loss = hi.system.wind._system_model.Losses.env_env_loss
-    # hi_batt.system.wind._system_model.Losses.env_icing_loss = hi.system.wind._system_model.Losses.env_icing_loss
-    # hi_batt.system.wind._system_model.Losses.ops_env_loss = hi.system.wind._system_model.Losses.ops_env_loss
-    # hi_batt.system.wind._system_model.Losses.ops_grid_loss = hi.system.wind._system_model.Losses.ops_grid_loss
-    # hi_batt.system.wind._system_model.Losses.ops_load_loss = hi.system.wind._system_model.Losses.ops_load_loss
-    # hi_batt.system.wind._system_model.Losses.turb_generic_loss = hi.system.wind._system_model.Losses.turb_generic_loss
-    # hi_batt.system.wind._system_model.Losses.turb_hysteresis_loss = hi.system.wind._system_model.Losses.turb_hysteresis_loss
-    # hi_batt.system.wind._system_model.Losses.turb_perf_loss = hi.system.wind._system_model.Losses.turb_perf_loss
-    # hi_batt.system.wind._system_model.Losses.turb_specific_loss = hi.system.wind._system_model.Losses.turb_specific_loss
-    # hi_batt.system.wind._system_model.Losses.wake_ext_loss = hi.system.wind._system_model.Losses.wake_ext_loss
+        hi_batt.system.wind._system_model.Losses.avail_bop_loss = hi.system.wind._system_model.Losses.avail_bop_loss
+        hi_batt.system.wind._system_model.Losses.avail_grid_loss = hi.system.wind._system_model.Losses.avail_grid_loss
+        hi_batt.system.wind._system_model.Losses.avail_turb_loss = hi.system.wind._system_model.Losses.avail_turb_loss
+        hi_batt.system.wind._system_model.Losses.elec_eff_loss = hi.system.wind._system_model.Losses.elec_eff_loss
+        hi_batt.system.wind._system_model.Losses.elec_parasitic_loss = hi.system.wind._system_model.Losses.elec_parasitic_loss
+        hi_batt.system.wind._system_model.Losses.env_degrad_loss = hi.system.wind._system_model.Losses.env_degrad_loss
+        hi_batt.system.wind._system_model.Losses.env_env_loss = hi.system.wind._system_model.Losses.env_env_loss
+        hi_batt.system.wind._system_model.Losses.env_icing_loss = hi.system.wind._system_model.Losses.env_icing_loss
+        hi_batt.system.wind._system_model.Losses.ops_env_loss = hi.system.wind._system_model.Losses.ops_env_loss
+        hi_batt.system.wind._system_model.Losses.ops_grid_loss = hi.system.wind._system_model.Losses.ops_grid_loss
+        hi_batt.system.wind._system_model.Losses.ops_load_loss = hi.system.wind._system_model.Losses.ops_load_loss
+        hi_batt.system.wind._system_model.Losses.turb_generic_loss = hi.system.wind._system_model.Losses.turb_generic_loss
+        hi_batt.system.wind._system_model.Losses.turb_hysteresis_loss = hi.system.wind._system_model.Losses.turb_hysteresis_loss
+        hi_batt.system.wind._system_model.Losses.turb_perf_loss = hi.system.wind._system_model.Losses.turb_perf_loss
+        hi_batt.system.wind._system_model.Losses.turb_specific_loss = hi.system.wind._system_model.Losses.turb_specific_loss
+        hi_batt.system.wind._system_model.Losses.wake_ext_loss = hi.system.wind._system_model.Losses.wake_ext_loss
 
+        hi_batt.simulate(project_life=1)
+
+    if not grid_pricing:
+        hi.system.dispatch_factors = (1.0,)*8760
+    
     hybrid_plant = hi.system
     solar_plant_power = np.array(hybrid_plant.pv.generation_profile)
     wind_plant_power = np.array(hybrid_plant.wind.generation_profile)
     renewable_generation_profile = solar_plant_power + wind_plant_power
-    sold_power = np.array(hybrid_plant.grid_sales.generation_profile)
-    bought_power = np.array(hybrid_plant.grid_purchase.generation_profile)
     electrolyzer_profile = np.array(hybrid_plant.electrolyzer.generation_profile)
 
 
-    # batt_plant = hi_batt.system
-    # batt_solar_plant_power = np.array(batt_plant.pv.generation_profile)
-    # batt_wind_plant_power = np.array(batt_plant.wind.generation_profile)
-    # if 'battery' in hi.system.technologies.keys():
-    #     extra_cap_kw = hi.system.battery.system_capacity_kw
-    #     electrolyzer_cap_kw += extra_cap_kw
-    #     getattr(hi.system,'electrolyzer').value('system_capacity_kw',electrolyzer_cap_kw)
-    #     batt_power = np.array(batt_plant.battery.generation_profile)
-    #     batt_SOC = np.array(batt_plant.battery.outputs.SOC)
-    #     electrolyzer_extra_profile = electrolyzer_profile-batt_power
-    #     hi.system.electrolyzer.generation_profile = list(electrolyzer_extra_profile)
-    #     batt_bought = np.maximum(0,electrolyzer_extra_profile-renewable_generation_profile)
-    #     batt_sold = -np.maximum(0,renewable_generation_profile-electrolyzer_extra_profile)
-    #     getattr(hi.system,'battery').value('system_capacity_kw',0.00001)
-    # else:
-    #     batt_power = np.array([0.0]*8760)
-    #     batt_SOC = np.array([0.0]*8760)
-    batt_bought = np.maximum(0,electrolyzer_profile-renewable_generation_profile)
-    batt_sold = -np.maximum(0,renewable_generation_profile-electrolyzer_profile)
+    if turndown:
+        batt_plant = hi_batt.system
+        if 'battery' in hi.system.technologies.keys():
+            extra_cap_kw = hi.system.battery.system_capacity_kw
+            electrolyzer_cap_kw += extra_cap_kw
+            getattr(hi.system,'electrolyzer').value('system_capacity_kw',electrolyzer_cap_kw)
+            batt_power = np.array(batt_plant.battery.generation_profile)
+            electrolyzer_extra_profile = electrolyzer_profile-batt_power
+            hi.system.electrolyzer.generation_profile = list(electrolyzer_extra_profile)
+            batt_bought = np.maximum(0,electrolyzer_extra_profile-renewable_generation_profile)
+            batt_sold = -np.maximum(0,renewable_generation_profile-electrolyzer_extra_profile)
+            getattr(hi.system,'battery').value('system_capacity_kw',0.00001)
+        else:
+            batt_bought = np.maximum(0,electrolyzer_profile-renewable_generation_profile)
+            batt_sold = -np.maximum(0,renewable_generation_profile-electrolyzer_profile)
+    else:
+        batt_bought = np.maximum(0,electrolyzer_profile-renewable_generation_profile)
+        batt_sold = -np.maximum(0,renewable_generation_profile-electrolyzer_profile)
         
-    # batt_plant_power = np.add(renewable_generation_profile,batt_power)
-
     hi.system.grid_purchase.generation_profile = list(batt_bought)
     hi.system.grid_sales.generation_profile = list(batt_sold)
     
@@ -299,8 +314,8 @@ def calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon):
     print("Levelized cost of methanol (LCOM), $/kg: {:.3f}".format(hi.system.lc))
     for tech in hi.system.lc_breakdown.keys():
         print(tech+': {:.3f}'.format(hi.system.lc_breakdown[tech]))
-    # print("Carbon Intensity (CI), kg/kg-MeOH: {:.3f}".format(hi.system.lca['co2_kg_kg']))
-    # for tech in hi.system.lca_breakdown.keys():
-    #     print(tech+': {:.3f}'.format(hi.system.lca_breakdown[tech]['co2_kg_kg']))
+    print("Carbon Intensity (CI), kg/kg-MeOH: {:.3f}".format(hi.system.lca['co2_kg_kg']))
+    for tech in hi.system.lca_breakdown.keys():
+        print(tech+': {:.3f}'.format(hi.system.lca_breakdown[tech]['co2_kg_kg']))
 
     return hi.system.lc

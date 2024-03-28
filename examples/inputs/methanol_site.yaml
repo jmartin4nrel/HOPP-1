@@ -2,7 +2,7 @@ data:
   lat: 32.34
   lon: -98.27
   elev: 1099
-  year: 2012
+  year: 2013
   tz: -6
   site_boundaries:
     verts:
@@ -20,8 +20,8 @@ data:
 solar_resource_file: ""
 wind_resource_file: ""
 wave_resource_file: ""
-# grid_resource_file:  ""
-grid_resource_file: "resource_files/grid/pricing-data-2015-IronMtn-002_factors.csv"
+grid_resource_file:  ""
+# grid_resource_file: "resource_files/grid/pricing-data-2015-IronMtn-002_factors.csv"
 hub_height: 80.0
 capacity_hours: []
 desired_schedule: []

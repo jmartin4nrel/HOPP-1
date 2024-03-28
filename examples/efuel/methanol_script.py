@@ -82,14 +82,14 @@ if __name__ == '__main__':
     # TODO sweep through years
 
     # Either sweep through locations or pick a specific location
-    lat = 32.34
-    lon = -98.27
+    lat = 32.337679
+    lon = -98.26680948967483
 
     # Set up to optimize the % wind and % overbuild
     arg_lists = []
-    pcts_wind = np.arange(0,120,20)
-    pcts_overbuild = np.arange(0,120,20)
-    for i in range(len(pcts_overbuild)):
+    pcts_wind = np.arange(90,101,1)
+    pcts_overbuild = np.arange(0,20,20)
+    for i in range(len(pcts_wind)):
         for j in range(len(pcts_overbuild)):
             arg_list = [pcts_wind[i],pcts_overbuild[j],lat,lon]
             arg_lists.append(arg_list)
@@ -103,7 +103,7 @@ if __name__ == '__main__':
 
     ## One instance
             
-    # calculate_efuel_cost(60.37879264, 132.64964296,lat,lon)
+    calculate_efuel_cost(91,4,lat,lon,True,True)
 
 
 
@@ -118,33 +118,30 @@ if __name__ == '__main__':
     # stop = time.time()
     # print("Elapsed Time: {:.1f} seconds".format(stop-start))
             
-    # hi = HoppInterface("./08-wind-solar-electrolyzer-fuel.yaml")
-    # hybrid_plant = hi.system
-
 
 
     ## With optimizer
 
-    max_iterations = 5
-    optimizer_config = {
-        'method':               'CEM',
-        'nprocs':               num_cores,
-        'generation_size':      num_cores,
-        'selection_proportion': .33,
-        'prior_scale':          1.0
-        }
+    # max_iterations = 5
+    # optimizer_config = {
+    #     'method':               'CEM',
+    #     'nprocs':               num_cores,
+    #     'generation_size':      num_cores,
+    #     'selection_proportion': .33,
+    #     'prior_scale':          1.0
+    #     }
     
-    start = time.time()
-    problem = EfuelHybridProblem() #hybrid_plant
-    optimizer = OptimizationDriver(problem, recorder=DataRecorder.make_data_recorder("log"), **optimizer_config)
+    # start = time.time()
+    # problem = EfuelHybridProblem() #hybrid_plant
+    # optimizer = OptimizationDriver(problem, recorder=DataRecorder.make_data_recorder("log"), **optimizer_config)
     
-    plt.ion()
-    while optimizer.num_iterations() < max_iterations:
-        stopped, candidates = optimizer.step()
-        best_score, best_evaluation, best_solution = optimizer.best_solution()
-        stop = time.time()
-        print(optimizer.num_iterations(), ' ', optimizer.num_evaluations(), -best_score, best_solution)
-        plt.plot(np.array(candidates)[:,0],np.array(candidates)[:,1],'.')
-    print("Elapsed Time: {:.1f} seconds".format(stop-start))
+    # plt.ion()
+    # while optimizer.num_iterations() < max_iterations:
+    #     stopped, candidates = optimizer.step()
+    #     best_score, best_evaluation, best_solution = optimizer.best_solution()
+    #     stop = time.time()
+    #     print(optimizer.num_iterations(), ' ', optimizer.num_evaluations(), -best_score, best_solution)
+    #     plt.plot(np.array(candidates)[:,0],np.array(candidates)[:,1],'.')
+    # print("Elapsed Time: {:.1f} seconds".format(stop-start))
 
-    calculate_efuel_cost(best_solution[0],best_solution[1],lat,lon)
+    # calculate_efuel_cost(best_solution[0],best_solution[1],lat,lon)

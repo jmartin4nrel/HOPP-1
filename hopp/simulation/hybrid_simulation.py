@@ -921,6 +921,13 @@ class HybridSimulation(BaseClass):
                         prod_lc = lc*output_kg_yr/prod_output_kg_yr
                 self.lc += prod_lc
                 self.lc_breakdown[system] = prod_lc
+        # if 'electrolyzer' in self.technologies.keys():
+        #     model = getattr(self, 'electrolyzer')
+        #     o2_sales_price_kg = -0.14*1.16/3.28
+        #     o2_kg_yr = 60*60*sum(model._system_model.output_streams_kg_s['oxygen'])
+        #     o2_lc = o2_kg_yr/prod_output_kg_yr*o2_sales_price_kg
+        #     self.lc += o2_lc
+        #     self.lc_breakdown['O2_sales'] = o2_lc
         pass
 
 
@@ -936,6 +943,7 @@ class HybridSimulation(BaseClass):
         # Accumulates total annual emissions output from different sources
         self.lca = {} 
         self.lca_breakdown = {}
+        total_kwh_yr = 0
         for em in self.lca_options['lca_emissions']:
             self.lca[em+'_yr'] = 0
         for system in self.technologies.keys():
@@ -945,6 +953,8 @@ class HybridSimulation(BaseClass):
                 for em in self.lca_options['lca_emissions']:
                     if isinstance(model,PowerSource):
                         output_kwh_yr =  model.annual_energy_kwh
+                        if not isinstance(model,ElectrolyzerPlant):
+                            total_kwh_yr += output_kwh_yr
                         em_kwh = model.config.lca[em+'_kwh']
                         self.lca[em+'_yr'] += output_kwh_yr*em_kwh
                         self.lca_breakdown[system][em+'_yr'] = output_kwh_yr*em_kwh

@@ -156,6 +156,7 @@ class SimpleFinance(CustomFinancialModel):
             bos_savings = total_project_cost/(solar_project_cost+wind_project_cost)
             if isinstance(bos_savings, Iterable):
                 bos_savings = bos_savings[0]
+            #print("BOS Savings, wind mw {:.2f}: {:.4f}".format(self.hybrid_bos_mw['wind_mw'],bos_savings))
             self.hybrid_bos_pct_saved = (1-bos_savings)*100
             self.toc_bos = self.toc*bos_savings
         else:

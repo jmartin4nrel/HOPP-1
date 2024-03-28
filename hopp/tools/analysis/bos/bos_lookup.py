@@ -86,25 +86,37 @@ class BOSLookup(BOSCalculator):
         if solar_mw == 0 and wind_mw > 0:
             interconnection_mw = np.min([wind_mw,interconnection_mw])
 
-        search_inputs = np.array([interconnection_mw, wind_mw, solar_mw])
-        distance_norm = np.linalg.norm(self.contents - search_inputs, axis=1)
-        min_index = np.argmin(distance_norm)
-        min_distance = distance_norm[min_index]
-
-        vals = []
-        for i in range(len(self.desired_output_parameters)):
-            vals.append(self.interpolating_fxns[i](search_inputs)[0])
-
-        if np.isnan(vals).any():
-            wind_bos_cost = self.data.iloc[min_index:min_index+1]["Wind BOS Cost"].values
-            solar_bos_cost = self.data.iloc[min_index:min_index+1]["Solar BOS Cost"].values
-            total_project_cost = self.data.iloc[min_index:min_index+1]["Total Project Cost"].values
-            if min_distance / np.linalg.norm(search_inputs) > .05:
-                Warning("Inputs (Wind Size: {}MW and Solar Size: {}MW) to BOSLookup outside of range and cannot be extrapolated".format(wind_mw, solar_mw))
+        # If single-tech plant and less than 10 MW, use correlation derived from BOSLookup.csv
+        if solar_mw < 10 and wind_mw == 0:
+            total_project_cost = 1e6*(1.15*solar_mw+12.73)
+            wind_bos_cost = 0
+            solar_bos_cost = 0
+            min_distance = 0
+        elif solar_mw == 0 and wind_mw < 10:
+            total_project_cost = 1e6*(1.3824*wind_mw+32.121)
+            wind_bos_cost = 0
+            solar_bos_cost = 0
+            min_distance = 0
         else:
-            wind_bos_cost = vals[self.desired_output_parameters.index("Wind BOS Cost")]
-            solar_bos_cost = vals[self.desired_output_parameters.index("Solar BOS Cost")]
-            total_project_cost = vals[self.desired_output_parameters.index("Total Project Cost")]
+            search_inputs = np.array([interconnection_mw, wind_mw, solar_mw])
+            distance_norm = np.linalg.norm(self.contents - search_inputs, axis=1)
+            min_index = np.argmin(distance_norm)
+            min_distance = distance_norm[min_index]
+
+            vals = []
+            for i in range(len(self.desired_output_parameters)):
+                vals.append(self.interpolating_fxns[i](search_inputs)[0])
+
+            if np.isnan(vals).any():
+                wind_bos_cost = self.data.iloc[min_index:min_index+1]["Wind BOS Cost"].values
+                solar_bos_cost = self.data.iloc[min_index:min_index+1]["Solar BOS Cost"].values
+                total_project_cost = self.data.iloc[min_index:min_index+1]["Total Project Cost"].values
+                if min_distance / np.linalg.norm(search_inputs) > .05:
+                    Warning("Inputs (Wind Size: {}MW and Solar Size: {}MW) to BOSLookup outside of range and cannot be extrapolated".format(wind_mw, solar_mw))
+            else:
+                wind_bos_cost = vals[self.desired_output_parameters.index("Wind BOS Cost")]
+                solar_bos_cost = vals[self.desired_output_parameters.index("Solar BOS Cost")]
+                total_project_cost = vals[self.desired_output_parameters.index("Total Project Cost")]
 
         logger.info("Total Project Cost: {} Wind BOS Cost: {} Solar BOS Cost {}".
                     format(total_project_cost, wind_bos_cost, solar_bos_cost))

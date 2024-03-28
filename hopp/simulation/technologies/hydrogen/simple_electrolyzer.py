@@ -45,7 +45,8 @@ class SimpleElectrolyzer(BaseClass):
         '''
         Executes an electrolyzer simulation
         '''
-        self.output_streams_kg_s['hydrogen'] = [i/self.kwh_kg_h2 for i in self.generation_profile]
+        self.output_streams_kg_s['hydrogen'] = [i/self.kwh_kg_h2/60/60 for i in self.generation_profile]
+        self.output_streams_kg_s['oxygen'] = [i*15.998/1.008/2 for i in self.output_streams_kg_s['hydrogen']]
         self.input_streams_kg_s['water'] = [i*self.kg_h2o_kg_h2 for i in self.output_streams_kg_s['hydrogen']]
         self.annual_energy = sum(self.generation_profile)
 
