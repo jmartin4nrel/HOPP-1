@@ -3,6 +3,7 @@ import numpy as np
 import multiprocessing
 import time
 from examples.efuel.calculate_efuel_cost import calculate_efuel_cost
+from examples.efuel.import_sites import import_sites
 import matplotlib.pyplot as plt
 
 from typing import Tuple
@@ -12,6 +13,9 @@ from hopp.simulation.hybrid_simulation import HybridSimulation
 from hopp.tools.optimization import DataRecorder
 from hopp.tools.optimization.optimization_problem import OptimizationProblem
 from hopp.tools.optimization.optimization_driver import OptimizationDriver
+
+
+
 
 class EfuelHybridProblem(OptimizationProblem):
     """
