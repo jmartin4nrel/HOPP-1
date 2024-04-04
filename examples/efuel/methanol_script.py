@@ -1,5 +1,6 @@
 from hopp.simulation import HoppInterface
 import numpy as np
+import pandas as pd
 import multiprocessing
 import time
 from examples.efuel.calculate_efuel_cost import calculate_efuel_cost
@@ -53,7 +54,8 @@ class EfuelHybridProblem(OptimizationProblem):
                 "mu": 50, "sigma": 50
             },
             "min": 0, "max": 100
-        }})
+        }
+        })
 
     def _set_simulation_to_candidate(self,
                                     candidate: np.ndarray,
@@ -98,24 +100,17 @@ if __name__ == '__main__':
             arg_list = [pcts_wind[i],pcts_overbuild[j],lat,lon]
             arg_lists.append(arg_list)
 
-    
-
 
     ### Run optimization on the e-fuel cost
     
 
-
     ## One instance
             
-    calculate_efuel_cost(91,4,lat,lon,True,True)
-
+    # calculate_efuel_cost(100,0,lat,lon,True)
 
 
     ## Grid
-            
-    # for arg_list in arg_lists:
-    #     calculate_efuel_cost(*arg_list)
-    
+        
     # start = time.time()
     # with multiprocessing.Pool(num_cores) as p:
     #     p.starmap(calculate_efuel_cost, arg_lists)
@@ -123,6 +118,39 @@ if __name__ == '__main__':
     # print("Elapsed Time: {:.1f} seconds".format(stop-start))
             
 
+    ## All locations
+            
+    site_file = 'ngcc_sites_full.csv'
+    lats, lons = import_sites(site_file)
+
+    x, y = np.shape(lats)
+    lcom_array = np.zeros((x,y))
+    CI_array = np.zeros((x,y))
+    WC_array = np.zeros((x,y))
+    
+    for i in range(x):
+        lat_list = lats[i]
+        lon_list = lons[i]
+        arg_lists = []
+        for j in range(y):
+            arg_list = [100,0,lat_list[j],lon_list[j]]
+            arg_lists.append(arg_list)
+        
+        start = time.time()
+        with multiprocessing.Pool(num_cores) as p:
+            results = p.starmap(calculate_efuel_cost, arg_lists)
+        stop = time.time()
+        
+        result_array = np.array(results)
+        lcom_array[i,:] = result_array[:,0]
+        CI_array[i,:] = result_array[:,1]
+        WC_array[i,:] = result_array[:,2]
+        np.savetxt("lcom.csv",lcom_array,delimiter=',')
+        np.savetxt("CI.csv",CI_array,delimiter=',')
+        np.savetxt("WC.csv",WC_array,delimiter=',')
+        write_time = time.time()
+        
+        print("Site #{} of {} complete, elapsed time: {:.1f} seconds ({:.1f} to write)".format(i+1,x,write_time-start,write_time-stop))
 
     ## With optimizer
 

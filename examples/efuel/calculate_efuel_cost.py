@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from hopp.simulation.technologies.sites import SiteInfo, methanol_site
 from hopp.utilities import load_yaml
 
-def calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon, turndown=False, grid_pricing=False):
+def calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon, printout=False, turndown=False, grid_pricing=False):
 
     # Create a HOPP interface with the cost and lca information for all components loaded from a .yaml 
     hi = HoppInterface("./08-wind-solar-electrolyzer-fuel.yaml")
@@ -45,6 +45,7 @@ def calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon, turndown=False, grid
     if hi.system.tech_config.co2.capture_model == 'None':
         hi.system.co2._financial_model.voc_kg = 0.
         hi.system.tech_config.co2.lca['co2_kg_kg'] = 0.
+        hi.system.tech_config.co2.lca['h2o_kg_kg'] = 0.
         hi.system.ng._system_model.annual_mass_kg = 0.
     hi.system.co2.simulate_flow(1)
     ng_kg_s = copy.deepcopy(np.mean(hi.system.co2._system_model.input_streams_kg_s['natural gas']))
@@ -62,7 +63,7 @@ def calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon, turndown=False, grid
     wind_cap_factor = 0.45
     wind_cap_kw = overbuild_elec_kw*percent_wind/100/wind_cap_factor
     turb_rating_kw = getattr(hi.system,'wind').value('turb_rating')
-    num_turbines = np.max([1,np.floor(wind_cap_kw/turb_rating_kw)])
+    num_turbines = np.min([300,np.max([1,np.floor(wind_cap_kw/turb_rating_kw)])])
 
     # Widen site to match number of turbines needed
     # For site area: square with sides = sqrt of number of turbines times rotor diameter times ten
@@ -125,27 +126,28 @@ def calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon, turndown=False, grid
     hi.system.wind.simulate_power(1)
     wind_cap_factor = getattr(hi.system,'wind').value('capacity_factor')/100
     wind_cap_kw = overbuild_elec_kw*percent_wind/100/wind_cap_factor
-    num_turbines = np.max([1,np.floor(wind_cap_kw/turb_rating_kw)])
+    num_turbines = np.min([300,np.max([1,np.floor(wind_cap_kw/turb_rating_kw)])])
     getattr(hi.system,'wind').value('num_turbines',num_turbines)
     hi.system.wind.simulate_power(1)
     wind_cap_factor = getattr(hi.system,'wind').value('capacity_factor')/100
     wind_cap_kw = num_turbines*turb_rating_kw
     hi.system.wind._financial_model.system_capacity_kw = wind_cap_kw
     percent_wind = wind_cap_kw*wind_cap_factor/overbuild_elec_kw*100
-    # while percent_wind >= 100:
-    #     num_turbines = num_turbines-1
-    #     getattr(hi.system,'wind').value('num_turbines',num_turbines)
-    #     hi.system.wind.simulate_power(1)
-    #     wind_cap_factor = getattr(hi.system,'wind').value('capacity_factor')/100
-    #     wind_cap_kw = num_turbines*turb_rating_kw
-    #     hi.system.wind._financial_model.system_capacity_kw = wind_cap_kw
-    #     percent_wind = wind_cap_kw*wind_cap_factor/overbuild_elec_kw*100
+    while percent_wind >= 100 and num_turbines>1:
+        num_turbines = num_turbines-1
+        getattr(hi.system,'wind').value('num_turbines',num_turbines)
+        hi.system.wind.simulate_power(1)
+        wind_cap_factor = getattr(hi.system,'wind').value('capacity_factor')/100
+        wind_cap_kw = num_turbines*turb_rating_kw
+        hi.system.wind._financial_model.system_capacity_kw = wind_cap_kw
+        percent_wind = wind_cap_kw*wind_cap_factor/overbuild_elec_kw*100
 
     # Set everything back to where it was
     getattr(hi.system,'co2').value('co2_kg_s',co2_kg_s)
     if hi.system.tech_config.co2.capture_model == 'None':
         hi.system.co2._financial_model.voc_kg = 0.
         hi.system.tech_config.co2.lca['co2_kg_kg'] = 0.
+        hi.system.tech_config.co2.lca['h2o_kg_kg'] = 0.
         hi.system.ng._system_model.annual_mass_kg = 0.
     hi.system.ng._system_model.ng_kg_s = ng_kg_s
     getattr(hi.system,'ng').value('ng_kg_s',ng_kg_s)
@@ -242,11 +244,8 @@ def calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon, turndown=False, grid
         hopp_config["site"] = site
         hopp_config["technologies"]["wind"]["num_turbines"] = num_turbines
         hopp_config["technologies"]["pv"]["system_capacity_kw"] = pv_cap_kw
-        if 'battery' in hi.system.technologies.keys():
-            hopp_config["technologies"]["battery"]["system_capacity_kw"] = batt_kw
-            hopp_config["technologies"]["battery"]["system_capacity_kwh"] = batt_kwh
-        else:
-            hopp_config["technologies"].pop("battery")
+        hopp_config["technologies"]["battery"]["system_capacity_kw"] = batt_kw
+        hopp_config["technologies"]["battery"]["system_capacity_kwh"] = batt_kwh
 
         hi_batt = HoppInterface(hopp_config)
 
@@ -310,12 +309,16 @@ def calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon, turndown=False, grid
     
     hi.simulate(1)
 
-    print("Percent wind: {:.1f}%   Percent overbuild: {:.1f}%".format(percent_wind,pct_overbuild))
-    print("Levelized cost of methanol (LCOM), $/kg: {:.3f}".format(hi.system.lc))
-    for tech in hi.system.lc_breakdown.keys():
-        print(tech+': {:.3f}'.format(hi.system.lc_breakdown[tech]))
-    print("Carbon Intensity (CI), kg/kg-MeOH: {:.3f}".format(hi.system.lca['co2_kg_kg']))
-    for tech in hi.system.lca_breakdown.keys():
-        print(tech+': {:.3f}'.format(hi.system.lca_breakdown[tech]['co2_kg_kg']))
+    if printout:
+        print("Percent wind: {:.1f}%   Percent overbuild: {:.1f}%".format(percent_wind,pct_overbuild))
+        print("Levelized cost of methanol (LCOM), $/kg: {:.3f}".format(hi.system.lc))
+        for tech in hi.system.lc_breakdown.keys():
+            print(tech+': {:.3f}'.format(hi.system.lc_breakdown[tech]))
+        print("Carbon Intensity (CI), kg/kg-MeOH: {:.3f}".format(hi.system.lca['co2_kg_kg']))
+        for tech in hi.system.lca_breakdown.keys():
+            print(tech+': {:.3f}'.format(hi.system.lca_breakdown[tech]['co2_kg_kg']))
+        print("Water Consumption (WC), kg/kg-MeOH: {:.3f}".format(hi.system.lca['h2o_kg_kg']))
+        for tech in hi.system.lca_breakdown.keys():
+            print(tech+': {:.3f}'.format(hi.system.lca_breakdown[tech]['h2o_kg_kg']))
 
-    return hi.system.lc
+    return hi.system.lc, hi.system.lca['co2_kg_kg'], hi.system.lca['h2o_kg_kg']

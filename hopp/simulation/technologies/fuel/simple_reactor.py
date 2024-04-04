@@ -65,9 +65,21 @@ class SimpleReactor(BaseClass):
                 kj_kgH2 = kwh_kgH2*3600
                 kgH2O_kgH2 = 14.309
             if reactor == 'RCC recycle':
+                # if catalyst == 'CZA':
+                #     h2ratio = 0.327
+                #     co2ratio = 9.118
+                #     kwh_kgH2 = 54.66
+                #     kj_kgH2 = kwh_kgH2*3600
+                #     kgH2O_kgH2 = 14.309
                 if catalyst == 'CZA':
-                    h2ratio = 0.327
-                    co2ratio = 9.118
+                    h2ratio = 0.33509977
+                    co2ratio = 9.1105156
+                    kwh_kgH2 = 54.66
+                    kj_kgH2 = kwh_kgH2*3600
+                    kgH2O_kgH2 = 14.309
+                elif catalyst == 'Na/CZA':
+                    h2ratio = 0.25310402
+                    co2ratio = 7.6474347
                     kwh_kgH2 = 54.66
                     kj_kgH2 = kwh_kgH2*3600
                     kgH2O_kgH2 = 14.309
@@ -84,8 +96,8 @@ class SimpleReactor(BaseClass):
                 kgH2O_kgH2 = 14.309
             if reactor == 'RCC recycle':
                 if catalyst == 'CZA':
-                    h2ratio = 0.327
-                    co2ratio = 9.118
+                    h2ratio = 0.33509977
+                    co2ratio = 9.1105156
                     kwh_kgH2 = 54.66
                     kj_kgH2 = kwh_kgH2*3600
                     kgH2O_kgH2 = 14.309

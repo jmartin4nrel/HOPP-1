@@ -43,3 +43,5 @@ utm
 pyyaml-include
 responses
 chardet
+arcgis
+azure-storage-blob=12.8

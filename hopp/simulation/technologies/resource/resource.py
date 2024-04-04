@@ -3,6 +3,8 @@ import os
 import json
 import requests
 import time
+import numpy
+rng = numpy.random.default_rng()
 
 
 class Resource(metaclass=ABCMeta):
@@ -88,7 +90,10 @@ class Resource(metaclass=ABCMeta):
                     print(filename)
                     raise requests.exceptions.HTTPError
                 elif r.status_code == 429:
-                    raise RuntimeError("Maximum API request rate exceeded!")
+                    wait = 1+10**n_tries+rng.integers(10)
+                    print("Download request rate exceeded! Waiting {} sec...".format(wait))
+                    time.sleep(wait)
+                    n_tries += 1
                 else:
                     n_tries += 1 # Won't repeat endlessly (and exceed request limit) if API returns unexpected code
             except requests.exceptions.Timeout:
