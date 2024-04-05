@@ -6,6 +6,7 @@ import time
 from examples.efuel.calculate_efuel_cost import calculate_efuel_cost
 from examples.efuel.import_sites import import_sites
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 from typing import Tuple
 import numpy as np
@@ -15,8 +16,8 @@ from hopp.tools.optimization import DataRecorder
 from hopp.tools.optimization.optimization_problem import OptimizationProblem
 from hopp.tools.optimization.optimization_driver import OptimizationDriver
 
-
-
+main_path = Path("inputs/wind-solar-electrolyzer-fuel.yaml")
+turndown_path = Path("inputs/methanol-battery.yaml")
 
 class EfuelHybridProblem(OptimizationProblem):
     """
@@ -73,7 +74,10 @@ class EfuelHybridProblem(OptimizationProblem):
         pct_wind, pct_overbuild = self._set_simulation_to_candidate(candidate_conforming)
         lat = 32.34
         lon = -98.27
-        evaluation = (-calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon),candidate_index)
+        fuel = 'methanol'
+        reactor = 'CO2 hydrogenation'
+        catalyst = 'CZA'
+        evaluation = (-calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, pct_wind, pct_overbuild, year, lat, lon),candidate_index)
         score = evaluation[0]
         return score, evaluation, candidate_conforming
 
@@ -84,8 +88,12 @@ if __name__ == '__main__':
     num_cores = 14
 
     # TODO sweep through reactor parameters
+    fuel = 'methanol'
+    reactor = 'RCC recycle'
+    catalyst = 'CZA'
 
     # TODO sweep through years
+    year = 2020
 
     # Either sweep through locations or pick a specific location
     lat = 32.337679
@@ -97,7 +105,7 @@ if __name__ == '__main__':
     pcts_overbuild = np.arange(0,20,20)
     for i in range(len(pcts_wind)):
         for j in range(len(pcts_overbuild)):
-            arg_list = [pcts_wind[i],pcts_overbuild[j],lat,lon]
+            arg_list = [main_path, turndown_path, fuel, reactor, catalyst, pcts_wind[i], pcts_overbuild[j], year, lat, lon]
             arg_lists.append(arg_list)
 
 
@@ -105,8 +113,8 @@ if __name__ == '__main__':
     
 
     ## One instance
-            
-    # calculate_efuel_cost(100,0,lat,lon,True)
+
+    calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, 100, 0, year, lat, lon, True)
 
 
     ## Grid
@@ -120,37 +128,37 @@ if __name__ == '__main__':
 
     ## All locations
             
-    site_file = 'ngcc_sites_full.csv'
-    lats, lons = import_sites(site_file)
+    # site_file = 'ngcc_sites_full.csv'
+    # lats, lons = import_sites(site_file)
 
-    x, y = np.shape(lats)
-    lcom_array = np.zeros((x,y))
-    CI_array = np.zeros((x,y))
-    WC_array = np.zeros((x,y))
+    # x, y = np.shape(lats)
+    # lcom_array = np.zeros((x,y))
+    # CI_array = np.zeros((x,y))
+    # WC_array = np.zeros((x,y))
     
-    for i in range(x):
-        lat_list = lats[i]
-        lon_list = lons[i]
-        arg_lists = []
-        for j in range(y):
-            arg_list = [100,0,lat_list[j],lon_list[j]]
-            arg_lists.append(arg_list)
+    # for i in range(x):
+    #     lat_list = lats[i]
+    #     lon_list = lons[i]
+    #     arg_lists = []
+    #     for j in range(y):
+    #         arg_list = [main_path, turndown_path, fuel, reactor, catalyst, 100, 0, year, lat_list[j], lon_list[j]]
+    #         arg_lists.append(arg_list)
         
-        start = time.time()
-        with multiprocessing.Pool(num_cores) as p:
-            results = p.starmap(calculate_efuel_cost, arg_lists)
-        stop = time.time()
+    #     start = time.time()
+    #     with multiprocessing.Pool(num_cores) as p:
+    #         results = p.starmap(calculate_efuel_cost, arg_lists)
+    #     stop = time.time()
         
-        result_array = np.array(results)
-        lcom_array[i,:] = result_array[:,0]
-        CI_array[i,:] = result_array[:,1]
-        WC_array[i,:] = result_array[:,2]
-        np.savetxt("lcom.csv",lcom_array,delimiter=',')
-        np.savetxt("CI.csv",CI_array,delimiter=',')
-        np.savetxt("WC.csv",WC_array,delimiter=',')
-        write_time = time.time()
+    #     result_array = np.array(results)
+    #     lcom_array[i,:] = result_array[:,0]
+    #     CI_array[i,:] = result_array[:,1]
+    #     WC_array[i,:] = result_array[:,2]
+    #     np.savetxt("lcom.csv",lcom_array,delimiter=',')
+    #     np.savetxt("CI.csv",CI_array,delimiter=',')
+    #     np.savetxt("WC.csv",WC_array,delimiter=',')
+    #     write_time = time.time()
         
-        print("Site #{} of {} complete, elapsed time: {:.1f} seconds ({:.1f} to write)".format(i+1,x,write_time-start,write_time-stop))
+    #     print("Site #{} of {} complete, elapsed time: {:.1f} seconds ({:.1f} to write)".format(i+1,x,write_time-start,write_time-stop))
 
     ## With optimizer
 
@@ -176,4 +184,4 @@ if __name__ == '__main__':
     #     plt.plot(np.array(candidates)[:,0],np.array(candidates)[:,1],'.')
     # print("Elapsed Time: {:.1f} seconds".format(stop-start))
 
-    # calculate_efuel_cost(best_solution[0],best_solution[1],lat,lon)
+    # calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, best_solution[0], best_solution[1], year, lat, lon)

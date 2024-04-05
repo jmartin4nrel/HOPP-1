@@ -5,14 +5,37 @@ import copy
 import matplotlib.pyplot as plt
 from hopp.simulation.technologies.sites import SiteInfo, methanol_site
 from hopp.utilities import load_yaml
+from pathlib import Path
 
-def calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon, printout=False, turndown=False, grid_pricing=False):
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter, column_index_from_string
+
+def calculate_efuel_cost(main_path: Path,
+                         turndown_path: Path,
+                         fuel: str='methanol',
+                         reactor: str='CO2 hydrogenation',
+                         catalyst: str=None,
+                         pct_wind: float=100.,
+                         pct_overbuild: float=0.,
+                         year: int=2020,
+                         lat: float = 40.,
+                         lon: float = -100.,
+                         printout=False,
+                         turndown=False,
+                         grid_pricing=False):
 
     # Create a HOPP interface with the cost and lca information for all components loaded from a .yaml 
-    hi = HoppInterface("./08-wind-solar-electrolyzer-fuel.yaml")
+    hi = HoppInterface(main_path)
+
+    # Set fuel, reactor, and catalyst
+    getattr(hi.system,'fuel').value('fuel_produced',fuel)
+    getattr(hi.system,'fuel').value('reactor_tech',reactor)
+    getattr(hi.system,'fuel').value('catalyst',catalyst)
+
+    # Correct year with ATB
+
 
     # Set system losses
-
     hi.system.pv._system_model.SystemDesign.dc_ac_ratio = 1.28
     hi.system.pv._system_model.SystemDesign.losses = 14.3
 
@@ -239,7 +262,7 @@ def calculate_efuel_cost(pct_wind, pct_overbuild, lat, lon, printout=False, turn
                 wave=False
             )
 
-        hopp_config = load_yaml("./09-methanol-battery.yaml")
+        hopp_config = load_yaml(turndown_path)
         # set SiteInfo instance
         hopp_config["site"] = site
         hopp_config["technologies"]["wind"]["num_turbines"] = num_turbines
