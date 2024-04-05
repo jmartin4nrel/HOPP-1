@@ -31,6 +31,25 @@ def calculate_efuel_cost(main_path: Path,
     getattr(hi.system,'fuel').value('fuel_produced',fuel)
     getattr(hi.system,'fuel').value('reactor_tech',reactor)
     getattr(hi.system,'fuel').value('catalyst',catalyst)
+    input_path = Path('inputs')
+    fuel_inputs = pd.read_csv(input_path/'Reactor_inputs.csv',index_col=[0,1])
+    cost_list = ['toc','toc_kg_s','foc_yr','foc_kg_s_yr','voc_kg']
+    for cost in cost_list:
+        if cost in fuel_inputs.columns:
+            setattr(hi.system.fuel.config.simple_fin_config,cost,fuel_inputs.loc[(reactor,catalyst),cost])
+            setattr(hi.system.fuel._financial_model,cost,fuel_inputs.loc[(reactor,catalyst),cost])
+    em_list = ['co2_kg_kg','h2o_kg_kg']
+    for em in em_list:
+        if em in fuel_inputs.columns:
+            hi.system.fuel.config.lca[em] = fuel_inputs.loc[(reactor,catalyst),em]
+    param_list = ['h2ratio','co2ratio']
+    for param in param_list:
+        if param in fuel_inputs.columns:
+            hi.system.fuel.config.reaction_params[param] = fuel_inputs.loc[(reactor,catalyst),param]
+    if 'RCC' in reactor:
+        setattr(hi.system.co2.config,'capture_model','None')
+        setattr(hi.system.tech_config.co2,'capture_model','None')
+
 
     # Correct year with ATB
 
@@ -166,6 +185,22 @@ def calculate_efuel_cost(main_path: Path,
         percent_wind = wind_cap_kw*wind_cap_factor/overbuild_elec_kw*100
 
     # Set everything back to where it was
+    cost_list = ['toc','toc_kg_s','foc_yr','foc_kg_s_yr','voc_kg']
+    for cost in cost_list:
+        if cost in fuel_inputs.columns:
+            setattr(hi.system.fuel.config.simple_fin_config,cost,fuel_inputs.loc[(reactor,catalyst),cost])
+            setattr(hi.system.fuel._financial_model,cost,fuel_inputs.loc[(reactor,catalyst),cost])
+    em_list = ['co2_kg_kg','h2o_kg_kg']
+    for em in em_list:
+        if em in fuel_inputs.columns:
+            hi.system.fuel.config.lca[em] = fuel_inputs.loc[(reactor,catalyst),em]
+    param_list = ['h2ratio','co2ratio']
+    for param in param_list:
+        if param in fuel_inputs.columns:
+            hi.system.fuel.config.reaction_params[param] = fuel_inputs.loc[(reactor,catalyst),param]
+    if 'RCC' in reactor:
+        setattr(hi.system.co2.config,'capture_model','None')
+        setattr(hi.system.tech_config.co2,'capture_model','None')
     getattr(hi.system,'co2').value('co2_kg_s',co2_kg_s)
     if hi.system.tech_config.co2.capture_model == 'None':
         hi.system.co2._financial_model.voc_kg = 0.

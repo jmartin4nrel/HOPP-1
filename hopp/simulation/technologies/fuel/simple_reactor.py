@@ -57,32 +57,12 @@ class SimpleReactor(BaseClass):
         self.output_streams_kg_s[fuel] = [fuel_kg_s]*8760
         self.flow_kg_s = self.output_streams_kg_s[fuel]
         self.annual_mass_kg = fuel_kg_s*60*60*24*365
-        if fuel == 'methanol':
-            if reactor == 'CO2 hydrogenation':
-                h2ratio = 0.195
-                co2ratio = 1.423
-                kwh_kgH2 = 54.66
-                kj_kgH2 = kwh_kgH2*3600
-                kgH2O_kgH2 = 14.309
-            if reactor == 'RCC recycle':
-                # if catalyst == 'CZA':
-                #     h2ratio = 0.327
-                #     co2ratio = 9.118
-                #     kwh_kgH2 = 54.66
-                #     kj_kgH2 = kwh_kgH2*3600
-                #     kgH2O_kgH2 = 14.309
-                if catalyst == 'CZA':
-                    h2ratio = 0.33509977
-                    co2ratio = 9.1105156
-                    kwh_kgH2 = 54.66
-                    kj_kgH2 = kwh_kgH2*3600
-                    kgH2O_kgH2 = 14.309
-                elif catalyst == 'Na/CZA':
-                    h2ratio = 0.25310402
-                    co2ratio = 7.6474347
-                    kwh_kgH2 = 54.66
-                    kj_kgH2 = kwh_kgH2*3600
-                    kgH2O_kgH2 = 14.309
+        kwh_kgH2 = 54.66
+        kj_kgH2 = kwh_kgH2*3600
+        kgH2O_kgH2 = 14.309
+        if fuel == 'methanol':            
+            h2ratio = self.config.reaction_params['h2ratio']
+            co2ratio = self.config.reaction_params['co2ratio']
             self.input_streams_kg_s['hydrogen'] = [i*h2ratio for i in self.output_streams_kg_s[fuel]]
             self.input_streams_kg_s['water'] = [i*kgH2O_kgH2 for i in self.input_streams_kg_s['hydrogen']]
             self.input_streams_kw['electricity'] = [i*kj_kgH2 for i in self.input_streams_kg_s['hydrogen']]

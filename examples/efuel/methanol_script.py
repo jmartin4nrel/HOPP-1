@@ -76,7 +76,7 @@ class EfuelHybridProblem(OptimizationProblem):
         lon = -98.27
         fuel = 'methanol'
         reactor = 'CO2 hydrogenation'
-        catalyst = 'CZA'
+        catalyst = 'None'
         evaluation = (-calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, pct_wind, pct_overbuild, year, lat, lon),candidate_index)
         score = evaluation[0]
         return score, evaluation, candidate_conforming
@@ -90,7 +90,7 @@ if __name__ == '__main__':
     # TODO sweep through reactor parameters
     fuel = 'methanol'
     reactor = 'RCC recycle'
-    catalyst = 'CZA'
+    catalyst = 'K/CZA'
 
     # TODO sweep through years
     year = 2020
