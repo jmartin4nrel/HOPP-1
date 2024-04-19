@@ -88,14 +88,7 @@ def realtime_balancer(simulate_aries=True, acceleration=1, simulate_SOC=True):
     recvHOPPsocket.settimeout(60)
 
     if simulate_aries:
-        # Setup UDP receive from ARIES
-        localIP     = "127.0.0.1"
-        localPort   = 20002
-        serverAddressPort   = (localIP, localPort)
-        recvARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-        recvARIESsocket.bind(serverAddressPort)
-        recvARIESsocket.settimeout(60)
-
+        
         # Setup UDP send to ARIES
         localIP     = "127.0.0.1"
         localPort   = 20003
@@ -136,14 +129,26 @@ def realtime_balancer(simulate_aries=True, acceleration=1, simulate_SOC=True):
 
     while(True):
 
-        # Setup UDP receive from ARIES
-        remoteIP     = "10.81.17.104"
-        remotePort   = 9010
-        serverAddressPort   = (remoteIP, remotePort)
-        recvARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-        recvARIESsocket.bind(serverAddressPort)
-        recvARIESsocket.settimeout(60)
+        if simulate_aries:
+        
+            # Setup UDP receive from ARIES
+            localIP     = "127.0.0.1"
+            localPort   = 20002
+            serverAddressPort   = (localIP, localPort)
+            recvARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+            recvARIESsocket.bind(serverAddressPort)
+            recvARIESsocket.settimeout(60)
 
+        else:
+
+            # Setup UDP receive from ARIES
+            remoteIP     = "10.81.17.104"
+            remotePort   = 9010
+            serverAddressPort   = (remoteIP, remotePort)
+            recvARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+            recvARIESsocket.bind(serverAddressPort)
+            recvARIESsocket.settimeout(60)
+        
         # Receive data from ARIES
         ARIESpair = recvARIESsocket.recvfrom(bufferSize_ARIES)
         ARIESraw = ARIESpair[0]
