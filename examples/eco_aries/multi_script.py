@@ -7,17 +7,18 @@ import time
 
 if __name__ == '__main__':
 
-    simulate_aries = True
+    simulate_aries = False
     acceleration = 100
-    num_inputs = 26
+    num_inputs = 28
     initial_SOC = 50.0
+    simulate_SOC = False
 
     eco_setup(False)
 
     hopp = multiprocessing.Process(target=hopp_comms)
     if simulate_aries:
         aries = multiprocessing.Process(target=aries_comms, args=(num_inputs, initial_SOC, acceleration))
-    balancer = multiprocessing.Process(target=realtime_balancer, args=(simulate_aries,acceleration))
+    balancer = multiprocessing.Process(target=realtime_balancer, args=(simulate_aries,acceleration, simulate_SOC))
 
     balancer.start()
     time.sleep(5)

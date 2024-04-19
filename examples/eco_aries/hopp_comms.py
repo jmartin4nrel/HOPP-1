@@ -91,7 +91,8 @@ def hopp_comms():
             for i in range(1, 11):
                 wave_prod['wave_prod_' + str(i)] = hi.system.generation_profile['wave'][hopp_timestep]
             comm_dict.update(wave_prod)
-            comm_dict.update({'peripheral_load': 0})
+            comm_dict.update({'peripheral_load': 0}) # Make peripheral load 12 kw when electrolyzer is active, zero when it is not
+            comm_dict.update({'elyzer_kw':elyzer_kw})
 
 
             # Update timestep

@@ -89,7 +89,7 @@ def setup_tracking(plotting):
         return hopp_time, aries_time, aries_xdata
     
 
-def update_trackers(trackers, HOPPdict, ARIESdict, plotting=False):
+def update_trackers(trackers, HOPPdict, ARIESdict, plotting=False, simulate_SOC=True):
 
     
     gen_dict = HOPPdict['gen']
@@ -104,6 +104,8 @@ def update_trackers(trackers, HOPPdict, ARIESdict, plotting=False):
     
     for i, gen_type in enumerate(["wind", "wave", "solar", "batt", "elyzer"]):
         aries_xdata[gen_type].extend(ARIESdict[gen_type])
+    if not simulate_SOC:
+        aries_xdata['soc'].append(ARIESdict['soc'][-1])
     
     if plotting:
 
@@ -172,11 +174,11 @@ def updateSOCplot(trackers, HOPPdict):
     batt_soc = HOPPdict['soc']
     
     lines[2,0][0].set_xdata(aries_time[np.arange(1,len(aries_time),2)])
-    lines[2,0][0].set_ydata(aries_xdata['soc'][1:])
+    lines[2,0][0].set_ydata(aries_xdata['soc'][0:])
     lines[2,0][1].set_ydata(batt_soc)
 
     lines[2,1][0].set_xdata(aries_time[np.arange(1,len(aries_time),2)])
-    lines[2,1][0].set_ydata(aries_xdata['soc'][1:])
+    lines[2,1][0].set_ydata(aries_xdata['soc'][0:])
     lines[2,1][1].set_ydata(batt_soc)
 
     fig.canvas.draw() 

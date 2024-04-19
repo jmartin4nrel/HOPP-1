@@ -4,7 +4,7 @@ import struct
 import numpy as np
 import pandas as pd
 from hopp import ROOT_DIR
-
+from random import random
 
 
 def aries_input_pack(HOPPdict):
@@ -18,7 +18,7 @@ def aries_input_pack(HOPPdict):
                  'wind_vel_10','wind_vel_11','wind_vel_12','wind_vel_13',
                  'wind_vel_14','wind_vel_15','wind_vel_16','wind_vel_17',
                  'wind_vel_18','wind_vel_19','wind_vel_20','wind_vel_21',
-                 'wind_vel_22','wind_vel_23']
+                 'wind_vel_22','wind_vel_23','peripheral_load','elyzer_kw']
 
     strs_list = []
 
@@ -39,7 +39,7 @@ def aries_input_unpack(raw_input):
                     'WindSPD9','WindSPD10','WindSPD11','WindSPD12',
                     'WindSPD13','WindSPD14','WindSPD15','WindSPD16',
                     'WindSPD17','WindSPD18','WindSPD19','WindSPD20',
-                    'WindSPD21','WindSPD22','WindSPD23']
+                    'WindSPD21','WindSPD22','WindSPD23','LoadPeriph','Electrolyzer_Ps']
 
     num_bytes = len(raw_input)
 
@@ -118,7 +118,7 @@ def aries_output_unpack(raw_output):
     return HOPP_dict
 
 
-def aries_comms(num_inputs=26, initial_SOC=50.0, acceleration=1):
+def aries_comms(num_inputs=28, initial_SOC=50.0, acceleration=1):
 
     bufferSize  = num_inputs*4
 
@@ -183,7 +183,7 @@ def aries_comms(num_inputs=26, initial_SOC=50.0, acceleration=1):
             # Add variables to ARIES dict
             ARIESdict = {}
             ARIESdict['PML6'] = row['batt']
-            ARIESdict['BESS_SOC'] = initial_SOC
+            ARIESdict['BESS_SOC'] = initial_SOC+random()*10-5 # Randomly perturb the SOC so we will see it change when running in simulated ARIES mode
             ARIESdict['Ps_PV'] = row['solar']
             ARIESdict['Electrolyzer_Ps'] = row['elyzer']
             ARIESdict['Electrolyzer_kg_s'] = row['elyzer']/54.66/60/60
