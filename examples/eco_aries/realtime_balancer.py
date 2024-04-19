@@ -9,7 +9,7 @@ from comms_tracking import setup_tracking, update_trackers, updateSOCplot
 from aries_comms import aries_output_unpack, aries_input_pack
 from hopp import ROOT_DIR
 
-def batt_balance(HOPPdict, ARIESdict, trackers):
+def batt_balance(HOPPdict, ARIESdict, trackers, simulate_SOC):
 
     aries_time = trackers[1]
     aries_xdata = trackers[2]
@@ -31,18 +31,22 @@ def batt_balance(HOPPdict, ARIESdict, trackers):
     hoppSOC = HOPPdict['soc']
     ariesSOC = aries_xdata['soc']
 
-    # Calc new SOC
-    if len(ariesSOC) == 0:
-        initSOC = hoppSOC[0]
-        sec_elapsed = float(np.diff(pd.DatetimeIndex(ARIESdict['aries_time'])))/1e9
-    else:
-        initSOC = aries_xdata['soc'][-1]
-        sec_elapsed = float(np.diff(aries_time[[-3,-1]]))/1e9
-    newSOC = (initSOC/100-sec_elapsed*batt_kw[0]/cap_kwh/3600)*100
-    if len(ariesSOC) == 0:
-        aries_xdata['soc'].extend([initSOC,newSOC])
-    else:
+    if simulate_SOC:
+        # Calc new SOC
+        if len(ariesSOC) == 0:
+            initSOC = hoppSOC[0]
+            sec_elapsed = float(np.diff(pd.DatetimeIndex(ARIESdict['aries_time'])))/1e9
+        else:
+            initSOC = aries_xdata['soc'][-1]
+            sec_elapsed = float(np.diff(aries_time[[-3,-1]]))/1e9
+        newSOC = (initSOC/100-sec_elapsed*batt_kw[0]/cap_kwh/3600)*100
         aries_xdata['soc'].append(newSOC)
+    else:
+        newSOC = ariesSOC[-1]
+        if len(ariesSOC) == 1:
+            sec_elapsed = float(np.diff(pd.DatetimeIndex(ARIESdict['aries_time'])))/1e9
+        else:
+            sec_elapsed = float(np.diff(aries_time[[-3,-1]]))/1e9
 
     # Calculate battery generation needed
     new_batt_kw = elyzer_kw-wind_kw[0]-wave_kw[0]-solar_kw[0]
@@ -69,7 +73,7 @@ def batt_balance(HOPPdict, ARIESdict, trackers):
     
     return HOPPdict, trackers
 
-def realtime_balancer(simulate_aries=True, acceleration=1):
+def realtime_balancer(simulate_aries=True, acceleration=1, simulate_SOC=True):
 
     bufferSize_HOPP  = 4096
     bufferSize_ARIES  = 40*4
@@ -100,16 +104,8 @@ def realtime_balancer(simulate_aries=True, acceleration=1):
 
     else:
         
-        # Setup UDP receive from ARIES
-        remoteIP     = "10.81.17.104"
-        remotePort   = 9016
-        serverAddressPort   = (remoteIP, remotePort)
-        recvARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-        recvARIESsocket.bind(serverAddressPort)
-        recvARIESsocket.settimeout(60)
-
         # Setup UDP send to ARIES
-        remoteIP     = "10.81.15.41"
+        remoteIP     = "10.81.15.88"
         remotePort   = 9010
         sendARIESaddress  = (remoteIP, remotePort)
         sendARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
@@ -139,6 +135,14 @@ def realtime_balancer(simulate_aries=True, acceleration=1):
     hopp_start_time = float(aries_signals.index.values[0])/1e9
 
     while(True):
+
+        # Setup UDP receive from ARIES
+        remoteIP     = "10.81.17.104"
+        remotePort   = 9010
+        serverAddressPort   = (remoteIP, remotePort)
+        recvARIESsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+        recvARIESsocket.bind(serverAddressPort)
+        recvARIESsocket.settimeout(60)
 
         # Receive data from ARIES
         ARIESpair = recvARIESsocket.recvfrom(bufferSize_ARIES)
@@ -183,10 +187,10 @@ def realtime_balancer(simulate_aries=True, acceleration=1):
             if key != 'aries_time':
                 ARIES_output_dict[key] = [ARIES_output_dict[key],ARIES_output_dict[key]]
 
-        trackers = update_trackers(trackers, HOPPdict, ARIES_output_dict, plotting)
+        trackers = update_trackers(trackers, HOPPdict, ARIES_output_dict, plotting, simulate_SOC)
 
         # Balance battery output from real-time output
-        HOPPdict, trackers = batt_balance(HOPPdict, ARIES_output_dict, trackers)
+        HOPPdict, trackers = batt_balance(HOPPdict, ARIES_output_dict, trackers, simulate_SOC)
 
         if plotting:
             trackers = updateSOCplot(trackers, HOPPdict)
@@ -208,4 +212,4 @@ def realtime_balancer(simulate_aries=True, acceleration=1):
 
 if __name__ == '__main__':
 
-    realtime_balancer(False)
+    realtime_balancer(True, 1, False)
