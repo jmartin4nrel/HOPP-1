@@ -7,7 +7,7 @@ import time
 
 if __name__ == '__main__':
 
-    simulate_aries = False
+    simulate_aries = True
     acceleration = 100
     num_inputs = 28
     initial_SOC = 50.0
