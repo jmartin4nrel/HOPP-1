@@ -252,7 +252,7 @@ class FlowSource(BaseClass):
         """
         if not self._system_model:
             return
-        if self.system_capacity_kg_s <= 0:
+        if self.system_capacity_kg_s == 0:
             return
 
         if hasattr(self._system_model, "Lifetime"):

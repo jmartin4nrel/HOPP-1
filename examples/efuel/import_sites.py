@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from pathlib import Path
 
 def import_sites(fn):
 
@@ -7,6 +8,7 @@ def import_sites(fn):
 
     lats = site_df['Latitude'].values
     lons = site_df['Longitude'].values
+    states = site_df['PlantState'].values
 
     survey_rad = 50 # survey radius in km
 
@@ -42,4 +44,9 @@ def import_sites(fn):
             lat_array[idx,7+i] = lat+lat_delta
             lon_array[idx,7+i] = lon+lon_delta
 
-    return lat_array, lon_array
+    return lat_array, lon_array, states
+
+if __name__ == '__main__':
+
+    resource_dir = Path(__file__).parent/'inputs'
+    import_sites(resource_dir/'ngcc_sites_full.csv')

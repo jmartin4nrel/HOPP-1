@@ -4,11 +4,17 @@ import pandas as pd
 import copy
 import matplotlib.pyplot as plt
 from hopp.simulation.technologies.sites import SiteInfo, methanol_site
+from examples.efuel.set_atb_year import set_atb_year
+from examples.efuel.H2AModel_costs import H2AModel_costs
+from examples.efuel.extract_cambium_data import set_cambium_inputs
 from hopp.utilities import load_yaml
 from pathlib import Path
 
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter, column_index_from_string
+
+H2O_price_tgal = 2.56 # 2020 $/Tgal
+H2O_price_kg = H2O_price_tgal/1000*3.78
 
 def calculate_efuel_cost(main_path: Path,
                          turndown_path: Path,
@@ -17,9 +23,11 @@ def calculate_efuel_cost(main_path: Path,
                          catalyst: str=None,
                          pct_wind: float=100.,
                          pct_overbuild: float=0.,
-                         year: int=2020,
+                         dollar_year: int=2020,
+                         startup_year: int=2020,
                          lat: float = 40.,
                          lon: float = -100.,
+                         state: str = 'TX',
                          printout=False,
                          turndown=False,
                          grid_pricing=False):
@@ -30,6 +38,8 @@ def calculate_efuel_cost(main_path: Path,
     # Set fuel, reactor, and catalyst
     getattr(hi.system,'fuel').value('fuel_produced',fuel)
     getattr(hi.system,'fuel').value('reactor_tech',reactor)
+    if reactor == 'CO2 hydrogenation':
+        catalyst = 'None'
     getattr(hi.system,'fuel').value('catalyst',catalyst)
     input_path = Path('inputs')
     fuel_inputs = pd.read_csv(input_path/'Reactor_inputs.csv',index_col=[0,1])
@@ -50,40 +60,25 @@ def calculate_efuel_cost(main_path: Path,
         setattr(hi.system.co2.config,'capture_model','None')
         setattr(hi.system.tech_config.co2,'capture_model','None')
 
-
     # Correct year with ATB
+    atb_scenario = 'Advanced'
+    hi = set_atb_year(hi, atb_scenario, startup_year)
 
-
-    # Set system losses
-    hi.system.pv._system_model.SystemDesign.dc_ac_ratio = 1.28
-    hi.system.pv._system_model.SystemDesign.losses = 14.3
-
-    hi.system.wind._system_model.Losses.avail_bop_loss = 0
-    hi.system.wind._system_model.Losses.avail_grid_loss = 0
-    hi.system.wind._system_model.Losses.avail_turb_loss = 0
-    hi.system.wind._system_model.Losses.elec_eff_loss = 0
-    hi.system.wind._system_model.Losses.elec_parasitic_loss = 0
-    hi.system.wind._system_model.Losses.env_degrad_loss =0
-    hi.system.wind._system_model.Losses.env_env_loss = 0
-    hi.system.wind._system_model.Losses.env_icing_loss = 0
-    hi.system.wind._system_model.Losses.ops_env_loss = 0
-    hi.system.wind._system_model.Losses.ops_grid_loss = 0
-    hi.system.wind._system_model.Losses.ops_load_loss = 0
-    hi.system.wind._system_model.Losses.turb_generic_loss = 0
-    hi.system.wind._system_model.Losses.turb_hysteresis_loss = 0
-    hi.system.wind._system_model.Losses.turb_perf_loss = 0
-    hi.system.wind._system_model.Losses.turb_specific_loss = 0
-    hi.system.wind._system_model.Losses.wake_ext_loss = 0
-    
-    hi.system.wind.rotor_diameter = 124.9
-    hi.system.wind.turb_rating = 2800.0
-    
-    # Calculate electricity needed
+    # Calculate co2 and h2 needed
     hi.system.fuel.simulate_flow(1)
-    total_elec_kw = copy.deepcopy(np.mean((hi.system.fuel._system_model.input_streams_kw['electricity'])))
-    
     co2_kg_s = copy.deepcopy(np.mean(hi.system.fuel._system_model.input_streams_kg_s['carbon dioxide']))
+    h2_kg_s = copy.deepcopy(np.mean(hi.system.fuel._system_model.input_streams_kg_s['hydrogen']))
+    
+    # Correct run H2A model to get electrolyzer efficiency and costs
+    electrolyzer_cap_factor = 0.97
+    h2_basis_year, h2_toc, h2_foc_yr, h2_WC_kg_h2o_kg_h2, h2_kWh_kg = H2AModel_costs(electrolyzer_cap_factor,
+                                                                                       h2_kg_s*60*60*24,
+                                                                                       startup_year)
+    total_elec_kw = h2_kg_s*h2_kWh_kg*3600
+    
     getattr(hi.system,'co2').value('co2_kg_s',co2_kg_s)
+    # ngcc_cap =  hi.system.co2._system_model.ngcc_cap
+    getattr(hi.system,'co2').value('system_capacity_kg_s',co2_kg_s)
     if hi.system.tech_config.co2.capture_model == 'None':
         hi.system.co2._financial_model.voc_kg = 0.
         hi.system.tech_config.co2.lca['co2_kg_kg'] = 0.
@@ -139,28 +134,9 @@ def calculate_efuel_cost(main_path: Path,
     # Create new instance of hopp interface with correct number of turbines
     hi = HoppInterface(hopp_config)
 
-    hi.system.pv._system_model.SystemDesign.dc_ac_ratio = 1.28
-    hi.system.pv._system_model.SystemDesign.losses = 14.3
-
-    hi.system.wind._system_model.Losses.avail_bop_loss = 0
-    hi.system.wind._system_model.Losses.avail_grid_loss = 0
-    hi.system.wind._system_model.Losses.avail_turb_loss = 0
-    hi.system.wind._system_model.Losses.elec_eff_loss = 0
-    hi.system.wind._system_model.Losses.elec_parasitic_loss = 0
-    hi.system.wind._system_model.Losses.env_degrad_loss =0
-    hi.system.wind._system_model.Losses.env_env_loss = 0
-    hi.system.wind._system_model.Losses.env_icing_loss = 0
-    hi.system.wind._system_model.Losses.ops_env_loss = 0
-    hi.system.wind._system_model.Losses.ops_grid_loss = 0
-    hi.system.wind._system_model.Losses.ops_load_loss = 0
-    hi.system.wind._system_model.Losses.turb_generic_loss = 0
-    hi.system.wind._system_model.Losses.turb_hysteresis_loss = 0
-    hi.system.wind._system_model.Losses.turb_perf_loss = 0
-    hi.system.wind._system_model.Losses.turb_specific_loss = 0
-    hi.system.wind._system_model.Losses.wake_ext_loss = 0
-
-    hi.system.wind.rotor_diameter = 124.9
-    hi.system.wind.turb_rating = 2800.0
+    # Correct year with ATB
+    atb_scenario = 'Advanced'
+    hi = set_atb_year(hi, atb_scenario, startup_year)
 
     # Re-calculate wind power and finalize number of turbines
     getattr(hi.system,'wind').value('num_turbines',num_turbines)
@@ -201,7 +177,8 @@ def calculate_efuel_cost(main_path: Path,
     if 'RCC' in reactor:
         setattr(hi.system.co2.config,'capture_model','None')
         setattr(hi.system.tech_config.co2,'capture_model','None')
-    getattr(hi.system,'co2').value('co2_kg_s',co2_kg_s)
+    # getattr(hi.system,'co2').value('co2_kg_s',co2_kg_s)
+    getattr(hi.system,'co2').value('system_capacity_kg_s',co2_kg_s)
     if hi.system.tech_config.co2.capture_model == 'None':
         hi.system.co2._financial_model.voc_kg = 0.
         hi.system.tech_config.co2.lca['co2_kg_kg'] = 0.
@@ -234,6 +211,13 @@ def calculate_efuel_cost(main_path: Path,
     getattr(hi.system,'grid_sales').value('interconnect_kw',sales_cap_kw)
     getattr(hi.system,'grid_purchase').value('interconnect_kw',electrolyzer_cap_kw)
     getattr(hi.system,'electrolyzer').value('system_capacity_kw',electrolyzer_cap_kw)
+    setattr(hi.system.electrolyzer._financial_model,'input_dollar_yr',h2_basis_year)
+    setattr(hi.system.electrolyzer._financial_model,'toc',h2_toc)
+    setattr(hi.system.electrolyzer._financial_model,'toc_kw',None)
+    setattr(hi.system.electrolyzer._financial_model,'foc_yr',h2_foc_yr)
+    setattr(hi.system.electrolyzer._financial_model,'foc_kw_yr',None)
+    water_cost_kwh = H2O_price_kg*h2_WC_kg_h2o_kg_h2/h2_kWh_kg
+    setattr(hi.system.electrolyzer._financial_model,'voc_kwh',water_cost_kwh)
     if 'battery' in hi.system.technologies.keys():
         battery_pct_elec = 100
         battery_size_kw = battery_pct_elec/100*electrolyzer_cap_kw*electrolyzer_cap_factor
@@ -263,6 +247,10 @@ def calculate_efuel_cost(main_path: Path,
                                         sum(np.multiply(hi.system.generation_profile['hybrid'],when_in_between))*timestep_h
             makeup_kw = makeup_kwh/sum(when_below)/timestep_h
             cap_thresh = makeup_kw/electrolyzer_cap_kw
+
+    # Import cambium prices and emissions
+    cambium_scenario = 'MidCase'
+    hi = set_cambium_inputs(hi, cambium_scenario, startup_year, state)
 
     # Make electrolyzer/sales/purchase profiles
     sell_kw = [0.0]*8760
@@ -307,29 +295,13 @@ def calculate_efuel_cost(main_path: Path,
 
         hi_batt = HoppInterface(hopp_config)
 
+        # Correct year with ATB
+        atb_scenario = 'Advanced'
+        hi_batt = set_atb_year(hi_batt, atb_scenario, startup_year)
+
     
         if not grid_pricing:
             hi_batt.system.dispatch_factors = (1.0,)*8760
-
-        hi_batt.system.pv._system_model.SystemDesign.dc_ac_ratio = hi.system.pv._system_model.SystemDesign.dc_ac_ratio
-        hi_batt.system.pv._system_model.SystemDesign.losses = hi.system.pv._system_model.SystemDesign.losses
-
-        hi_batt.system.wind._system_model.Losses.avail_bop_loss = hi.system.wind._system_model.Losses.avail_bop_loss
-        hi_batt.system.wind._system_model.Losses.avail_grid_loss = hi.system.wind._system_model.Losses.avail_grid_loss
-        hi_batt.system.wind._system_model.Losses.avail_turb_loss = hi.system.wind._system_model.Losses.avail_turb_loss
-        hi_batt.system.wind._system_model.Losses.elec_eff_loss = hi.system.wind._system_model.Losses.elec_eff_loss
-        hi_batt.system.wind._system_model.Losses.elec_parasitic_loss = hi.system.wind._system_model.Losses.elec_parasitic_loss
-        hi_batt.system.wind._system_model.Losses.env_degrad_loss = hi.system.wind._system_model.Losses.env_degrad_loss
-        hi_batt.system.wind._system_model.Losses.env_env_loss = hi.system.wind._system_model.Losses.env_env_loss
-        hi_batt.system.wind._system_model.Losses.env_icing_loss = hi.system.wind._system_model.Losses.env_icing_loss
-        hi_batt.system.wind._system_model.Losses.ops_env_loss = hi.system.wind._system_model.Losses.ops_env_loss
-        hi_batt.system.wind._system_model.Losses.ops_grid_loss = hi.system.wind._system_model.Losses.ops_grid_loss
-        hi_batt.system.wind._system_model.Losses.ops_load_loss = hi.system.wind._system_model.Losses.ops_load_loss
-        hi_batt.system.wind._system_model.Losses.turb_generic_loss = hi.system.wind._system_model.Losses.turb_generic_loss
-        hi_batt.system.wind._system_model.Losses.turb_hysteresis_loss = hi.system.wind._system_model.Losses.turb_hysteresis_loss
-        hi_batt.system.wind._system_model.Losses.turb_perf_loss = hi.system.wind._system_model.Losses.turb_perf_loss
-        hi_batt.system.wind._system_model.Losses.turb_specific_loss = hi.system.wind._system_model.Losses.turb_specific_loss
-        hi_batt.system.wind._system_model.Losses.wake_ext_loss = hi.system.wind._system_model.Losses.wake_ext_loss
 
         hi_batt.simulate(project_life=1)
 

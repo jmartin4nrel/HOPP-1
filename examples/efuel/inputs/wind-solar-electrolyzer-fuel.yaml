@@ -128,7 +128,7 @@ config:
     tasc_toc: 1.093
     fcr_real: 0.0707
     output_dollar_year: 2020
-    inflation: 0.025
+    inflation: 0.02
   lca_options:
     model: 'simple'
     lca_tech: 'fuel'
