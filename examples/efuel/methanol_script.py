@@ -85,9 +85,9 @@ class EfuelHybridProblem(OptimizationProblem):
         fuel = 'methanol'
         reactor = 'CO2 hydrogenation'
         catalyst = 'None'
-        lca, ci, wc = calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, pct_wind, pct_overbuild,
-                                            dollar_year, self.startup_year, self.lat, self.lon, self.state)
-        evaluation = (-lca,candidate_index)
+        lcom, _, _, _, _ = calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, pct_wind, pct_overbuild,
+                                                dollar_year, self.startup_year, self.lat, self.lon, self.state, False, False, False)
+        evaluation = (-lcom,candidate_index)
         score = evaluation[0]
         return score, evaluation, candidate_conforming
 
@@ -103,11 +103,11 @@ if __name__ == '__main__':
     # TODO sweep through reactor parameters
     fuel = 'methanol'
     reactor = 'CO2 hydrogenation'
-    reactor = 'RCC recycle'
+    # reactor = 'RCC recycle'
     catalyst = 'K/CZA'
 
     # TODO sweep through years
-    startup_year = 2020
+    startup_year = 2040
     year_sweep = np.arange(2020,2055,5)
 
     # Either sweep through locations or pick a specific location
@@ -135,11 +135,11 @@ if __name__ == '__main__':
 
     ## One instance
 
-    start = time.time()
-    calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, 90, 0, dollar_year, startup_year, lat, lon, state,
-                         True, False, False)#, 42.4683794096513, 24.91935255018996)
-    stop = time.time()
-    print("Elapsed Time: {:.1f} seconds".format(stop-start))
+    # start = time.time()
+    # calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, 90, 0, dollar_year, startup_year, lat, lon, state,
+    #                      True, False, False)#, 42.4683794096513, 24.91935255018996)
+    # stop = time.time()
+    # print("Elapsed Time: {:.1f} seconds".format(stop-start))
     
     ## Grid
      
@@ -180,64 +180,66 @@ if __name__ == '__main__':
     # lcom_array = np.zeros((x,y))
     # CI_array = np.zeros((x,y))
     # WC_array = np.zeros((x,y))
+    # wind_cap_array = np.zeros((x,y))
+    # pv_cap_array = np.zeros((x,y))
     
     # for i in range(x):
         
-    #     # # Multiprocess site block
-    #     # lat_list = lats[i]
-    #     # lon_list = lons[i]
-    #     # arg_lists = []
-    #     # for j in range(y):
-    #     #     arg_list = [main_path, turndown_path, fuel, reactor, catalyst, 100, 0, dollar_year, startup_year, lat_list[j], lon_list[j], states[i]]
-    #     #     arg_lists.append(arg_list)
+    #     # Multiprocess site block
+    #     lat_list = lats[i]
+    #     lon_list = lons[i]
+    #     arg_lists = []
+    #     for j in range(y):
+    #         arg_list = [main_path, turndown_path, fuel, reactor, catalyst, 50, 50, dollar_year, startup_year, lat_list[j], lon_list[j], states[i]]
+    #         arg_lists.append(arg_list)
         
-    #     # start = time.time()
-    #     # with multiprocessing.Pool(num_cores) as p:
-    #     #     results = p.starmap(calculate_efuel_cost, arg_lists)
-    #     # stop = time.time()
+    #     start = time.time()
+    #     with multiprocessing.Pool(num_cores) as p:
+    #         results = p.starmap(calculate_efuel_cost, arg_lists)
+    #     stop = time.time()
         
     #     # Multiprocess optimizer block
         
-    #     start = time.time()
+    #     # start = time.time()
             
-    #     results = np.zeros((y,3))
+    #     # results = np.zeros((y,3))
 
-    #     for j in range(y):
+    #     # for j in range(y):
             
-    #         lat = lats[i,j]
-    #         lon = lons[i,j]
-    #         state = states[i]
+    #     #     lat = lats[i,j]
+    #     #     lon = lons[i,j]
+    #     #     state = states[i]
             
-    #         if not globe.is_land(lat,lon):
-    #             arg_lists = []
-    #             pcts_wind = np.arange(10,110,20)
-    #             pcts_overbuild = np.arange(0,100,20)
-    #             for k in range(len(pcts_wind)):
-    #                 for l in range(len(pcts_overbuild)):
-    #                     arg_list = [main_path, turndown_path, fuel, reactor, catalyst, pcts_wind[k], pcts_overbuild[l], dollar_year, startup_year, lat, lon, state]
-    #                     arg_lists.append(arg_list)
+    #     #     if not globe.is_land(lat,lon):
+    #     #         arg_lists = []
+    #     #         pcts_wind = np.arange(10,110,20)
+    #     #         pcts_overbuild = np.arange(0,100,20)
+    #     #         for k in range(len(pcts_wind)):
+    #     #             for l in range(len(pcts_overbuild)):
+    #     #                 arg_list = [main_path, turndown_path, fuel, reactor, catalyst, pcts_wind[k], pcts_overbuild[l], dollar_year, startup_year, lat, lon, state]
+    #     #                 arg_lists.append(arg_list)
                 
-    #             with multiprocessing.Pool(num_cores) as p:
-    #                 pointresults = p.starmap(calculate_efuel_cost, arg_lists)
+    #     #         with multiprocessing.Pool(num_cores) as p:
+    #     #             pointresults = p.starmap(calculate_efuel_cost, arg_lists)
                 
-    #             pointresults = np.array(pointresults)
+    #     #         pointresults = np.array(pointresults)
                 
-    #             lcom = pointresults[:,0]
-    #             ci = pointresults[:,1]
-    #             wc = pointresults[:,2]
+    #     #         lcom = pointresults[:,0]
+    #     #         ci = pointresults[:,1]
+    #     #         wc = pointresults[:,2]
 
-    #             min_arg = np.argmin(lcom)
+    #     #         min_arg = np.argmin(lcom)
 
-    #             results[j,0] = lcom[min_arg]
-    #             results[j,1] = ci[min_arg]
-    #             results[j,2] = wc[min_arg]
-    #         else:
-    #             results[j,0] = 0
-    #             results[j,1] = 0
-    #             results[j,2] = 0
+    #     #         results[j,0] = lcom[min_arg]
+    #     #         results[j,1] = ci[min_arg]
+    #     #         results[j,2] = wc[min_arg]
+    #     #     else:
+    #     #         results[j,0] = 0
+    #     #         results[j,1] = 0
+    #     #         results[j,2] = 0
 
         
-    #     stop = time.time() 
+    #     # stop = time.time() 
 
     #     # End of alternating blocks
 
@@ -245,9 +247,13 @@ if __name__ == '__main__':
     #     lcom_array[i,:] = result_array[:,0]
     #     CI_array[i,:] = result_array[:,1]
     #     WC_array[i,:] = result_array[:,2]
+    #     wind_cap_array[i,:] = result_array[:,3]
+    #     pv_cap_array[i,:] = result_array[:,4]
     #     np.savetxt("lcom.csv",lcom_array,delimiter=',')
     #     np.savetxt("CI.csv",CI_array,delimiter=',')
     #     np.savetxt("WC.csv",WC_array,delimiter=',')
+    #     np.savetxt("wind_cap.csv",wind_cap_array,delimiter=',')
+    #     np.savetxt("pv_cap.csv",pv_cap_array,delimiter=',')
     #     write_time = time.time()
         
     #     print("Site #{} of {} complete, elapsed time: {:.1f} seconds ({:.1f} to write)".format(i+1,x,write_time-start,write_time-stop))
@@ -256,26 +262,35 @@ if __name__ == '__main__':
 
     # for startup_year in year_sweep:
 
-    #     max_iterations = 2
-    #     optimizer_config = {
-    #         'method':               'CEM',
-    #         'nprocs':               num_cores,
-    #         'generation_size':      num_cores,
-    #         'selection_proportion': .33,
-    #         'prior_scale':          1.0
-    #         }
-        
-    #     start = time.time()
-    #     problem = EfuelHybridProblem(int(startup_year), lat, lon) #hybrid_plant
-    #     optimizer = OptimizationDriver(problem, recorder=DataRecorder.make_data_recorder("log"), **optimizer_config)
-        
-    #     # plt.ion()
-    #     while optimizer.num_iterations() < max_iterations:
-    #         stopped, candidates = optimizer.step()
-    #         best_score, best_evaluation, best_solution = optimizer.best_solution()
-    #         stop = time.time()
-    #         print(optimizer.num_iterations(), ' ', optimizer.num_evaluations(), -best_score, best_solution)
-    #         # plt.plot(np.array(candidates)[:,0],np.array(candidates)[:,1],'.')
-    #     print("Elapsed Time: {:.1f} seconds".format(stop-start))
+    max_iterations = 5
+    optimizer_config = {
+        'method':               'CEM',
+        'nprocs':               num_cores,
+        'generation_size':      num_cores,
+        'selection_proportion': .33,
+        'prior_scale':          1.0
+        }
+    
+    start = time.time()
+    problem = EfuelHybridProblem(int(startup_year), lat, lon, state) #hybrid_plant
+    optimizer = OptimizationDriver(problem, recorder=DataRecorder.make_data_recorder("log"), **optimizer_config)
+    
 
-    #     calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, best_solution[0], best_solution[1], dollar_year, startup_year, lat, lon, state, True)
+
+    
+    plt.ion()
+    while optimizer.num_iterations() < max_iterations:
+        stopped, candidates = optimizer.step()
+        best_score, best_evaluation, best_solution = optimizer.best_solution()
+        stop = time.time()
+        print(optimizer.num_iterations(), ' ', optimizer.num_evaluations(), -best_score, best_solution)
+        candidate_X = np.array(candidates)[:,0]
+        candidate_Y = np.array(candidates)[:,1]
+        candidate_X = np.maximum(candidate_X,0)
+        candidate_Y = np.maximum(candidate_Y,0)
+        candidate_X = np.minimum(candidate_X,100)
+        candidate_Y = np.minimum(candidate_Y,100)
+        plt.plot(candidate_X,candidate_Y,'.')
+    print("Elapsed Time: {:.1f} seconds".format(stop-start))
+
+    calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, best_solution[0], best_solution[1], dollar_year, startup_year, lat, lon, state, True)
