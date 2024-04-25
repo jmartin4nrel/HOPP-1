@@ -214,9 +214,15 @@ def set_cambium_inputs(hi, cambium_scenario, year, state):
     buy_price_kwh = cambium_price*aeo_multiplier/1000
     
     wind_lc = hi.system.wind._financial_model.lc_kwh
-    wind_kwh = hi.system.wind.annual_energy_kwh
     pv_lc = hi.system.pv._financial_model.lc_kwh
-    pv_kwh = hi.system.pv.annual_energy_kwh
+    if hi.system.wind.loaded_capacity_factor:
+        wind_kwh = hi.system.wind.system_capacity_kw*hi.system.wind.loaded_capacity_factor
+    else:
+        wind_kwh = hi.system.wind.annual_energy_kwh
+    if hi.system.pv.loaded_capacity_factor:
+        pv_kwh = hi.system.pv.system_capacity_kw*hi.system.pv.loaded_capacity_factor
+    else:
+        pv_kwh = hi.system.pv.annual_energy_kwh
     ppa_price_kwh = (wind_lc*wind_ppa_lcoe_ratio*wind_kwh+pv_lc*solar_ppa_lcoe_ratio*pv_kwh)/(wind_kwh+pv_kwh)
 
     setattr(hi.system.grid_purchase._financial_model,'voc_kwh',buy_price_kwh)

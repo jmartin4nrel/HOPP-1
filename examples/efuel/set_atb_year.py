@@ -56,6 +56,7 @@ def load_atb_dicts():
     
     # Set the filename, sheets, scenarios, and columns for this instance of the ATB
     filename = "2022 v3 Annual Technology Baseline Workbook Corrected 1-24-2023.xlsx"
+    filename = "2023-ATB-Data_Master_v9.0_2020_added.xlsx"
     atb_scenarios = ['Advanced','Moderate','Conservative']
     sheets = {'NGCC':'Natural Gas_FE',
             'CCS': 'Natural Gas_FE',
@@ -74,12 +75,60 @@ def load_atb_dicts():
                     'OSW': 76}
 
     # Set the rows that engineering constants are found on each sheet
-    engin ={'NGCC':{'heat_rate_btu_wh':{'Advanced':72,
-                                        'Moderate':73,
-                                        'Conservative':74}},
-            'CCS': {'heat_rate_btu_wh':{'Advanced':75,
-                                        'Moderate':76,
-                                        'Conservative':77}},
+    # engin ={'NGCC':{'heat_rate_btu_wh':{'Advanced':72,
+    #                                     'Moderate':73,
+    #                                     'Conservative':74}},
+    #         'CCS': {'heat_rate_btu_wh':{'Advanced':75,
+    #                                     'Moderate':76,
+    #                                     'Conservative':77}},
+    #         'PV':  {'bifaciality':     {'Advanced':75,
+    #                                     'Moderate':76,
+    #                                     'Conservative':77},
+    #                 'albedo':          {'Advanced':78,
+    #                                     'Moderate':79,
+    #                                     'Conservative':80},
+    #                 'losses':          {'Advanced':81,
+    #                                     'Moderate':82,
+    #                                     'Conservative':83},
+    #                 'dc_degradation':  {'Advanced':84,
+    #                                     'Moderate':85,
+    #                                     'Conservative':86},
+    #                 'inv_eff':         {'Advanced':87,
+    #                                     'Moderate':88,
+    #                                     'Conservative':89},
+    #                 'capacity_factor': {'Advanced':90,
+    #                                     'Moderate':91,
+    #                                     'Conservative':92}},
+    #         'LBW': {'hub_height':      {'Advanced':76,
+    #                                     'Moderate':77,
+    #                                     'Conservative':78},
+    #                 'rotor_diameter':  {'Advanced':79,
+    #                                     'Moderate':80,
+    #                                     'Conservative':81},
+    #                 'turbine_rating_kw':{'Advanced':82,
+    #                                     'Moderate':83,
+    #                                     'Conservative':84},
+    #                 'capacity_factor': {'Advanced':85,
+    #                                     'Moderate':86,
+    #                                     'Conservative':87}},
+    #         'OSW': {'hub_height':      {'Advanced':77,
+    #                                     'Moderate':78,
+    #                                     'Conservative':79},
+    #                 'rotor_diameter':  {'Advanced':80,
+    #                                     'Moderate':81,
+    #                                     'Conservative':82},
+    #                 'turbine_rating_kw':{'Advanced':83,
+    #                                     'Moderate':84,
+    #                                     'Conservative':85},
+    #                 'capacity_factor': {'Advanced':86,
+    #                                     'Moderate':87,
+    #                                     'Conservative':88}}}
+    engin ={'NGCC':{'heat_rate_btu_wh':{'Advanced':89,
+                                        'Moderate':90,
+                                        'Conservative':91}},
+            'CCS': {'heat_rate_btu_wh':{'Advanced':95,
+                                        'Moderate':96,
+                                        'Conservative':97}},
             'PV':  {'bifaciality':     {'Advanced':75,
                                         'Moderate':76,
                                         'Conservative':77},
@@ -126,24 +175,69 @@ def load_atb_dicts():
     # Set the rows that financial constants are found on each sheet
     # toc: Total Overnight Cost ($/kW), foc: Fixed O&M Cost ($/kW-yr), voc: Variable O&M Cost ($/kWh)
     # NOTE: voc was changed from original units of $/MWh in the raw ATB download to match simple financial model
-    finance =  {'NGCC':{'toc_kw':    {'Advanced':105,
-                                        'Moderate':106,
-                                        'Conservative':107},
-                        'foc_kw_yr':  {'Advanced':116,
-                                        'Moderate':117,
-                                        'Conservative':118},
-                        'voc_kwh':   {'Advanced':127,
-                                        'Moderate':128,
-                                        'Conservative':129}},
-                'CCS': {'toc_kw':    {'Advanced':108,
-                                        'Moderate':109,
-                                        'Conservative':110},
-                        'foc_kw_yr':  {'Advanced':119,
-                                        'Moderate':120,
-                                        'Conservative':121},
-                        'voc_kwh':   {'Advanced':130,
-                                        'Moderate':131,
-                                        'Conservative':132}},
+    # finance =  {'NGCC':{'toc_kw':    {'Advanced':105,
+    #                                     'Moderate':106,
+    #                                     'Conservative':107},
+    #                     'foc_kw_yr':  {'Advanced':116,
+    #                                     'Moderate':117,
+    #                                     'Conservative':118},
+    #                     'voc_kwh':   {'Advanced':127,
+    #                                     'Moderate':128,
+    #                                     'Conservative':129}},
+    #             'CCS': {'toc_kw':    {'Advanced':108,
+    #                                     'Moderate':109,
+    #                                     'Conservative':110},
+    #                     'foc_kw_yr':  {'Advanced':119,
+    #                                     'Moderate':120,
+    #                                     'Conservative':121},
+    #                     'voc_kwh':   {'Advanced':130,
+    #                                     'Moderate':131,
+    #                                     'Conservative':132}},
+    #             'PV':  {'toc_kw':    {'Advanced':203,
+    #                                     'Moderate':204,
+    #                                     'Conservative':205},
+    #                     'foc_kw_yr':  {'Advanced':235,
+    #                                     'Moderate':236,
+    #                                     'Conservative':237},
+    #                     'voc_kwh':   {'Advanced':267,
+    #                                     'Moderate':268,
+    #                                     'Conservative':269}},
+    #             'LBW': {'toc_kw':    {'Advanced':204,
+    #                                     'Moderate':205,
+    #                                     'Conservative':206},
+    #                     'foc_kw_yr':  {'Advanced':236,
+    #                                     'Moderate':237,
+    #                                     'Conservative':238},
+    #                     'voc_kwh':   {'Advanced':268,
+    #                                     'Moderate':269,
+    #                                     'Conservative':270}},
+    #             'OSW': {'toc_kw':    {'Advanced':253,
+    #                                     'Moderate':254,
+    #                                     'Conservative':255},
+    #                     'foc_kw_yr':  {'Advanced':297,
+    #                                     'Moderate':298,
+    #                                     'Conservative':299},
+    #                     'VOM_$_mwh':   {'Advanced':341,
+    #                                     'Moderate':342,
+    #                                     'Conservative':343}}}
+    finance =  {'NGCC':{'toc_kw':    {'Advanced':158,
+                                        'Moderate':159,
+                                        'Conservative':160},
+                        'foc_kw_yr':  {'Advanced':181,
+                                        'Moderate':182,
+                                        'Conservative':183},
+                        'voc_kwh':   {'Advanced':204,
+                                        'Moderate':205,
+                                        'Conservative':206}},
+                'CCS': {'toc_kw':    {'Advanced':164,
+                                        'Moderate':165,
+                                        'Conservative':166},
+                        'foc_kw_yr':  {'Advanced':187,
+                                        'Moderate':188,
+                                        'Conservative':189},
+                        'voc_kwh':   {'Advanced':210,
+                                        'Moderate':211,
+                                        'Conservative':212}},
                 'PV':  {'toc_kw':    {'Advanced':203,
                                         'Moderate':204,
                                         'Conservative':205},
@@ -162,9 +256,9 @@ def load_atb_dicts():
                         'voc_kwh':   {'Advanced':268,
                                         'Moderate':269,
                                         'Conservative':270}},
-                'OSW': {'toc_kw':    {'Advanced':253,
-                                        'Moderate':254,
-                                        'Conservative':255},
+                'OSW': {'toc_kw':    {'Advanced':593,
+                                        'Moderate':594,
+                                        'Conservative':595},
                         'foc_kw_yr':  {'Advanced':297,
                                         'Moderate':298,
                                         'Conservative':299},
@@ -173,8 +267,8 @@ def load_atb_dicts():
                                         'Conservative':343}}}
 
     # Import from spreadsheet
-    atb_basis_year = 2020
-    atb_inflation_rate = 0.025
+    atb_basis_year = 2021
+    atb_inflation_rate = 0.04698 #2020 to 2021
     resource_dir = Path(__file__).parent.absolute()/'inputs'
     workbook = load_workbook(resource_dir/filename, read_only=True, data_only=True)
     atb_tech = ['NGCC','CCS','PV','LBW','OSW']
@@ -191,8 +285,9 @@ def load_atb_dicts():
         # Figure out column range for years
         base_col = base_cols[tech]
         base_col_idx = column_index_from_string(base_col)
-        year_row = str(year_rows[tech])
-        base_year = worksheet[base_col+year_row].value
+        # Next 2 lines modified for 2023 spreadsheet
+        #year_row = str(year_rows[tech])
+        base_year = 2020#worksheet[base_col+year_row].value
         start_col_idx = base_col_idx+sim_start_year-base_year
         end_col_idx = base_col_idx+sim_end_year-base_year
         start_col = get_column_letter(start_col_idx)
@@ -251,7 +346,7 @@ def load_atb_dicts():
         json.dump(finance, outfile)
 
 
-def set_atb_year(hi, scenario, year):
+def set_atb_year(hi, scenario, year, lat, lon):
 
     year_idx = int((year-2020)/5)
 
@@ -263,9 +358,8 @@ def set_atb_year(hi, scenario, year):
     with open(in_path, 'r') as infile:
         finance = json.load(infile)
     
-
     # Determine if location is on land
-    on_land = globe.is_land(hi.system.site.data['lat'], hi.system.site.data['lon'])
+    on_land = globe.is_land(lat, lon)
 
     techs = ['wind','pv','co2']
     tech_list = list(hi.system.tech_config._get_model_dict().keys())

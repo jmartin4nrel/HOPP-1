@@ -9,6 +9,7 @@ from examples.efuel.H2AModel_costs import H2AModel_costs
 from examples.efuel.extract_cambium_data import set_cambium_inputs
 from hopp.utilities import load_yaml
 from pathlib import Path
+import time
 
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter, column_index_from_string
@@ -30,7 +31,9 @@ def calculate_efuel_cost(main_path: Path,
                          state: str = 'TX',
                          printout=False,
                          turndown=False,
-                         grid_pricing=False):
+                         grid_pricing=False,
+                         wind_cap_pct=None,
+                         pv_cap_pct=None):
 
     # Create a HOPP interface with the cost and lca information for all components loaded from a .yaml 
     hi = HoppInterface(main_path)
@@ -42,6 +45,7 @@ def calculate_efuel_cost(main_path: Path,
         catalyst = 'None'
     getattr(hi.system,'fuel').value('catalyst',catalyst)
     input_path = Path('inputs')
+    output_path = Path('outputs')
     fuel_inputs = pd.read_csv(input_path/'Reactor_inputs.csv',index_col=[0,1])
     cost_list = ['toc','toc_kg_s','foc_yr','foc_kg_s_yr','voc_kg']
     for cost in cost_list:
@@ -62,8 +66,8 @@ def calculate_efuel_cost(main_path: Path,
 
     # Correct year with ATB
     atb_scenario = 'Advanced'
-    hi = set_atb_year(hi, atb_scenario, startup_year)
-
+    hi = set_atb_year(hi, atb_scenario, startup_year, lat, lon)
+    
     # Calculate co2 and h2 needed
     hi.system.fuel.simulate_flow(1)
     co2_kg_s = copy.deepcopy(np.mean(hi.system.fuel._system_model.input_streams_kg_s['carbon dioxide']))
@@ -80,6 +84,8 @@ def calculate_efuel_cost(main_path: Path,
     # ngcc_cap =  hi.system.co2._system_model.ngcc_cap
     getattr(hi.system,'co2').value('system_capacity_kg_s',co2_kg_s)
     if hi.system.tech_config.co2.capture_model == 'None':
+        hi.system.co2._financial_model.toc_kg_s = 0.
+        hi.system.co2._financial_model.foc_kg_s_yr = 0.
         hi.system.co2._financial_model.voc_kg = 0.
         hi.system.tech_config.co2.lca['co2_kg_kg'] = 0.
         hi.system.tech_config.co2.lca['h2o_kg_kg'] = 0.
@@ -97,7 +103,10 @@ def calculate_efuel_cost(main_path: Path,
     percent_wind = pct_wind
     percent_overbuild = pct_overbuild
     overbuild_elec_kw = total_elec_kw*(100+percent_overbuild)/100
-    wind_cap_factor = 0.45
+    if wind_cap_pct:
+        wind_cap_factor = wind_cap_pct/100
+    else:
+        wind_cap_factor = 0.45
     wind_cap_kw = overbuild_elec_kw*percent_wind/100/wind_cap_factor
     turb_rating_kw = getattr(hi.system,'wind').value('turb_rating')
     num_turbines = np.min([300,np.max([1,np.floor(wind_cap_kw/turb_rating_kw)])])
@@ -136,29 +145,35 @@ def calculate_efuel_cost(main_path: Path,
 
     # Correct year with ATB
     atb_scenario = 'Advanced'
-    hi = set_atb_year(hi, atb_scenario, startup_year)
+    hi = set_atb_year(hi, atb_scenario, startup_year, lat, lon)
 
     # Re-calculate wind power and finalize number of turbines
     getattr(hi.system,'wind').value('num_turbines',num_turbines)
+    if wind_cap_pct:
+        hi.system.wind.loaded_capacity_factor = wind_cap_factor
     hi.system.wind._financial_model.system_capacity_kw = hi.system.wind._system_model.Farm.system_capacity
-    hi.system.wind.simulate_power(1)
-    wind_cap_factor = getattr(hi.system,'wind').value('capacity_factor')/100
+    if not wind_cap_pct:
+        hi.system.wind.simulate_power(1)
+        wind_cap_factor = getattr(hi.system,'wind').value('capacity_factor')/100
     wind_cap_kw = overbuild_elec_kw*percent_wind/100/wind_cap_factor
     num_turbines = np.min([300,np.max([1,np.floor(wind_cap_kw/turb_rating_kw)])])
     getattr(hi.system,'wind').value('num_turbines',num_turbines)
-    hi.system.wind.simulate_power(1)
-    wind_cap_factor = getattr(hi.system,'wind').value('capacity_factor')/100
+    if not wind_cap_pct:
+        hi.system.wind.simulate_power(1)
+        wind_cap_factor = getattr(hi.system,'wind').value('capacity_factor')/100
     wind_cap_kw = num_turbines*turb_rating_kw
     hi.system.wind._financial_model.system_capacity_kw = wind_cap_kw
     percent_wind = wind_cap_kw*wind_cap_factor/overbuild_elec_kw*100
-    while percent_wind >= 100 and num_turbines>1:
-        num_turbines = num_turbines-1
-        getattr(hi.system,'wind').value('num_turbines',num_turbines)
-        hi.system.wind.simulate_power(1)
-        wind_cap_factor = getattr(hi.system,'wind').value('capacity_factor')/100
-        wind_cap_kw = num_turbines*turb_rating_kw
-        hi.system.wind._financial_model.system_capacity_kw = wind_cap_kw
-        percent_wind = wind_cap_kw*wind_cap_factor/overbuild_elec_kw*100
+    if not wind_cap_pct:
+        while percent_wind >= 100 and num_turbines>1:
+            num_turbines = num_turbines-1
+            getattr(hi.system,'wind').value('num_turbines',num_turbines)
+            hi.system.wind.simulate_power(1)
+            wind_cap_factor = getattr(hi.system,'wind').value('capacity_factor')/100
+            wind_cap_kw = num_turbines*turb_rating_kw
+            hi.system.wind._financial_model.system_capacity_kw = wind_cap_kw
+            percent_wind = wind_cap_kw*wind_cap_factor/overbuild_elec_kw*100
+
 
     # Set everything back to where it was
     cost_list = ['toc','toc_kg_s','foc_yr','foc_kg_s_yr','voc_kg']
@@ -180,6 +195,8 @@ def calculate_efuel_cost(main_path: Path,
     # getattr(hi.system,'co2').value('co2_kg_s',co2_kg_s)
     getattr(hi.system,'co2').value('system_capacity_kg_s',co2_kg_s)
     if hi.system.tech_config.co2.capture_model == 'None':
+        hi.system.co2._financial_model.toc_kg_s = 0.
+        hi.system.co2._financial_model.foc_kg_s_yr = 0.
         hi.system.co2._financial_model.voc_kg = 0.
         hi.system.tech_config.co2.lca['co2_kg_kg'] = 0.
         hi.system.tech_config.co2.lca['h2o_kg_kg'] = 0.
@@ -192,22 +209,27 @@ def calculate_efuel_cost(main_path: Path,
 
     # Calculate the (continuous) pv plant size needed based on an estimated capacity factor and the wind plant size
     percent_pv = 100-percent_wind
-    pv_cap_factor = 0.22
+    if not pv_cap_pct:
+        pv_cap_factor = 0.22
+    else:
+        pv_cap_factor = pv_cap_pct/100
+        hi.system.pv.loaded_capacity_factor = pv_cap_factor
     pv_cap_kw = np.max([0.1,overbuild_elec_kw*percent_pv/100/pv_cap_factor])
     getattr(hi.system,'pv').value('system_capacity_kw',pv_cap_kw)
-    hi.system.pv.simulate_power(1)
-    pv_cap_factor = hi.system.pv._system_model.Outputs.capacity_factor/100
-    pv_cap_kw = np.max([0.1,overbuild_elec_kw*percent_pv/100/pv_cap_factor])
-    getattr(hi.system,'pv').value('system_capacity_kw',pv_cap_kw)
-    hi.system.pv.simulate_power(1)
-    pv_cap_factor = hi.system.pv._system_model.Outputs.capacity_factor/100
+    if not pv_cap_pct:
+        hi.system.pv.simulate_power(1)
+        pv_cap_factor = hi.system.pv._system_model.Outputs.capacity_factor/100
+        pv_cap_kw = np.max([0.1,overbuild_elec_kw*percent_pv/100/pv_cap_factor])
+        getattr(hi.system,'pv').value('system_capacity_kw',pv_cap_kw)
+        hi.system.pv.simulate_power(1)
+        pv_cap_factor = hi.system.pv._system_model.Outputs.capacity_factor/100
 
     # Calculate the electrolyzer and interconnect size needed based on an estimated capacity factor
     electrolyzer_cap_factor = 0.97
     electrolyzer_cap_kw = total_elec_kw/electrolyzer_cap_factor
     sales_cap_kw = wind_cap_kw+pv_cap_kw-electrolyzer_cap_kw
     sales_cap_kw = max(1.,sales_cap_kw)
-    getattr(hi.system,'grid').value('interconnect_kw',np.max([sales_cap_kw,electrolyzer_cap_kw]))
+    getattr(hi.system,'grid').value('interconnect_kw',sales_cap_kw+electrolyzer_cap_kw)
     getattr(hi.system,'grid_sales').value('interconnect_kw',sales_cap_kw)
     getattr(hi.system,'grid_purchase').value('interconnect_kw',electrolyzer_cap_kw)
     getattr(hi.system,'electrolyzer').value('system_capacity_kw',electrolyzer_cap_kw)
@@ -232,19 +254,28 @@ def calculate_efuel_cost(main_path: Path,
     cap_thresh = electrolyzer_cap_factor
     needed_kwh = electrolyzer_cap_factor*electrolyzer_cap_kw*8760
     total_kwh = electrolyzer_cap_kw*8760
-    timestep_h = 8760/len(hi.system.generation_profile['hybrid'])
+    if not wind_cap_pct and not pv_cap_pct:
+        gen_profile = copy.deepcopy(hi.system.generation_profile['hybrid'])
+        load_schedule = list(gen_profile)
+    else:
+        gen_profile = np.squeeze(pd.read_csv(input_path/'default_gen_profile.csv',header=None).values)
+        default_kwh = np.sum(gen_profile)#1337238657.67414
+        scale_kwh = (pv_cap_factor*pv_cap_kw + wind_cap_factor*wind_cap_kw)*8760
+        gen_profile *= scale_kwh/default_kwh
+        load_schedule = list(gen_profile)
+    timestep_h = 8760/len(load_schedule)
     while total_kwh > needed_kwh:
-        when_above = [i>=electrolyzer_cap_kw for i in hi.system.generation_profile['hybrid']]
-        when_below = [i<=electrolyzer_cap_kw*cap_thresh for i in hi.system.generation_profile['hybrid']]
+        when_above = [i>=electrolyzer_cap_kw for i in gen_profile]
+        when_below = [i<=electrolyzer_cap_kw*cap_thresh for i in gen_profile]
         when_in_between = list(np.logical_and(np.logical_not(when_above),np.logical_not(when_below)))
         total_kwh = sum(when_above)*electrolyzer_cap_kw*timestep_h + \
                     sum(when_below)*electrolyzer_cap_kw*cap_thresh*timestep_h + \
-                    sum(np.multiply(hi.system.generation_profile['hybrid'],when_in_between))*timestep_h
+                    sum(np.multiply(gen_profile,when_in_between))*timestep_h
         if total_kwh > needed_kwh:
             cap_thresh -= 0.001
         else:
             makeup_kwh = needed_kwh - sum(when_above)*electrolyzer_cap_kw*timestep_h - \
-                                        sum(np.multiply(hi.system.generation_profile['hybrid'],when_in_between))*timestep_h
+                                        sum(np.multiply(gen_profile,when_in_between))*timestep_h
             makeup_kw = makeup_kwh/sum(when_below)/timestep_h
             cap_thresh = makeup_kw/electrolyzer_cap_kw
 
@@ -255,7 +286,6 @@ def calculate_efuel_cost(main_path: Path,
     # Make electrolyzer/sales/purchase profiles
     sell_kw = [0.0]*8760
     buy_kw = [0.0]*8760
-    load_schedule = list(hi.system.generation_profile['hybrid'])
     for i, gen in enumerate(load_schedule):
         if when_above[i]:
             sell_kw[i] = electrolyzer_cap_kw-gen
@@ -297,7 +327,7 @@ def calculate_efuel_cost(main_path: Path,
 
         # Correct year with ATB
         atb_scenario = 'Advanced'
-        hi_batt = set_atb_year(hi_batt, atb_scenario, startup_year)
+        hi_batt = set_atb_year(hi_batt, atb_scenario, startup_year, lat, lon)
 
     
         if not grid_pricing:
@@ -309,9 +339,9 @@ def calculate_efuel_cost(main_path: Path,
         hi.system.dispatch_factors = (1.0,)*8760
     
     hybrid_plant = hi.system
-    solar_plant_power = np.array(hybrid_plant.pv.generation_profile)
-    wind_plant_power = np.array(hybrid_plant.wind.generation_profile)
-    renewable_generation_profile = solar_plant_power + wind_plant_power
+    # solar_plant_power = np.array(hybrid_plant.pv.generation_profile)
+    # wind_plant_power = np.array(hybrid_plant.wind.generation_profile)
+    renewable_generation_profile = gen_profile#solar_plant_power + wind_plant_power
     electrolyzer_profile = np.array(hybrid_plant.electrolyzer.generation_profile)
 
 
@@ -340,15 +370,21 @@ def calculate_efuel_cost(main_path: Path,
     hi.simulate(1)
 
     if printout:
+        out_list = []
         print("Percent wind: {:.1f}%   Percent overbuild: {:.1f}%".format(percent_wind,pct_overbuild))
+        out_fn = 'lat_{:.3f}_lon_{:.3f}_reactor_{}_catalyst_{}_wind_{:.1f}_over_{:.1f}.csv'.format(lat,lon,reactor,catalyst.replace('/','-'),percent_wind,percent_overbuild)
         print("Levelized cost of methanol (LCOM), $/kg: {:.3f}".format(hi.system.lc))
         for tech in hi.system.lc_breakdown.keys():
             print(tech+': {:.3f}'.format(hi.system.lc_breakdown[tech]))
+            out_list.append(hi.system.lc_breakdown[tech])
         print("Carbon Intensity (CI), kg/kg-MeOH: {:.3f}".format(hi.system.lca['co2_kg_kg']))
         for tech in hi.system.lca_breakdown.keys():
             print(tech+': {:.3f}'.format(hi.system.lca_breakdown[tech]['co2_kg_kg']))
+            out_list.append(hi.system.lca_breakdown[tech]['co2_kg_kg'])
         print("Water Consumption (WC), kg/kg-MeOH: {:.3f}".format(hi.system.lca['h2o_kg_kg']))
         for tech in hi.system.lca_breakdown.keys():
             print(tech+': {:.3f}'.format(hi.system.lca_breakdown[tech]['h2o_kg_kg']))
+            out_list.append(hi.system.lca_breakdown[tech]['h2o_kg_kg'])
+        np.savetxt(output_path/out_fn,np.array(out_list))
 
-    return hi.system.lc, hi.system.lca['co2_kg_kg'], hi.system.lca['h2o_kg_kg']
+    return hi.system.lc, hi.system.lca['co2_kg_kg'], hi.system.lca['h2o_kg_kg'], wind_cap_factor, pv_cap_factor

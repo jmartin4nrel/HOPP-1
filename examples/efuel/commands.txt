@@ -1,0 +1,3 @@
+cd documents/code/jmartin4nrel/hopp-nrel/examples/efuel
+conda activate hopp-fork
+python methanol_script.py
