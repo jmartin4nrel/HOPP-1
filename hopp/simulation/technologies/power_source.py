@@ -54,6 +54,7 @@ class PowerSource(BaseClass):
 
         self.capacity_factor_mode = "cap_hours"                                    # to calculate via "cap_hours" method or None to use external value
         self.gen_max_feasible = [0.] * self.site.n_timesteps
+        self.loaded_capacity_factor = None                                         # Changes to true when previously-loaded capacity factors are loaded from a file
         
     @staticmethod
     def import_financial_model(financial_model, system_model, config_name): 
@@ -266,8 +267,11 @@ class PowerSource(BaseClass):
             self._system_model.Lifetime.system_use_lifetime_output = 1 if lifetime_sim else 0
             self._system_model.Lifetime.analysis_period = project_life if lifetime_sim else 1
 
-        self._system_model.execute(0)
-        logger.info(f"{self.name} simulation executed with AEP {self.annual_energy_kwh}")
+        if self.loaded_capacity_factor:
+            pass
+        else:
+            self._system_model.execute(0)
+            logger.info(f"{self.name} simulation executed with AEP {self.annual_energy_kwh}")
         
     def simulate_financials(self, interconnect_kw: float, project_life: int):
         """

@@ -794,7 +794,7 @@ class HybridSimulation(BaseClass):
         for system in self.technologies.keys():
             if system != 'grid' and system != 'electrolyzer' and system != 'grid_sales' and system != 'grid_purchase':
                 model = getattr(self, system)
-                if isinstance(model, PowerSource) and not isinstance(model._system_model, SimpleBattery):
+                if isinstance(model, PowerSource) and not isinstance(model._system_model, SimpleBattery) and not model.loaded_capacity_factor:
                     hybrid_size_kw += model.system_capacity_kw
                     hybrid_nominal_capacity += model.calc_nominal_capacity(self.interconnect_kw)
                     project_life_gen = np.tile(model.generation_profile, int(project_life / (len(model.generation_profile) // self.site.n_timesteps)))
@@ -878,6 +878,7 @@ class HybridSimulation(BaseClass):
         self.lc_breakdown = {}
         cost_tech = self.finance_options['cost_tech']
         cost_model =getattr(self, cost_tech)
+        cost_finance = getattr(cost_model,'_financial_model')
         # Populate hybrid_bos_mw dict with hybrid system size
         for system in self.technologies.keys():
             model = getattr(self, system)
@@ -894,7 +895,10 @@ class HybridSimulation(BaseClass):
                     if 'skip_financial' in self.sim_options[system].keys() and self.sim_options[system]['skip_financial']:
                         continue
                 if isinstance(model,PowerSource):
-                    output_kwh_yr =  model.annual_energy_kwh
+                    if model.loaded_capacity_factor:
+                        output_kwh_yr = model.system_capacity_kw*model.loaded_capacity_factor*8760
+                    else:
+                        output_kwh_yr = model.annual_energy_kwh
                     lc = model._financial_model.calc_levelized_cost_energy(output_kwh_yr)
                     if isinstance(model, GridPurchase) or isinstance(model, GridSales):
                         lc -= model._financial_model.voc_kwh
@@ -921,6 +925,10 @@ class HybridSimulation(BaseClass):
                         prod_lc = lc*output_kg_yr/prod_output_kg_yr
                 self.lc += prod_lc
                 self.lc_breakdown[system] = prod_lc
+        if isinstance(cost_model,FlowSource):
+            self.lc_breakdown['toc_kg'] = cost_finance.toc_inflated*cost_finance.tasc_toc*cost_finance.fcr_real/prod_output_kg_yr
+            self.lc_breakdown['foc_kg'] = cost_finance.foc_yr_inflated/prod_output_kg_yr
+            self.lc_breakdown['voc_kg'] = cost_finance.voc_kg_inflated
         # if 'electrolyzer' in self.technologies.keys():
         #     model = getattr(self, 'electrolyzer')
         #     o2_sales_price_kg = -0.14*1.16/3.28
@@ -952,7 +960,10 @@ class HybridSimulation(BaseClass):
             if model.config.lca is not None:
                 for em in self.lca_options['lca_emissions']:
                     if isinstance(model,PowerSource):
-                        output_kwh_yr =  model.annual_energy_kwh
+                        if model.loaded_capacity_factor:
+                            output_kwh_yr = model.system_capacity_kw*model.loaded_capacity_factor
+                        else:
+                            output_kwh_yr = model.annual_energy_kwh
                         if not isinstance(model,ElectrolyzerPlant):
                             total_kwh_yr += output_kwh_yr
                         em_kwh = model.config.lca[em+'_kwh']
@@ -1084,7 +1095,7 @@ class HybridSimulation(BaseClass):
             if v == "grid":
                 continue
             if hasattr(self, v):
-                if isinstance(getattr(self, v),PowerSource):
+                if isinstance(getattr(self, v),PowerSource) and not getattr(getattr(self, v), "loaded_capacity_factor"):
                     setattr(aep, v, getattr(getattr(self, v), "annual_energy_kwh"))
                 if isinstance(getattr(self, v),FlowSource):
                     setattr(aep, v, getattr(getattr(self, v), "annual_mass_kg"))

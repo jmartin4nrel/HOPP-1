@@ -1,0 +1,145 @@
+name: "Example 08"
+
+# SiteInfo
+site: !include methanol_site.yaml
+
+# Technologies
+technologies:
+  pv:
+    system_capacity_kw: 50000
+    lca:
+      co2_kg_kwh: 0.02238638471
+      h2o_kg_kwh: -0.00002128 
+    simple_fin_config:
+      input_dollar_yr: 2020
+      toc_kw: 1303.
+      # toc_kw: 0.
+      foc_kw_yr: 23.
+      # foc_kw_yr: 0.
+      voc_kwh: 0.
+  wind:
+    num_turbines: 10
+    hub_height: 90.2
+    turbine_rating_kw: 5000
+    lca:
+      co2_kg_kwh: 0.02949369802
+      h2o_kg_kwh: 0.000429207
+    simple_fin_config:
+      input_dollar_yr: 2020
+      toc_kw: 1405.
+      # toc_kw: 0.
+      foc_kw_yr: 43.
+      # foc_kw_yr: 0.
+      voc_kwh: 0.
+  # "battery" is electrolysis ramping
+  battery:
+    system_capacity_kwh: 1600000
+    system_capacity_kw: 200000
+    minimum_SOC: 10.0
+    maximum_SOC: 90.0
+    initial_SOC: 50.0
+    simple_fin_config:
+      input_dollar_yr: 2020
+      toc_kw: 1727.
+      foc_kw_yr: 43.
+      voc_kwh: 0.
+    lca:
+      co2_kg_kwh: 0.1
+      h2o_kg_kwh: 0.1
+  electrolyzer:
+    system_capacity_kw: 140
+    lca:
+      co2_kg_kwh: 0.00082327113
+      h2o_kg_kwh: 0.069155
+    simple_fin_config:
+      input_dollar_yr: 2020
+      toc: 39946000.
+      toc_kw: 340.48
+      foc_yr: 2984400.
+      foc_kw_yr: 13.99
+      voc_kwh: 0.0000305
+  grid:
+    interconnect_kw: 50000
+    lca:
+      co2_kg_kwh: 0.0
+      h2o_kg_kwh: 0.0
+  grid_purchase:
+    interconnect_kw: 50000
+    simple_fin_config:
+      input_dollar_yr: 2020
+      # voc_kwh: 0.01256
+      voc_kwh: 0.043767532864135435
+    lca:
+      co2_kg_kwh: 0.11837258 # Cambium TX
+      h2o_kg_kwh: 0.4922446 # Cambium TX
+  grid_sales:
+    interconnect_kw: 50000
+    simple_fin_config:
+      input_dollar_yr: 2020
+      # voc_kwh: 0.01256
+      # voc_kwh: 0.00998
+      voc_kwh: 0.03042243753553692
+    lca:
+      co2_kg_kwh: 0.11837258 # Cambium TX
+      h2o_kg_kwh: 0.4922446 # Cambium TX
+  fuel:
+    fuel_prod_kg_s: 3.64992
+    fuel_produced: 'hydrogen'
+    reactor_tech: 'RCC recycle' # CO2 hydrogenation # 
+    catalyst: 'None'
+    reaction_params:
+      h2ratio: 0.2
+      co2ratio: 1.5
+    lca:
+      co2_kg_kg: 0.03
+      h2o_kg_kg: 3.0
+    simple_fin_config:
+      input_dollar_yr: 2020
+      toc_kg_s: 1000000.
+      foc_kg_s_yr: 100000.
+      voc_kg: 0.01
+  co2:
+    co2_kg_s: 1.0
+    lca:
+      co2_kg_kg: 0.14
+      h2o_kg_kg: 6.55
+    co2_model: 'SimpleNGCC'
+    capture_model: 'AmineScrub' 
+    simple_fin_config:
+      input_dollar_yr: 2020
+      # voc_kg: .069597655
+      voc_kg: .075151089
+  ng:
+    ng_kg_s: 1.0
+    simple_fin_config:
+      input_dollar_yr: 2020
+      toc: 0
+      foc_yr: 0
+      voc_kg: 0.11974
+    lca:
+      co2_kg_kg: 0.00
+      h2o_kg_kg: 0.00
+
+# Configuration
+config:
+  finance_options:
+    model: 'simple'
+    cost_tech: 'fuel'
+    tasc_toc: 1.093
+    fcr_real: 0.0707
+    output_dollar_year: 2020
+    inflation: 0.02
+  lca_options:
+    model: 'simple'
+    lca_tech: 'fuel'
+    lca_emissions: ['co2_kg','h2o_kg']
+  simulation_options:
+    grid:
+      skip_financial: true
+  dispatch_options:
+    battery_dispatch: simple
+    solver: cbc
+    n_look_ahead_periods: 48
+    grid_charging: true
+    pv_charging_only: false
+    include_lifecycle_count: false

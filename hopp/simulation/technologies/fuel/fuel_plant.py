@@ -31,6 +31,7 @@ class FuelConfig(BaseClass):
     model_name: str = field(default="SimpleReactor")
     catalyst: Optional[str] = field(default=None)
     simple_fin_config: Optional[dict] = field(default=None)
+    reaction_params: Optional[dict] = field(default=None)
     model_input_file: Optional[str] = field(default=None)
     lca: Optional[dict] = field(default=None)
     

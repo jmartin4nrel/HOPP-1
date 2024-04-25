@@ -5,6 +5,19 @@ from typing import Optional, TYPE_CHECKING
 from hopp.tools.analysis.bos.bos_lookup import BOSLookup
 from collections.abc import Iterable 
 
+
+def inflate(dollars, original_year, new_year):
+
+    CPI = [172.2, 177.1, 179.9, 184.0, 188.9, 195.3, 201.6, 207.3, 215.3, 214.5,
+           218.1, 224.9, 229.6, 233.0, 236.7, 237.0, 240.0, 245.1, 251.1, 255.7,
+           258.8, 271.0, 292.7] # US City Average, all items, https://data.bls.gov/pdq/SurveyOutputServlet
+    orig_cpi = CPI[int(original_year)-2000]
+    new_cpi = CPI[int(new_year)-2000]
+    dollars *= new_cpi/orig_cpi
+
+    return dollars
+
+
 @define
 class SimpleFinanceConfig(BaseClass):
 
@@ -104,11 +117,11 @@ class SimpleFinance(CustomFinancialModel):
             self.foc_yr = self.config.foc_yr + self.foc_kg_s_yr * self.system_capacity_kg_s
 
         # Correct for inflation
-        toc = self.toc*(1+self.inflation)**(self.output_dollar_yr-self.input_dollar_yr)
+        toc = inflate(self.toc, self.input_dollar_yr, self.output_dollar_yr)
         self.toc_inflated = toc
-        foc_yr = self.foc_yr*(1+self.inflation)**(self.output_dollar_yr-self.input_dollar_yr)
+        foc_yr = inflate(self.foc_yr, self.input_dollar_yr, self.output_dollar_yr)
         self.foc_yr_inflated = foc_yr
-        voc_kg = self.voc_kg*(1+self.inflation)**(self.output_dollar_yr-self.input_dollar_yr)
+        voc_kg = inflate(self.voc_kg, self.input_dollar_yr, self.output_dollar_yr)
         self.voc_kg_inflated = voc_kg
         
         # Apply TASC multiplier (spreading CAPEX over expentidure period)
@@ -133,7 +146,7 @@ class SimpleFinance(CustomFinancialModel):
             self.foc_yr = self.config.foc_yr + self.foc_kw_yr * self.system_capacity_kw
 
         # Add in combined BOS savings for wind/solar hybrids 
-        if self.hybrid_bos_mw['is_wind'] or self.hybrid_bos_mw['is_pv']:
+        if False:#self.hybrid_bos_mw['is_wind'] or self.hybrid_bos_mw['is_pv']:
             if self.hybrid_bos_mw['wind_mw'] + self.hybrid_bos_mw['pv_mw'] > 1000:
                 # print("Simulating a >1GW wind/solar hybrid - shared BOS is outside range of lookup. Shared BOS savings are estimated")
                 total = self.hybrid_bos_mw['wind_mw'] + self.hybrid_bos_mw['pv_mw']
@@ -156,18 +169,18 @@ class SimpleFinance(CustomFinancialModel):
             bos_savings = total_project_cost/(solar_project_cost+wind_project_cost)
             if isinstance(bos_savings, Iterable):
                 bos_savings = bos_savings[0]
-            #print("BOS Savings, wind mw {:.2f}: {:.4f}".format(self.hybrid_bos_mw['wind_mw'],bos_savings))
+            # print("BOS Savings, wind mw {:.2f}: {:.4f}".format(self.hybrid_bos_mw['wind_mw'],bos_savings))
             self.hybrid_bos_pct_saved = (1-bos_savings)*100
             self.toc_bos = self.toc*bos_savings
         else:
             self.toc_bos = self.toc
 
         # Correct for inflation
-        toc = self.toc_bos*(1+self.inflation)**(self.output_dollar_yr-self.input_dollar_yr)
+        toc = inflate(self.toc_bos, self.input_dollar_yr, self.output_dollar_yr)
         self.toc_inflated = toc
-        foc_yr = self.foc_yr*(1+self.inflation)**(self.output_dollar_yr-self.input_dollar_yr)
+        foc_yr = inflate(self.foc_yr, self.input_dollar_yr, self.output_dollar_yr)
         self.foc_yr_inflated = foc_yr
-        voc_kwh = self.voc_kwh*(1+self.inflation)**(self.output_dollar_yr-self.input_dollar_yr)
+        voc_kwh = inflate(self.voc_kwh, self.input_dollar_yr, self.output_dollar_yr)
         self.voc_kwh_inflated = voc_kwh
         
         # Apply TASC multiplier (spreading CAPEX over expentidure period)

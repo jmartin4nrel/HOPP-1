@@ -28,7 +28,10 @@ class SimpleNGCC(BaseClass):
     output_streams_kg_s: dict = {}
     input_streams_kw: dict = {}
     output_streams_kw: dict = {}
-
+    no_ccs_co2_kg_kwh: float = 1/2.9225
+    ccs_co2_kg_kwh: float = 1/2.886
+    no_ccs_kg_co2_kg_ng: float = 1/.41637
+    ccs_kg_co2_kg_ng: float = 1/.46288
 
     def __attrs_post_init__(self):
         self.co2_kg_s = self.config.co2_kg_s
@@ -53,14 +56,16 @@ class SimpleNGCC(BaseClass):
         self.annual_mass_kg = co2_kg_s*60*60*24*365
         capture_model = self.config.capture_model
         if capture_model == 'AmineScrub':
-            kwh_kg = 2.886
-            ng_increase = 0.04651
-            self.input_streams_kg_s['natural gas'] = co2_kg_s*ng_increase
+            kwh_kg = 1/self.ccs_co2_kg_kwh
         elif capture_model == 'None':
-            kwh_kg = 2.9225
+            kwh_kg = 1/self.no_ccs_co2_kg_kwh
             self.input_streams_kg_s['natural gas'] = 0.
         self.output_streams_kg_s['co2'] = co2_kg_s
         self.output_streams_kw['electricity'] = co2_kg_s*kwh_kg*60*60
+        if capture_model == 'AmineScrub':
+            no_ccs_ng_kg_s = self.output_streams_kw['electricity']*self.no_ccs_co2_kg_kwh/3600/self.no_ccs_kg_co2_kg_ng
+            ccs_ng_kg_s = self.output_streams_kw['electricity']*self.ccs_co2_kg_kwh/3600/self.ccs_kg_co2_kg_ng
+            self.input_streams_kg_s['natural gas'] = ccs_ng_kg_s-no_ccs_ng_kg_s
 
 @define
 class SimpleNGCC_Finance(BaseClass):
