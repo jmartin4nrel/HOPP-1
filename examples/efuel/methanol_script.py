@@ -126,7 +126,7 @@ if __name__ == '__main__':
     for i in range(len(pcts_wind)):
         for j in range(len(pcts_overbuild)):
             arg_list = [main_path, turndown_path, fuel, reactor, catalyst, pcts_wind[i], pcts_overbuild[j], dollar_year, startup_year, lat, lon, state,
-                        False, False, False, 42.4683794096513, 24.9192794404992]
+                        False, False, False]
             arg_lists.append(arg_list)
 
 
@@ -174,29 +174,29 @@ if __name__ == '__main__':
     ## All locations
             
     
-    # lats, lons, states = import_sites(resource_dir/'ngcc_sites_full.csv')
+    lats, lons, states = import_sites(resource_dir/'ngcc_sites_full.csv')
 
-    # x, y = np.shape(lats)
-    # lcom_array = np.zeros((x,y))
-    # CI_array = np.zeros((x,y))
-    # WC_array = np.zeros((x,y))
-    # wind_cap_array = np.zeros((x,y))
-    # pv_cap_array = np.zeros((x,y))
+    x, y = np.shape(lats)
+    lcom_array = np.zeros((x,y))
+    CI_array = np.zeros((x,y))
+    WC_array = np.zeros((x,y))
+    wind_cap_array = np.zeros((x,y))
+    pv_cap_array = np.zeros((x,y))
     
-    # for i in range(x):
+    for i in range(x):
         
-    #     # Multiprocess site block
-    #     lat_list = lats[i]
-    #     lon_list = lons[i]
-    #     arg_lists = []
-    #     for j in range(y):
-    #         arg_list = [main_path, turndown_path, fuel, reactor, catalyst, 50, 50, dollar_year, startup_year, lat_list[j], lon_list[j], states[i]]
-    #         arg_lists.append(arg_list)
+        # Multiprocess site block
+        lat_list = lats[i]
+        lon_list = lons[i]
+        arg_lists = []
+        for j in range(y):
+            arg_list = [main_path, turndown_path, fuel, reactor, catalyst, 50, 50, dollar_year, startup_year, lat_list[j], lon_list[j], states[i]]
+            arg_lists.append(arg_list)
         
-    #     start = time.time()
-    #     with multiprocessing.Pool(num_cores) as p:
-    #         results = p.starmap(calculate_efuel_cost, arg_lists)
-    #     stop = time.time()
+        start = time.time()
+        with multiprocessing.Pool(num_cores) as p:
+            results = p.starmap(calculate_efuel_cost, arg_lists)
+        stop = time.time()
         
     #     # Multiprocess optimizer block
         
@@ -243,54 +243,54 @@ if __name__ == '__main__':
 
     #     # End of alternating blocks
 
-    #     result_array = np.array(results)
-    #     lcom_array[i,:] = result_array[:,0]
-    #     CI_array[i,:] = result_array[:,1]
-    #     WC_array[i,:] = result_array[:,2]
-    #     wind_cap_array[i,:] = result_array[:,3]
-    #     pv_cap_array[i,:] = result_array[:,4]
-    #     np.savetxt("lcom.csv",lcom_array,delimiter=',')
-    #     np.savetxt("CI.csv",CI_array,delimiter=',')
-    #     np.savetxt("WC.csv",WC_array,delimiter=',')
-    #     np.savetxt("wind_cap.csv",wind_cap_array,delimiter=',')
-    #     np.savetxt("pv_cap.csv",pv_cap_array,delimiter=',')
-    #     write_time = time.time()
+        result_array = np.array(results)
+        lcom_array[i,:] = result_array[:,0]
+        CI_array[i,:] = result_array[:,1]
+        WC_array[i,:] = result_array[:,2]
+        wind_cap_array[i,:] = result_array[:,3]
+        pv_cap_array[i,:] = result_array[:,4]
+        np.savetxt("lcom.csv",lcom_array,delimiter=',')
+        np.savetxt("CI.csv",CI_array,delimiter=',')
+        np.savetxt("WC.csv",WC_array,delimiter=',')
+        np.savetxt("wind_cap.csv",wind_cap_array,delimiter=',')
+        np.savetxt("pv_cap.csv",pv_cap_array,delimiter=',')
+        write_time = time.time()
         
-    #     print("Site #{} of {} complete, elapsed time: {:.1f} seconds ({:.1f} to write)".format(i+1,x,write_time-start,write_time-stop))
+        print("Site #{} of {} complete, elapsed time: {:.1f} seconds ({:.1f} to write)".format(i+1,x,write_time-start,write_time-stop))
 
     ## With optimizer
 
-    # for startup_year in year_sweep:
+    ### for startup_year in year_sweep:
 
-    max_iterations = 5
-    optimizer_config = {
-        'method':               'CEM',
-        'nprocs':               num_cores,
-        'generation_size':      num_cores,
-        'selection_proportion': .33,
-        'prior_scale':          1.0
-        }
+    # max_iterations = 5
+    # optimizer_config = {
+    #     'method':               'CEM',
+    #     'nprocs':               num_cores,
+    #     'generation_size':      num_cores,
+    #     'selection_proportion': .33,
+    #     'prior_scale':          1.0
+    #     }
     
-    start = time.time()
-    problem = EfuelHybridProblem(int(startup_year), lat, lon, state) #hybrid_plant
-    optimizer = OptimizationDriver(problem, recorder=DataRecorder.make_data_recorder("log"), **optimizer_config)
+    # start = time.time()
+    # problem = EfuelHybridProblem(int(startup_year), lat, lon, state) #hybrid_plant
+    # optimizer = OptimizationDriver(problem, recorder=DataRecorder.make_data_recorder("log"), **optimizer_config)
     
 
 
-    
-    plt.ion()
-    while optimizer.num_iterations() < max_iterations:
-        stopped, candidates = optimizer.step()
-        best_score, best_evaluation, best_solution = optimizer.best_solution()
-        stop = time.time()
-        print(optimizer.num_iterations(), ' ', optimizer.num_evaluations(), -best_score, best_solution)
-        candidate_X = np.array(candidates)[:,0]
-        candidate_Y = np.array(candidates)[:,1]
-        candidate_X = np.maximum(candidate_X,0)
-        candidate_Y = np.maximum(candidate_Y,0)
-        candidate_X = np.minimum(candidate_X,100)
-        candidate_Y = np.minimum(candidate_Y,100)
-        plt.plot(candidate_X,candidate_Y,'.')
-    print("Elapsed Time: {:.1f} seconds".format(stop-start))
 
-    calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, best_solution[0], best_solution[1], dollar_year, startup_year, lat, lon, state, True)
+    # plt.ion()
+    # while optimizer.num_iterations() < max_iterations:
+    #     stopped, candidates = optimizer.step()
+    #     best_score, best_evaluation, best_solution = optimizer.best_solution()
+    #     stop = time.time()
+    #     print(optimizer.num_iterations(), ' ', optimizer.num_evaluations(), -best_score, best_solution)
+    #     candidate_X = np.array(candidates)[:,0]
+    #     candidate_Y = np.array(candidates)[:,1]
+    #     candidate_X = np.maximum(candidate_X,0)
+    #     candidate_Y = np.maximum(candidate_Y,0)
+    #     candidate_X = np.minimum(candidate_X,100)
+    #     candidate_Y = np.minimum(candidate_Y,100)
+    #     plt.plot(candidate_X,candidate_Y,'.')
+    # print("Elapsed Time: {:.1f} seconds".format(stop-start))
+
+    # calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, best_solution[0], best_solution[1], dollar_year, startup_year, lat, lon, state, True)
