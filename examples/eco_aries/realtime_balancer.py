@@ -7,7 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from comms_tracking import setup_tracking, update_trackers, updateSOCplot
 from aries_comms import aries_output_unpack, aries_input_pack
-from hopp import ROOT_DIR
+from pathlib import Path
 
 def batt_balance(HOPPdict, ARIESdict, trackers, simulate_SOC):
 
@@ -111,7 +111,7 @@ def realtime_balancer(simulate_aries=True, acceleration=1, simulate_SOC=True):
     sendHOPPsocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 
     # Read in ARIES placeholder signal
-    aries_sig_fn = ROOT_DIR.parent / 'examples' / 'outputs' / 'placeholder_ARIES_with_wind_1s.csv'
+    aries_sig_fn = Path(__file__).parent / 'outputs' / 'placeholder_ARIES_with_wind_1s.csv'
     aries_signals = pd.read_csv(aries_sig_fn,parse_dates=True,index_col=0,infer_datetime_format=True)
 
     # Set up trackers and plots if necessary

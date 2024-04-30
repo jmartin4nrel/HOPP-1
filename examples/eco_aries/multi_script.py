@@ -13,7 +13,7 @@ if __name__ == '__main__':
     initial_SOC = 50.0
     simulate_SOC = False
 
-    eco_setup(False)
+    eco_setup(True)
 
     hopp = multiprocessing.Process(target=hopp_comms)
     if simulate_aries:

@@ -5,8 +5,8 @@ import os
 import copy
 import yaml
 from yamlinclude import YamlIncludeConstructor
+from pathlib import Path
 
-from hopp import ROOT_DIR
 from hopp.simulation.technologies.sites import SiteInfo, oahu_site
 from hopp.utilities import load_yaml
 from hopp.simulation import HoppInterface
@@ -152,7 +152,7 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
             for col in range(wind_velocities.shape[2]):
                 wind_vel = wind_velocities[:,0,col]
                 aries_frame = aries_frame.join(pd.DataFrame(wind_vel,index=hopp_time3, columns=['wind_vel_{:02}'.format(col)]))
-            aries_frame.to_csv(ROOT_DIR.parent / "examples" / "outputs" / "HOPP_output.csv")
+            aries_frame.to_csv(Path(__file__).parent / "outputs" / "HOPP_output.csv")
             slice_start = '2019-01-05 13:00'
             slice_end = '2019-01-06 15:00'
             aries_frame = aries_frame[slice_start:slice_end]
@@ -170,7 +170,7 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
             aries_frame = aries_frame.resample('5 min').interpolate('linear')
 
             # Add in deviations
-            wind_5min_devs = pd.read_csv(ROOT_DIR.parent/"examples"/"eco_aries"/"input_files"/"resources"/"wind_5min_dev.csv",header=None)
+            wind_5min_devs = pd.read_csv(Path(__file__).parent/"input_files"/"resources"/"wind_5min_dev.csv",header=None)
             for tech in aries_frame.columns.values:
                 if 'wind_vel' in tech:
                     values = aries_frame[tech].values
@@ -269,10 +269,10 @@ def eco_setup(generate_ARIES_placeholders=False, plot_results=False):
             aries_frame["batt"] = np.full(aries_frame['batt'].values.shape,batt_placeholder_kw)
             
             # Save to .csv
-            aries_frame.to_csv(ROOT_DIR.parent / "examples" / "outputs" / "placeholder_ARIES_with_wind_1s.csv")
+            aries_frame.to_csv(Path(__file__).parent / "outputs" / "placeholder_ARIES_with_wind_1s.csv")
             fine_aries_frame = aries_frame.iloc[:,:5]
             fine_aries_frame = fine_aries_frame.resample('100 ms').interpolate('linear')
-            fine_aries_frame.to_csv(ROOT_DIR.parent / "examples" / "outputs" / "placeholder_ARIES_no_wind_100ms.csv")
+            fine_aries_frame.to_csv(Path(__file__).parent / "outputs" / "placeholder_ARIES_no_wind_100ms.csv")
 
             hopp_time3 = aries_frame.index.values
 

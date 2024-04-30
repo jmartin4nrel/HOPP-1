@@ -3,7 +3,7 @@ import json
 import struct
 import numpy as np
 import pandas as pd
-from hopp import ROOT_DIR
+from pathlib import Path
 from random import random
 
 
@@ -123,7 +123,7 @@ def aries_comms(num_inputs=28, initial_SOC=50.0, acceleration=1):
     bufferSize  = num_inputs*4
 
     # Read in ARIES placeholder signal
-    aries_sig_fn = ROOT_DIR.parent / 'examples' / 'outputs' / 'placeholder_ARIES_no_wind_100ms.csv'
+    aries_sig_fn = Path(__file__).parent / 'outputs' / 'placeholder_ARIES_no_wind_100ms.csv'
     aries_signals = pd.read_csv(aries_sig_fn,parse_dates=True,index_col=0,infer_datetime_format=True)
 
     # Setup UDP send
