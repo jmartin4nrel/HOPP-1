@@ -46,8 +46,8 @@ def calculate_efuel_cost(main_path: Path,
     getattr(hi.system,'fuel').value('catalyst',catalyst)
     input_path = Path('inputs')
     output_path = Path('outputs')
-    fuel_inputs = pd.read_csv(input_path/'Reactor_inputs.csv',index_col=[0,1])
-    cost_list = ['toc','toc_kg_s','foc_yr','foc_kg_s_yr','voc_kg']
+    fuel_inputs = pd.read_csv(input_path/'Reactor_inputs_w_coating.csv',index_col=[0,1])
+    cost_list = ['toc','toc_kg_s','foc_yr','foc_kg_s_yr','voc_kg','co2']
     for cost in cost_list:
         if cost in fuel_inputs.columns:
             setattr(hi.system.fuel.config.simple_fin_config,cost,fuel_inputs.loc[(reactor,catalyst),cost])
@@ -60,12 +60,13 @@ def calculate_efuel_cost(main_path: Path,
     for param in param_list:
         if param in fuel_inputs.columns:
             hi.system.fuel.config.reaction_params[param] = fuel_inputs.loc[(reactor,catalyst),param]
+    elec_ratio = fuel_inputs.loc[(reactor,catalyst),'kwh_kg']
     if 'RCC' in reactor:
         setattr(hi.system.co2.config,'capture_model','None')
         setattr(hi.system.tech_config.co2,'capture_model','None')
 
     # Correct year with ATB
-    atb_scenario = 'Advanced'
+    atb_scenario = 'Moderate'
     hi = set_atb_year(hi, atb_scenario, startup_year, lat, lon)
     
     # Calculate co2 and h2 needed
@@ -79,6 +80,7 @@ def calculate_efuel_cost(main_path: Path,
                                                                                        h2_kg_s*60*60*24,
                                                                                        startup_year)
     total_elec_kw = h2_kg_s*h2_kWh_kg*3600
+    meoh_kw = hi.system.fuel.annual_mass_kg/8760*elec_ratio
     
     getattr(hi.system,'co2').value('co2_kg_s',co2_kg_s)
     # ngcc_cap =  hi.system.co2._system_model.ngcc_cap
@@ -102,7 +104,7 @@ def calculate_efuel_cost(main_path: Path,
     # Estimate number of turbines needed
     percent_wind = pct_wind
     percent_overbuild = pct_overbuild
-    overbuild_elec_kw = total_elec_kw*(100+percent_overbuild)/100
+    overbuild_elec_kw = total_elec_kw*(100+percent_overbuild)/100+meoh_kw
     if wind_cap_pct:
         wind_cap_factor = wind_cap_pct/100
     else:
@@ -144,7 +146,7 @@ def calculate_efuel_cost(main_path: Path,
     hi = HoppInterface(hopp_config)
 
     # Correct year with ATB
-    atb_scenario = 'Advanced'
+    atb_scenario = 'Moderate'
     hi = set_atb_year(hi, atb_scenario, startup_year, lat, lon)
 
     # Re-calculate wind power and finalize number of turbines
@@ -189,6 +191,7 @@ def calculate_efuel_cost(main_path: Path,
     for param in param_list:
         if param in fuel_inputs.columns:
             hi.system.fuel.config.reaction_params[param] = fuel_inputs.loc[(reactor,catalyst),param]
+    elec_ratio = fuel_inputs.loc[(reactor,catalyst),'kwh_kg']
     if 'RCC' in reactor:
         setattr(hi.system.co2.config,'capture_model','None')
         setattr(hi.system.tech_config.co2,'capture_model','None')
@@ -326,7 +329,7 @@ def calculate_efuel_cost(main_path: Path,
         hi_batt = HoppInterface(hopp_config)
 
         # Correct year with ATB
-        atb_scenario = 'Advanced'
+        atb_scenario = 'Moderate'
         hi_batt = set_atb_year(hi_batt, atb_scenario, startup_year, lat, lon)
 
     
@@ -377,6 +380,7 @@ def calculate_efuel_cost(main_path: Path,
         for tech in hi.system.lc_breakdown.keys():
             print(tech+': {:.3f}'.format(hi.system.lc_breakdown[tech]))
             out_list.append(hi.system.lc_breakdown[tech])
+        print("Fraction of electricity to methanol: {:.5f}".format(meoh_kw/(meoh_kw+total_elec_kw)))
         print("Carbon Intensity (CI), kg/kg-MeOH: {:.3f}".format(hi.system.lca['co2_kg_kg']))
         for tech in hi.system.lca_breakdown.keys():
             print(tech+': {:.3f}'.format(hi.system.lca_breakdown[tech]['co2_kg_kg']))

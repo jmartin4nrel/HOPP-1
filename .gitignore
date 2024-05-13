@@ -112,6 +112,7 @@ ENV/
 # Images, datafiles
 *.png
 *.xlsx
+*/*/outputs/*.csv
 
 *.pkl
 .DS_Store
