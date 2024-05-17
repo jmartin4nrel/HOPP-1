@@ -17,6 +17,10 @@ from openpyxl.utils import get_column_letter, column_index_from_string
 H2O_price_tgal = 2.56 # 2020 $/Tgal
 H2O_price_kg = H2O_price_tgal/1000*3.78
 
+wind_ppa_lcoe_ratio = 0.7742
+solar_ppa_lcoe_ratio = 0.6959
+    
+
 def calculate_efuel_cost(main_path: Path,
                          turndown_path: Path,
                          fuel: str='methanol',
@@ -33,7 +37,10 @@ def calculate_efuel_cost(main_path: Path,
                          turndown=False,
                          grid_pricing=False,
                          wind_cap_pct=None,
-                         pv_cap_pct=None):
+                         pv_cap_pct=None,
+                         indep_hybrid=False,
+                         wind_ppa_lcoe_ratio = 0.7742,
+                         solar_ppa_lcoe_ratio = 0.6959):
 
     # Create a HOPP interface with the cost and lca information for all components loaded from a .yaml 
     hi = HoppInterface(main_path)
@@ -284,7 +291,7 @@ def calculate_efuel_cost(main_path: Path,
 
     # Import cambium prices and emissions
     cambium_scenario = 'MidCase'
-    hi = set_cambium_inputs(hi, cambium_scenario, startup_year, state)
+    hi = set_cambium_inputs(hi, cambium_scenario, startup_year, state, wind_ppa_lcoe_ratio, solar_ppa_lcoe_ratio)
 
     # Make electrolyzer/sales/purchase profiles
     sell_kw = [0.0]*8760
@@ -303,7 +310,8 @@ def calculate_efuel_cost(main_path: Path,
     # Simulate plant for 30 years, getting curtailment (will be sold to grid) and missed load (will be purchased from grid)
     plant_life = 1 #years
     hi.simulate(plant_life)
-
+    lc_wind = hi.system.wind._financial_model.lc_kwh
+    lc_pv = hi.system.pv._financial_model.lc_kwh
     
 
     if turndown:
@@ -369,7 +377,27 @@ def calculate_efuel_cost(main_path: Path,
         
     hi.system.grid_purchase.generation_profile = list(batt_bought)
     hi.system.grid_sales.generation_profile = list(batt_sold)
-    
+
+    # For independent wind/solar plant, dictate ppa prices
+    cost_list = ['toc','toc_kw','foc_yr','foc_kw_yr']
+    print("Grid: ${:.4f}".format(hi.system.grid_purchase._financial_model.voc_kwh))
+    if indep_hybrid:
+        for cost in cost_list:
+            setattr(hi.system.wind.config.simple_fin_config,cost,0)
+            setattr(hi.system.pv.config.simple_fin_config,cost,0)
+            setattr(hi.system.wind._financial_model,cost,0)
+            setattr(hi.system.pv._financial_model,cost,0)
+            setattr(hi.system.wind.config.simple_fin_config,'voc_kwh',lc_wind*wind_ppa_lcoe_ratio)
+            setattr(hi.system.pv.config.simple_fin_config,'voc_kwh',lc_wind*wind_ppa_lcoe_ratio)
+            setattr(hi.system.wind._financial_model,'voc_kwh',lc_wind*wind_ppa_lcoe_ratio)
+            setattr(hi.system.pv._financial_model,'voc_kwh',lc_pv*solar_ppa_lcoe_ratio)
+            setattr(hi.system.grid_purchase._financial_model,'voc_kwh',0)
+            setattr(hi.system.grid_sales._financial_model,'voc_kwh',0)
+    print("LCOE wind: ${:.4f}".format(lc_wind))
+    print("LCOE solar: ${:.4f}".format(lc_pv))
+    print("PPA wind: ${:.4f}".format(lc_wind*wind_ppa_lcoe_ratio))
+    print("PPA solar: ${:.4f}".format(lc_pv*solar_ppa_lcoe_ratio))
+
     hi.simulate(1)
 
     if printout:

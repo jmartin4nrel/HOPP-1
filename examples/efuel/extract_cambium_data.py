@@ -6,9 +6,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from hopp.simulation.technologies.financial.simple_financial_model import inflate
 
-wind_ppa_lcoe_ratio = 0.7742
-solar_ppa_lcoe_ratio = 0.6959
-
 all_grid_wcs = [1718.605915	,1576.131286	,1433.656658	,1291.182029	,1148.707401	,
                 1006.232772	,877.3949737	,748.5571751	,619.7193766	,490.881578	,
                 362.0437794	,331.9507828	,301.8577862	,271.7647896	,241.671793	,
@@ -189,7 +186,7 @@ def extract_cambium_data(cambium_dir, dollar_year):
         cambium_ghgs.to_json(resource_dir/('cambium_ghgs_'+name+'.json'))
         cambium_ng.to_json(resource_dir/('cambium_ng_'+name+'.json'))
 
-def set_cambium_inputs(hi, cambium_scenario, year, state):
+def set_cambium_inputs(hi, cambium_scenario, year, state, wind_ppa_lcoe_ratio, solar_ppa_lcoe_ratio):
 
     resource_dir = Path(__file__).parent.absolute()/'inputs'
 

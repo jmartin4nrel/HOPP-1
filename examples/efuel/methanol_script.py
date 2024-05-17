@@ -23,13 +23,13 @@ turndown_path = Path("inputs/methanol-battery.yaml")
 
 dollar_year = 2020
 
-min_wind = 60
+min_wind = 0
 max_wind = 100
 avg_wind = (min_wind+max_wind)/2
 sig_wind = avg_wind-min_wind
 
 min_bld = 0
-max_bld = 15
+max_bld = 50
 avg_bld = (min_bld+max_bld)/2
 sig_bld = avg_bld-min_bld
 
@@ -100,7 +100,8 @@ class EfuelHybridProblem(OptimizationProblem):
         reactor = 'CO2 hydrogenation'
         catalyst = 'None'
         lcom, _, _, _, _ = calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, pct_wind, pct_overbuild,
-                                                dollar_year, self.startup_year, self.lat, self.lon, self.state, False, False, False)#, self.wind_cap, self.pv_cap)
+                                                dollar_year, self.startup_year, self.lat, self.lon, self.state, False, False, False,
+                                                indep_hybrid=True)#, wind_ppa_lcoe_ratio=1, solar_ppa_lcoe_ratio=1)#, self.wind_cap, self.pv_cap)
         evaluation = (-lcom,candidate_index)
         score = evaluation[0]
         return score, evaluation, candidate_conforming
@@ -118,7 +119,7 @@ if __name__ == '__main__':
     # TODO sweep through reactor parameters
     fuel = 'methanol'
     reactor = 'CO2 hydrogenation'
-    reactor = 'CO RCC'
+    # reactor = 'CO RCC'
     catalyst = 'K/ZA'
 
     # TODO sweep through years
@@ -134,6 +135,13 @@ if __name__ == '__main__':
     # lat = 43.6575 
     # lon = -70.06423732247559
     # state = 'ME'
+    # lat = 46.23308232155108
+    # lon = -122.58574166664751
+    # state = "WA"
+    # lat = 40.403137
+    # lon = -122.427904
+    # state = "CA"
+
 
     # Set up to optimize the % wind and % overbuild
     arg_lists = []
@@ -150,11 +158,11 @@ if __name__ == '__main__':
     ### Run optimization on the e-fuel cost
     
 
-    # One instance
+    ## One instance
 
     start = time.time()
     calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, 100, 0, dollar_year, startup_year, lat, lon, state,
-                         True, False, False)#, 42.4683794096513, 24.91935255018996)
+                         True, False, False, indep_hybrid=True, wind_ppa_lcoe_ratio=1.1925, solar_ppa_lcoe_ratio=1.3725)#, 42.4683794096513, 24.91935255018996)
     stop = time.time()
     print("Elapsed Time: {:.1f} seconds".format(stop-start))
     
@@ -332,7 +340,11 @@ if __name__ == '__main__':
     #     candidate_Y = np.minimum(candidate_Y,max_bld)
         
     #     col = [cm((float(i)-np.min(lcom_array))/(np.max(lcom_array)-np.min(lcom_array))) for i in lcom_array]
-    #     plt.scatter(candidate_X,candidate_Y, s=10, c=col, marker='o')
+    #     ax = plt.scatter(candidate_X,candidate_Y, s=10, c=col, marker='o')
+    #     ax.set_cmap("jet")
+    #     plt.colorbar(ax)
+    #     print(min(lcom_array))
+    #     print(max(lcom_array))
     #     plt.show()
     #     # plt.plot(candidate_X,candidate_Y,'.')
     # print("Elapsed Time: {:.1f} seconds".format(stop-start))
