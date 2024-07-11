@@ -127,4 +127,4 @@ plt.legend(bbox_to_anchor=(1.45,1.25),ncol=4,handletextpad=0.0,columnspacing=0.1
 plt.gcf().set_size_inches(3.4,3)
 plt.gcf().set_tight_layout(True)
 plt.show()
-.savefig('corr.png',dpi=300)
+savefig('corr.png',dpi=300)
