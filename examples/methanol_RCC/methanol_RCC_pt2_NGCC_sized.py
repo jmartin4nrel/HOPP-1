@@ -878,7 +878,9 @@ def try_H2_price(Forced_H2_Price, index, plotting=False, DAC_cost_mt=0, run_idx=
 
     print(finance['MCO2']['lcom_$_kg'])
     print(finance['MPSR']['lcom_$_kg'])
-    print(finance['MPSR']['VOM_H2_$_kgH2'][MeOH_scenario])
+    # print(finance['MPSR']['VOM_H2_$_kgH2'][MeOH_scenario])
+    print(lca['MCO2']['kgCO2e_kgMeOH'])
+    print(lca['MPSR']['kgCO2e_kgMeOH'])
 
     out_name = 'output_{}_{}_'.format(DAC_cost_mt,run_idx)#input("Name of output file:")
 

@@ -35,6 +35,7 @@ def site_details_creator(desired_lats, desired_lons, year="2012", not_rect=False
     if N_lat * N_lon == 1:
         desired_lats_grid = [desired_lats]
         desired_lons_grid = [desired_lons]
+        count = 1
     else:
         for desired_lon in desired_lons:
             if not_rect:
@@ -57,14 +58,17 @@ def site_details_creator(desired_lats, desired_lons, year="2012", not_rect=False
     solar_filenames = []
     wind_filenames = []
     years = []
+    on_land = []
     for i in range(len(all_sites)):
         solar_filenames.append('')
         wind_filenames.append('')
         years.append(year)
+        on_land.append(True)
 
     all_sites['solar_filenames'] = solar_filenames
     all_sites['wind_filenames'] = wind_filenames
     all_sites['year'] = years
+    all_sites['on_land'] = on_land
 
     return all_sites
 

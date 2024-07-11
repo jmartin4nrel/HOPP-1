@@ -136,11 +136,11 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
     cambium_scenarios = ['MidCase','HighNGPrice','LowNGPrice']
     # Set specific scenarios to size with
     cambium_scenario = 'MidCase'
-    plant_scenarios =  {'NGCC':'Advanced',
-                        'CCS': 'Advanced',
-                        'PV':  'Advanced',
-                        'LBW': 'Advanced',
-                        'OSW': 'Advanced',
+    plant_scenarios =  {'NGCC':'Conservative',
+                        'CCS': 'Conservative',
+                        'PV':  'Conservative',
+                        'LBW': 'Conservative',
+                        'OSW': 'Conservative',
                         'HCO2':'Future',
                         'HPSR':'Future',
                         'MSMR':'Great',
@@ -959,21 +959,21 @@ def try_H2_ratio(H2_ratio=0.44, CO2_feed_mt_yr=1596153, ASPEN_MeOH_cap_mt_yr=115
 
     ## Write imported dicts to json dumpfiles
 
-    # current_dir = Path(__file__).parent.absolute()
-    # resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'/cambium_scenario
-    # with open(Path(resource_dir/'engin.json'),'w') as file:
-    #     json.dump(engin, file)
-    # with open(Path(resource_dir/'finance.json'),'w') as file:
-    #     json.dump(finance, file)
-    # with open(Path(resource_dir/'scenario.json'),'w') as file:
-    #     json.dump(scenario_info, file)
-    # with open(Path(resource_dir/'locations.json'),'w') as file:
-    #     out_locations = copy.deepcopy(locations)
-    #     for ID, loc in out_locations.items():
-    #         for i, value in enumerate(loc['on_land']):
-    #             value = str(value).lower()
-    #             loc['on_land'][i] = value
-    #     json.dump(out_locations, file)
+    current_dir = Path(__file__).parent.absolute()
+    resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'/cambium_scenario
+    with open(Path(resource_dir/'engin.json'),'w') as file:
+        json.dump(engin, file)
+    with open(Path(resource_dir/'finance.json'),'w') as file:
+        json.dump(finance, file)
+    with open(Path(resource_dir/'scenario.json'),'w') as file:
+        json.dump(scenario_info, file)
+    with open(Path(resource_dir/'locations.json'),'w') as file:
+        out_locations = copy.deepcopy(locations)
+        for ID, loc in out_locations.items():
+            for i, value in enumerate(loc['on_land']):
+                value = str(value).lower()
+                loc['on_land'][i] = value
+        json.dump(out_locations, file)
 
 
     # # RUN HOPP HERE - multi_location_RCC.py

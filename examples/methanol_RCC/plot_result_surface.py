@@ -3,11 +3,12 @@ import numpy as np
 from pathlib import Path
 
 current_dir = Path(__file__).parent.absolute()
-years = np.arange(2020,2060,40)#[2050,]#
+years = np.arange(2020,2050,10)#[2050,]#
 # years = [2040]
 
 # sites = ['IA01','TX01']##
 site = 'CA0105'
+site = 'TX0911'
 # n_sites = len(sites)
 n_years = len(years)
 
@@ -28,7 +29,7 @@ plt.set_cmap('turbo')
 for i, year in enumerate(years):
     ax_list = []
     for l, scenario in enumerate(cambium_scenarios):
-        results_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'/scenario/(str(year)+' geo')
+        results_dir = current_dir/'..'/'resource_files'/'methanol_RCC'/'HOPP_results'/scenario/(str(year))#+' geo')
         orig_lcoe = np.zeros((n_winds,n_plants))
         lcoe = np.zeros((n_winds,n_plants))
         orig_CI = np.zeros((n_winds,n_plants))
@@ -69,16 +70,16 @@ for i, year in enumerate(years):
         # lcoe[3,3] = 0.0495
         # plt.subplot(n_sites,2,i*2+2)
         # if j == 0:
-        ax = plt.subplot(2,2,i+1)
+        ax = plt.subplot(2,3,i+1)
         #     ax_list.append(ax)
         # else:
         #     plt.sca(ax_list[1])
-        plt.contourf(X,Y,lcoe, vmin=0.02,  vmax=0.11) #
+        plt.contourf(X,Y,lcoe*100, vmin=2,  vmax=8) #
         plt.xlabel('Plant size, % of original estimate')
         plt.ylabel('% wind')
         plt.xticks(plant_size_pcts)
         plt.yticks(wind_pcts)
-        plt.colorbar(label='$/kWh')
+        plt.colorbar(label='cents/kWh')
 
         # # if j == 0:
         # ax = plt.subplot(len(cambium_scenarios),4,3+l*4)
@@ -91,7 +92,7 @@ for i, year in enumerate(years):
         # plt.colorbar(label='gCO2e/kWh')
 
          # if j == 0:
-        ax = plt.subplot(2,2,i+1+2)
+        ax = plt.subplot(2,3,i+1+3)
         #     ax_list.append(ax)
         # else:
         #     plt.sca(ax_list[2])

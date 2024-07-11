@@ -281,7 +281,7 @@ def run_hybrid_calc_bruteforce(site_name, year, site_num, res_fn_wind, res_fn_so
 
     plant = technologies['interconnection']['H2_plant']
     filename = '{}{:02d}_plant{:03d}_wind{:02d}_{}.txt'.format(site_name,site_num,plant_pct,wind_pct,plant)
-    if filename not in os.listdir(results_dir/'OrigLCOE'):
+    if True: #filename not in os.listdir(results_dir/'OrigLCOE'):
 
         # Make reduced version of technologies dict that has just what HOPP uses to setup technologies dict
         sim_tech = copy.deepcopy(technologies)
@@ -512,7 +512,7 @@ if __name__ == '__main__':
     # Set paths
     current_dir = Path(__file__).parent.absolute()
     resource_dir = current_dir/'..'/'resource_files'/'methanol_RCC'
-    load_resource_from_file = True
+    load_resource_from_file = False
 
     # Load dump files from data import
     cambium_scenarios = ['MidCase']#,'HighNGPrice','LowNGPrice'
