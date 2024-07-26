@@ -868,7 +868,7 @@ class HybridSimulation(BaseClass):
         logger.info(f"Hybrid Financials Complete. NPVs are {self.net_present_values}.")
 
 
-    def simple_financials(self):
+    def simple_financials(self, project_life: int=25):
         """
         Runs the simple finanical model for individual sub-systems and the hybrid system as a whole
         """
@@ -925,17 +925,45 @@ class HybridSimulation(BaseClass):
                         prod_lc = lc*output_kg_yr/prod_output_kg_yr
                 self.lc += prod_lc
                 self.lc_breakdown[system] = prod_lc
+                # if isinstance(model,WindPlant):
+                #     self.itc_wind_kg = model._financial_model.toc_inflated*0.30/project_life/prod_output_kg_yr
+                #     self.ptc_wind_kg = output_kwh_yr*0.026/prod_output_kg_yr
+                #     if self.itc_wind_kg > self.ptc_wind_kg:
+                #         self.lc -= self.itc_wind_kg
+                #         self.lc_breakdown['wind_itc'] = -self.itc_wind_kg
+                #     else:
+                #         self.lc -= self.ptc_wind_kg
+                #         self.lc_breakdown['wind_ptc'] = -self.ptc_wind_kg
+                # if isinstance(model,PVPlant):
+                #     self.itc_pv_kg = model._financial_model.toc_inflated*0.30/project_life/prod_output_kg_yr
+                #     self.ptc_pv_kg = output_kwh_yr*0.0275/prod_output_kg_yr
+                #     if self.itc_pv_kg > self.ptc_pv_kg:
+                #         self.lc -= self.itc_pv_kg
+                #         self.lc_breakdown['pv_itc'] = -self.itc_pv_kg
+                #     else:
+                #         self.lc -= self.ptc_pv_kg
+                #         self.lc_breakdown['pv_ptc'] = -self.ptc_pv_kg
+                # if isinstance(model, ElectrolyzerPlant):
+                #     h2_kg_yr = np.average(model._system_model.output_streams_kg_s['hydrogen'])*3600*8760
+                #     self.itc_h2_kg = model._financial_model.toc_inflated*0.30/project_life/prod_output_kg_yr
+                #     self.ptc_h2_kg = h2_kg_yr*3/prod_output_kg_yr
+                #     if self.itc_h2_kg > self.ptc_h2_kg:
+                #         self.lc -= self.itc_h2_kg
+                #         self.lc_breakdown['h2_itc'] = -self.itc_h2_kg
+                #     else:
+                #         self.lc -= self.ptc_h2_kg
+                #         self.lc_breakdown['h2_ptc'] = -self.ptc_h2_kg
         if isinstance(cost_model,FlowSource):
             self.lc_breakdown['toc_kg'] = cost_finance.toc_inflated*cost_finance.tasc_toc*cost_finance.fcr_real/prod_output_kg_yr
             self.lc_breakdown['foc_kg'] = cost_finance.foc_yr_inflated/prod_output_kg_yr
             self.lc_breakdown['voc_kg'] = cost_finance.voc_kg_inflated
-        # if 'electrolyzer' in self.technologies.keys():
-        #     model = getattr(self, 'electrolyzer')
-        #     o2_sales_price_kg = -0.14*1.16/3.28
-        #     o2_kg_yr = 60*60*sum(model._system_model.output_streams_kg_s['oxygen'])
-        #     o2_lc = o2_kg_yr/prod_output_kg_yr*o2_sales_price_kg
-        #     self.lc += o2_lc
-        #     self.lc_breakdown['O2_sales'] = o2_lc
+        if 'electrolyzer' in self.technologies.keys():
+            model = getattr(self, 'electrolyzer')
+            o2_sales_price_kg = -0.14*1.16/3.28
+            o2_kg_yr = 60*60*sum(model._system_model.output_streams_kg_s['oxygen'])
+            o2_lc = o2_kg_yr/prod_output_kg_yr*o2_sales_price_kg
+            self.lc += o2_lc
+            self.lc_breakdown['O2_sales'] = o2_lc
         pass
 
 

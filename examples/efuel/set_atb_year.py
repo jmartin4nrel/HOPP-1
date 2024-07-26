@@ -379,6 +379,7 @@ def set_atb_year(hi, scenario, year, lat, lon):
                     for key in list(engin['LBW'].keys()):
                         tech_engin[key] = engin['LBW'][key][scenario]
                 for key, value in tech_finance.items():
+                    setattr(hi.system.wind.config.simple_fin_config,key,value[year_idx])
                     setattr(hi.system.wind._financial_model,key,value[year_idx])
                 hi.system.wind.turb_rating = tech_engin['turbine_rating_kw'][year_idx]
                 hi.system.wind.rotor_diameter = tech_engin['rotor_diameter'][year_idx]
@@ -394,6 +395,7 @@ def set_atb_year(hi, scenario, year, lat, lon):
                 for key in list(engin['PV'].keys()):
                     tech_engin[key] = engin['PV'][key][scenario]
                 for key, value in tech_finance.items():
+                    setattr(hi.system.pv.config.simple_fin_config,key,value[year_idx])
                     setattr(hi.system.pv._financial_model,key,value[year_idx])
                 hi.system.pv._system_model.Lifetime.dc_degradation = tuple([tech_engin['dc_degradation'][year_idx]])
                 hi.system.pv._system_model.SolarResource.albedo = tuple(np.ones(12)*tech_engin['albedo'][year_idx])

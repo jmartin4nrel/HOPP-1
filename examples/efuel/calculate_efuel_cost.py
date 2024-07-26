@@ -66,7 +66,7 @@ def calculate_efuel_cost(main_path: Path,
         setattr(hi.system.tech_config.co2,'capture_model','None')
 
     # Correct year with ATB
-    atb_scenario = 'Moderate'
+    atb_scenario = "Moderate" # 'Advanced' # 
     hi = set_atb_year(hi, atb_scenario, startup_year, lat, lon)
     
     # Calculate co2 and h2 needed
@@ -79,8 +79,9 @@ def calculate_efuel_cost(main_path: Path,
     h2_basis_year, h2_toc, h2_foc_yr, h2_WC_kg_h2o_kg_h2, h2_kWh_kg = H2AModel_costs(electrolyzer_cap_factor,
                                                                                        h2_kg_s*60*60*24,
                                                                                        startup_year)
-    total_elec_kw = h2_kg_s*h2_kWh_kg*3600
-    meoh_kw = hi.system.fuel.annual_mass_kg/8760*elec_ratio
+    h2_elec_kw = h2_kg_s*h2_kWh_kg*3600
+    meoh_kg_yr = hi.system.fuel.annual_mass_kg
+    meoh_kw = meoh_kg_yr/8760*elec_ratio
     
     getattr(hi.system,'co2').value('co2_kg_s',co2_kg_s)
     # ngcc_cap =  hi.system.co2._system_model.ngcc_cap
@@ -94,6 +95,8 @@ def calculate_efuel_cost(main_path: Path,
         hi.system.ng._system_model.annual_mass_kg = 0.
     hi.system.co2.simulate_flow(1)
     ng_kg_s = copy.deepcopy(np.mean(hi.system.co2._system_model.input_streams_kg_s['natural gas']))
+    if "SMR" in reactor:
+        ng_kg_s = 81.69883185*115104000/3365095697
     hi.system.ng._system_model.ng_kg_s = ng_kg_s
     getattr(hi.system,'ng').value('ng_kg_s',ng_kg_s)
     hi.system.tech_config.ng.ng_kg_s = ng_kg_s
@@ -104,7 +107,7 @@ def calculate_efuel_cost(main_path: Path,
     # Estimate number of turbines needed
     percent_wind = pct_wind
     percent_overbuild = pct_overbuild
-    overbuild_elec_kw = total_elec_kw*(100+percent_overbuild)/100+meoh_kw
+    overbuild_elec_kw = (h2_elec_kw+meoh_kw)*(100+percent_overbuild)/100
     if wind_cap_pct:
         wind_cap_factor = wind_cap_pct/100
     else:
@@ -146,7 +149,7 @@ def calculate_efuel_cost(main_path: Path,
     hi = HoppInterface(hopp_config)
 
     # Correct year with ATB
-    atb_scenario = 'Moderate'
+    atb_scenario = "Moderate" # 'Advanced' # 
     hi = set_atb_year(hi, atb_scenario, startup_year, lat, lon)
 
     # Re-calculate wind power and finalize number of turbines
@@ -229,13 +232,17 @@ def calculate_efuel_cost(main_path: Path,
 
     # Calculate the electrolyzer and interconnect size needed based on an estimated capacity factor
     electrolyzer_cap_factor = 0.97
-    electrolyzer_cap_kw = total_elec_kw/electrolyzer_cap_factor
-    sales_cap_kw = wind_cap_kw+pv_cap_kw-electrolyzer_cap_kw
+    electrolyzer_cap_kw = h2_elec_kw/electrolyzer_cap_factor
+    sales_cap_kw = wind_cap_kw+pv_cap_kw-electrolyzer_cap_kw-meoh_kw
     sales_cap_kw = max(1.,sales_cap_kw)
-    getattr(hi.system,'grid').value('interconnect_kw',sales_cap_kw+electrolyzer_cap_kw)
+    if "SMR" in reactor:
+        sales_cap_kw = elec_ratio*meoh_kg_yr/8760
+    getattr(hi.system,'grid').value('interconnect_kw',sales_cap_kw+electrolyzer_cap_kw+meoh_kw)
     getattr(hi.system,'grid_sales').value('interconnect_kw',sales_cap_kw)
-    getattr(hi.system,'grid_purchase').value('interconnect_kw',electrolyzer_cap_kw)
+    getattr(hi.system,'grid_purchase').value('interconnect_kw',electrolyzer_cap_kw+meoh_kw)
     getattr(hi.system,'electrolyzer').value('system_capacity_kw',electrolyzer_cap_kw)
+    setattr(hi.system.electrolyzer.config,'kwh_kg_h2',h2_kWh_kg)
+    setattr(hi.system.electrolyzer._system_model,'kwh_kg_h2',h2_kWh_kg)
     setattr(hi.system.electrolyzer._financial_model,'input_dollar_yr',h2_basis_year)
     setattr(hi.system.electrolyzer._financial_model,'toc',h2_toc)
     setattr(hi.system.electrolyzer._financial_model,'toc_kw',None)
@@ -254,9 +261,9 @@ def calculate_efuel_cost(main_path: Path,
     hi.simulate(plant_life)
 
     # Determine the capacity threshold at which grid electricity must be bought to meet electrolyzer demand
-    cap_thresh = electrolyzer_cap_factor
-    needed_kwh = electrolyzer_cap_factor*electrolyzer_cap_kw*8760
-    total_kwh = electrolyzer_cap_kw*8760
+    cap_thresh = copy.deepcopy(electrolyzer_cap_factor)
+    needed_kwh = (h2_elec_kw+meoh_kw)*8760
+    total_kwh = (electrolyzer_cap_kw+meoh_kw)*8760
     if not wind_cap_pct and not pv_cap_pct:
         gen_profile = copy.deepcopy(hi.system.generation_profile['hybrid'])
         load_schedule = list(gen_profile)
@@ -268,19 +275,19 @@ def calculate_efuel_cost(main_path: Path,
         load_schedule = list(gen_profile)
     timestep_h = 8760/len(load_schedule)
     while total_kwh > needed_kwh:
-        when_above = [i>=electrolyzer_cap_kw for i in gen_profile]
-        when_below = [i<=electrolyzer_cap_kw*cap_thresh for i in gen_profile]
+        when_above = [i>=(electrolyzer_cap_kw+meoh_kw) for i in gen_profile]
+        when_below = [i<=(electrolyzer_cap_kw*cap_thresh+meoh_kw) for i in gen_profile]
         when_in_between = list(np.logical_and(np.logical_not(when_above),np.logical_not(when_below)))
-        total_kwh = sum(when_above)*electrolyzer_cap_kw*timestep_h + \
-                    sum(when_below)*electrolyzer_cap_kw*cap_thresh*timestep_h + \
+        total_kwh = sum(when_above)*(electrolyzer_cap_kw+meoh_kw)*timestep_h + \
+                    sum(when_below)*(electrolyzer_cap_kw*cap_thresh+meoh_kw)*timestep_h + \
                     sum(np.multiply(gen_profile,when_in_between))*timestep_h
         if total_kwh > needed_kwh:
-            cap_thresh -= 0.001
+            cap_thresh -= 0.0001
         else:
-            makeup_kwh = needed_kwh - sum(when_above)*electrolyzer_cap_kw*timestep_h - \
+            makeup_kwh = needed_kwh - sum(when_above)*(electrolyzer_cap_kw+meoh_kw)*timestep_h - \
                                         sum(np.multiply(gen_profile,when_in_between))*timestep_h
             makeup_kw = makeup_kwh/sum(when_below)/timestep_h
-            cap_thresh = makeup_kw/electrolyzer_cap_kw
+            cap_thresh = (makeup_kw-meoh_kw)/electrolyzer_cap_kw
 
     # Import cambium prices and emissions
     cambium_scenario = 'MidCase'
@@ -291,12 +298,12 @@ def calculate_efuel_cost(main_path: Path,
     buy_kw = [0.0]*8760
     for i, gen in enumerate(load_schedule):
         if when_above[i]:
-            sell_kw[i] = electrolyzer_cap_kw-gen
-            load_schedule[i] = electrolyzer_cap_kw
+            sell_kw[i] = electrolyzer_cap_kw+meoh_kw-gen
+            load_schedule[i] = electrolyzer_cap_kw+meoh_kw
         elif when_below[i]:
-            load_schedule[i] = electrolyzer_cap_kw*cap_thresh
-            buy_kw[i] = electrolyzer_cap_kw*cap_thresh-gen
-    hi.system.electrolyzer.generation_profile = load_schedule
+            load_schedule[i] = electrolyzer_cap_kw*cap_thresh+meoh_kw
+            buy_kw[i] = electrolyzer_cap_kw*cap_thresh+meoh_kw-gen
+    hi.system.electrolyzer.generation_profile = [i-meoh_kw for i  in load_schedule]
     hi.system.grid_sales.generation_profile = sell_kw
     hi.system.grid_purchase.generation_profile = buy_kw
 
@@ -329,7 +336,7 @@ def calculate_efuel_cost(main_path: Path,
         hi_batt = HoppInterface(hopp_config)
 
         # Correct year with ATB
-        atb_scenario = 'Moderate'
+        atb_scenario = "Moderate" # 'Advanced' # 
         hi_batt = set_atb_year(hi_batt, atb_scenario, startup_year, lat, lon)
 
     
@@ -345,7 +352,7 @@ def calculate_efuel_cost(main_path: Path,
     # solar_plant_power = np.array(hybrid_plant.pv.generation_profile)
     # wind_plant_power = np.array(hybrid_plant.wind.generation_profile)
     renewable_generation_profile = gen_profile#solar_plant_power + wind_plant_power
-    electrolyzer_profile = np.array(hybrid_plant.electrolyzer.generation_profile)
+    electrolyzer_profile = np.array(hybrid_plant.electrolyzer.generation_profile)+meoh_kw
 
 
     if turndown:
@@ -369,6 +376,10 @@ def calculate_efuel_cost(main_path: Path,
         
     hi.system.grid_purchase.generation_profile = list(batt_bought)
     hi.system.grid_sales.generation_profile = list(batt_sold)
+
+    if "SMR" in reactor:
+        smr_sold = -np.ones(8760)*elec_ratio*meoh_kg_yr/8760
+        hi.system.grid_sales.generation_profile = list(smr_sold)
     
     hi.simulate(1)
 
@@ -380,7 +391,8 @@ def calculate_efuel_cost(main_path: Path,
         for tech in hi.system.lc_breakdown.keys():
             print(tech+': {:.3f}'.format(hi.system.lc_breakdown[tech]))
             out_list.append(hi.system.lc_breakdown[tech])
-        print("Fraction of electricity to methanol: {:.5f}".format(meoh_kw/(meoh_kw+total_elec_kw)))
+        print("Fraction of electricity to methanol: {:.5f}".format(meoh_kw/(meoh_kw+h2_elec_kw)))
+        out_list.append(meoh_kw/(meoh_kw+h2_elec_kw))
         print("Carbon Intensity (CI), kg/kg-MeOH: {:.3f}".format(hi.system.lca['co2_kg_kg']))
         for tech in hi.system.lca_breakdown.keys():
             print(tech+': {:.3f}'.format(hi.system.lca_breakdown[tech]['co2_kg_kg']))

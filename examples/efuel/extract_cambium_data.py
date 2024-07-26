@@ -232,10 +232,11 @@ def set_cambium_inputs(hi, cambium_scenario, year, state):
     hi.system.grid_purchase.config.lca['h2o_kg_kwh'] = grid_wc_kg_mwh/1000
     hi.system.grid_sales.config.lca['h2o_kg_kwh'] = grid_wc_kg_mwh/1000
 
-    ng_price_mmbtu = cambium_ng.loc[year].values[0]
+    ng_price_mmbtu = 4#cambium_ng.loc[year].values[0]
     kJ_btu = 1.05506 # kJ/BTU
     NG_LHV_MJ_kg = 47.21 # Natural gas net calorific value, MJ/kg,
     ng_price_kg = ng_price_mmbtu/kJ_btu/1000*NG_LHV_MJ_kg
+    setattr(hi.system.ng.config.simple_fin_config,'voc_kg',ng_price_kg)
     setattr(hi.system.ng._financial_model,'voc_kg',ng_price_kg)
 
     return hi

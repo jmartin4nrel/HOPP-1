@@ -115,17 +115,23 @@ if __name__ == '__main__':
     # Enter number of cores in CPU
     num_cores = 14
 
-    # TODO sweep through reactor parameters
     fuel = 'methanol'
     reactor = 'CO2 hydrogenation'
+    reactor = 'RCC recycle'
     reactor = 'CO RCC'
-    catalyst = 'K/ZA'
+    # reactor = 'SMR'
+    catalyst = 'ZA-Z'
+    # catalyst = 'None'
+    # catalyst = 'K/CZA'
+    # catalyst = "CZA"
 
-    # TODO sweep through years
+    reactors = ['SMR','CO2 hydrogenation','RCC recycle','RCC recycle','RCC recycle','CO RCC','CO RCC','CO RCC','CO RCC']#,'CO RCC','CO RCC','CO RCC','CO RCC']
+    catalysts = ['None','None','CZA','Na/CZA','K/CZA','ZA-Z','K/ZA-Z','ZA','K/ZA']#,'ZA-Z 30','K/ZA-Z 30','ZA 30','K/ZA 30']
+
     startup_year = 2023
     year_sweep = np.arange(2020,2055,5)
 
-    # Either sweep through locations or pick a specific location
+    # Pick a specific location
     lat = 32.337679
     lon = -98.26680948967483
     state = 'TX'
@@ -135,28 +141,65 @@ if __name__ == '__main__':
     # lon = -70.06423732247559
     # state = 'ME'
 
-    # Set up to optimize the % wind and % overbuild
+    # Sweep through years/reactors
     arg_lists = []
     pct_overbuild = 0
-    pcts_wind = np.arange(10,90.5,20)
-    pcts_overbuild = np.arange(0,25,5)
-    for i in range(len(pcts_wind)):
-        for j in range(len(pcts_overbuild)):
-            arg_list = [main_path, turndown_path, fuel, reactor, catalyst, pcts_wind[i], pcts_overbuild[j], dollar_year, startup_year, lat, lon, state,
-                        False, False, False]
-            arg_lists.append(arg_list)
+    pct_wind = 100
+    pct_overbuild = 0
+    for i in range(len(reactors)): #year_sweep
+        arg_list = [main_path, turndown_path, fuel, reactors[i], catalysts[i], pct_wind, pct_overbuild, dollar_year, startup_year, lat, lon, state,
+                        True, False, False]
+        arg_lists.append(arg_list)
+
+    # # Set up to optimize the % wind and % overbuild
+    # arg_lists = []
+    # pct_overbuild = 0
+    # pcts_wind = np.arange(10,90.5,20)
+    # pcts_overbuild = np.arange(0,25,5)
+    # for i in range(len(pcts_wind)):
+    #     for j in range(len(pcts_overbuild)):
+    #         arg_list = [main_path, turndown_path, fuel, reactor, catalyst, pcts_wind[i], pcts_overbuild[j], dollar_year, startup_year, lat, lon, state,
+    #                     False, False, False]
+    #         arg_lists.append(arg_list)
 
 
     ### Run optimization on the e-fuel cost
     
 
-    # One instance
+    ## One instance
 
+    # start = time.time()
+    # calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, 100, 0, dollar_year, startup_year, lat, lon, state,
+    #                      True, False, False)#, 42.4683794096513, 24.91935255018996)
+    # stop = time.time()
+    # print("Elapsed Time: {:.1f} seconds".format(stop-start))
+    
+    ## List
+
+    x = len(reactors) #year_sweep
+    lcom_array = np.zeros((x,))
+    CI_array = np.zeros((x,))
+    WC_array = np.zeros((x,))
+    wind_cap_array = np.zeros((x,))
+    pv_cap_array = np.zeros((x,))
     start = time.time()
-    calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, 100, 0, dollar_year, startup_year, lat, lon, state,
-                         True, False, False)#, 42.4683794096513, 24.91935255018996)
+    with multiprocessing.Pool(num_cores) as p:
+        results = p.starmap(calculate_efuel_cost, arg_lists)
     stop = time.time()
     print("Elapsed Time: {:.1f} seconds".format(stop-start))
+    
+    result_array = np.array(results)
+    for i in range(x):
+        lcom_array[i] = result_array[i,0]
+        CI_array[i] = result_array[i,1]
+        WC_array[i] = result_array[i,2]
+        wind_cap_array[i] = result_array[i,3]*100
+        pv_cap_array[i] = result_array[i,4]*100
+    np.savetxt(output_dir/"lcom.csv",lcom_array,delimiter=',')
+    np.savetxt(output_dir/"CI.csv",CI_array,delimiter=',')
+    np.savetxt(output_dir/"WC.csv",WC_array,delimiter=',')
+    np.savetxt(output_dir/"wind_cap.csv",wind_cap_array,delimiter=',')
+    np.savetxt(output_dir/"pv_cap.csv",pv_cap_array,delimiter=',')
     
     ## Grid
      

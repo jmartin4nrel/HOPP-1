@@ -31,7 +31,7 @@ technologies:
     system_capacity_kw: 140
     lca:
       co2_kg_kwh: 0.00082327113
-      h2o_kg_kwh: 0.069155
+      h2o_kg_kwh: 0.262
     simple_fin_config:
       input_dollar_yr: 2020
       toc: 39946000.
