@@ -76,22 +76,27 @@ def get_inputs(
 
     # update floris_config file with correct input from other files
     # load floris inputs
-    if (
-        hopp_config["technologies"]["wind"]["model_name"] == "floris"
-    ):  # TODO replace elements of the file
-        if filename_floris_config is None:
-            raise (ValueError("floris input file must be specified."))
+    if "wind" in hopp_config["technologies"]:
+        if (
+            hopp_config["technologies"]["wind"]["model_name"] == "floris"
+        ):  # TODO replace elements of the file
+            if filename_floris_config is None:
+                raise (ValueError("floris input file must be specified."))
+            else:
+                floris_config = load_yaml(filename_floris_config)
+                floris_config.update({"farm": {"turbine_type": turbine_config}})
+                # print turbine inputs if desired
+        
         else:
-            floris_config = load_yaml(filename_floris_config)
-            floris_config.update({"farm": {"turbine_type": turbine_config}})
+            floris_config = None
+        if verbose:
+            print("\nTurbine configuration:")
+            for key in turbine_config.keys():
+                print(key, ": ", turbine_config[key])
     else:
         floris_config = None
 
-    # print turbine inputs if desired
-    if verbose:
-        print("\nTurbine configuration:")
-        for key in turbine_config.keys():
-            print(key, ": ", turbine_config[key])
+        
 
     ############## provide custom layout for ORBIT and FLORIS if desired
     if filename_orbit_config != None:
@@ -765,6 +770,17 @@ def visualize_plant(
                 h2cx = substation_x - substation_side_length
                 h2cy = substation_y
                 h2cax = ax[ax_index_detail]
+            compressor_patch10 = patches.Rectangle(
+            (h2cx, h2cy),
+            compressor_side,
+            compressor_side,
+            color=compressor_color,
+            fill=None,
+            label="Transport Compressor*",
+            hatch="+++",
+            zorder=20,
+            )
+            h2cax.add_patch(compressor_patch10)
 
         if design_scenario["wind_location"] == "onshore":
             compressor_patch01 = patches.Rectangle(
@@ -779,17 +795,7 @@ def visualize_plant(
             )
             ax[ax_index_plant].add_patch(compressor_patch01)
 
-        compressor_patch10 = patches.Rectangle(
-            (h2cx, h2cy),
-            compressor_side,
-            compressor_side,
-            color=compressor_color,
-            fill=None,
-            label="Transport Compressor*",
-            hatch="+++",
-            zorder=20,
-        )
-        h2cax.add_patch(compressor_patch10)
+        
 
         component_areas['compressor_area_m2'] = compressor_area
 
@@ -1408,11 +1414,10 @@ def save_energy_flows(
         output.update({"battery charge [kW]": [-(int(p<0))*p*1E3 for p in battery_power_out_mw]}) # convert from MW to kW and extract only charging
         output.update({"battery state of charge [%]": hybrid_plant.battery.outputs.dispatch_SOC})
 
-    output.update({"total accessory power required [kW]": solver_results[0]})
+    output.update({"total renewable energy production hourly [kW]": [solver_results[0]]*simulation_length})
     output.update({"grid energy usage hourly [kW]": [solver_results[1]]*simulation_length})
     output.update({"desal energy hourly [kW]": [solver_results[2]]*simulation_length})
     output.update({"electrolyzer energy hourly [kW]": electrolyzer_physics_results["power_to_electrolyzer_kw"]})
-    output.update({"electrolyzer bop energy hourly [kW]":solver_results[5]})
     output.update({"transport compressor energy hourly [kW]": [solver_results[3]]*simulation_length})
     output.update({"storage energy hourly [kW]": [solver_results[4]]*simulation_length})
     output.update({"h2 production hourly [kg]": electrolyzer_physics_results["H2_Results"]["Hydrogen Hourly Production [kg/hr]"]})
@@ -1564,12 +1569,11 @@ def post_process_simulation(
             "electrolyzer_kwh": sum(
                 electrolyzer_physics_results["power_to_electrolyzer_kw"]
             ),
-            "renewable_kwh": sum(solver_results[0]),
+            "renewable_kwh": solver_results[0] * hours,
             "grid_power_kwh": solver_results[1] * hours,
             "desal_kwh": solver_results[2] * hours,
             "h2_transport_compressor_power_kwh": solver_results[3] * hours,
             "h2_storage_power_kwh": solver_results[4] * hours,
-            "electrolyzer_bop_energy_kwh": sum(solver_results[5])
         }
 
 

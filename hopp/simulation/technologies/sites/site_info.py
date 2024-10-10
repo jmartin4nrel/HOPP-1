@@ -17,7 +17,9 @@ from hopp.simulation.technologies.resource import (
     SolarResource,
     WindResource,
     WaveResource,
-    ElectricityPrices
+    ElectricityPrices,
+    HPCWindData,
+    HPCSolarData,
 )
 from hopp.tools.layout.plot_tools import plot_shape
 from hopp.utilities.log import hybrid_logger as logger
@@ -28,6 +30,7 @@ from hopp.type_dec import (
 )
 from hopp.simulation.base import BaseClass
 from hopp.utilities.validators import contains
+from hopp import ROOT_DIR
 
 def plot_site(verts, plt_style, labels):
     for i in range(len(verts)):
@@ -52,12 +55,12 @@ class SiteInfo(BaseClass):
         hub_height: Turbine hub height for resource download in meters. Defaults to 97.0.
         capacity_hours: Boolean list indicating hours for capacity payments. Defaults to [].
         desired_schedule: Absolute desired load profile in MWe. Defaults to [].
-        curtailment_value_type: whether to curtail power above grid interconnection limit or desired schedule. 
-            Options "interconnect_kw" or "desired_schedule". Defaults to "interconnect_kw".
         solar: Whether to set solar data for this site. Defaults to True.
         wind: Whether to set wind data for this site. Defaults to True.
         wave: Whether to set wave data for this site. Defaults to True.
+        renewable_resource_origin: Whether to use API to download resource or pull from databases hosted on HPC, defaults to API
         wind_resource_origin: Which wind resource API to use, defaults to WIND Toolkit
+        curtailment_value_type: whether to curtail power above grid interconnection limit or desired schedule
     """
     # User provided
     data: dict
@@ -65,15 +68,22 @@ class SiteInfo(BaseClass):
     wind_resource_file: Union[Path, str] = field(default="", converter=resource_file_converter)
     wave_resource_file: Union[Path, str] = field(default="", converter=resource_file_converter)
     grid_resource_file: Union[Path, str] = field(default="", converter=resource_file_converter)
+    path_resource: Optional[Union[Path, str]] = field(default=ROOT_DIR / "simulation" / "resource_files")
+    wtk_source_path: Optional[Union[Path,str]] = field(default = "")
+    nsrdb_source_path: Optional[Union[Path,str]] = field(default = "")
+    
     hub_height: hopp_float_type = field(default=97., converter=hopp_float_type)
     capacity_hours: NDArray = field(default=[], converter=converter(bool))
     desired_schedule: NDArrayFloat = field(default=[], converter=converter())
-    curtailment_value_type: str = field(default="interconnect_kw", validator=contains(["interconnect_kw", "desired_schedule"]))
+    curtailment_value_type: str = field(default="desired_schedule", validator=contains(["grid", "desired_schedule"]))
 
     solar: bool = field(default=True)
     wind: bool = field(default=True)
     wave: bool = field(default=False)
+    renewable_resource_origin: str = field(default="API", validator=contains(["API", "HPC"]))
     wind_resource_origin: str = field(default="WTK", validator=contains(["WTK", "TAP"]))
+    solar_resource: Optional[Union[SolarResource,HPCSolarData]] = field(default=None)
+    wind_resource: Optional[Union[WindResource,HPCWindData]] = field(default=None)
 
     # Set in post init hook
     n_timesteps: int = field(init=False, default=None)
@@ -81,8 +91,7 @@ class SiteInfo(BaseClass):
     lon: hopp_float_type = field(init=False)
     year: int = field(init=False, default=2012)
     tz: Optional[int] = field(init=False, default=None)
-    solar_resource: Optional[SolarResource] = field(init=False, default=None)
-    wind_resource: Optional[WindResource] = field(init=False, default=None)
+    
     wave_resoure: Optional[WaveResource] = field(init=False, default=None)
     elec_prices: Optional[ElectricityPrices] = field(init=False, default=None)
     n_periods_per_day: int = field(init=False)
@@ -113,7 +122,8 @@ class SiteInfo(BaseClass):
             urdb_label (str): Link to `Utility Rate DataBase <https://openei.org/wiki/Utility_Rate_Database>`_ label for REopt runs.
             follow_desired_schedule (bool): Indicates if a desired schedule was provided. Defaults to False.
         """
-        set_nrel_key_dot_env()
+        if self.renewable_resource_origin=="API":
+            set_nrel_key_dot_env()
 
         data = self.data
         if 'site_boundaries' in data:
@@ -131,20 +141,32 @@ class SiteInfo(BaseClass):
 
         if 'year' not in data:
             data['year'] = 2012
+        
+        self.year = data["year"]
+
         if 'tz' in data:
             self.tz = data['tz']
         
         if self.solar:
-            self.solar_resource = SolarResource(data['lat'], data['lon'], data['year'], filepath=self.solar_resource_file)
+            if self.solar_resource is None:
+                if self.renewable_resource_origin=="API":
+                    self.solar_resource = SolarResource(data['lat'], data['lon'], data['year'], path_resource=self.path_resource, filepath=self.solar_resource_file)
+                else:
+                    self.solar_resource = HPCSolarData(data['lat'], data['lon'], data['year'],nsrdb_source_path = self.nsrdb_source_path, filepath=self.solar_resource_file)
             self.n_timesteps = len(self.solar_resource.data['gh']) // 8760 * 8760
         if self.wave:
-            self.wave_resource = WaveResource(data['lat'], data['lon'], data['year'], filepath = self.wave_resource_file)
+            self.wave_resource = WaveResource(data['lat'], data['lon'], data['year'], path_resource=self.path_resource, filepath = self.wave_resource_file)
             self.n_timesteps = 8760
 
         if self.wind:
+            if self.wind_resource is None:
             # TODO: allow hub height to be used as an optimization variable
-            self.wind_resource = WindResource(data['lat'], data['lon'], data['year'], wind_turbine_hub_ht=self.hub_height,
-                                                filepath=self.wind_resource_file, source=self.wind_resource_origin)
+                if self.renewable_resource_origin=="API":
+                    self.wind_resource = WindResource(data['lat'], data['lon'], data['year'], wind_turbine_hub_ht=self.hub_height,
+                                                    path_resource=self.path_resource, filepath=self.wind_resource_file, source=self.wind_resource_origin)
+                else:
+                    self.wind_resource = HPCWindData(data['lat'], data['lon'], data['year'], hub_height_meters=self.hub_height,
+                                                    wtk_source_path=self.wtk_source_path, filepath=self.wind_resource_file)
             n_timesteps = len(self.wind_resource.data['data']) // 8760 * 8760
             if self.n_timesteps is None:
                 self.n_timesteps = n_timesteps

@@ -122,12 +122,19 @@ def run_h2_transport_compressor(
     ):
         ########## compressor model from Jamie Kee based on HDSAM
         flow_rate_kg_per_hr = max(
-            electrolyzer_physics_results["H2_Results"][
-                "Hydrogen Hourly Production [kg/hr]"
-            ]
-        )  # kg/hr
-        number_of_compressors = 2  # a third will be added as backup in the code
-        p_inlet = 20  # bar
+        electrolyzer_physics_results["H2_Results"]["Hydrogen Hourly Production [kg/hr]"]
+    )  # kg/hr
+        
+        if "n_compressors" in greenheart_config["h2_transport_compressor"].keys():
+            number_of_compressors = greenheart_config["h2_transport_compressor"]["n_compressors"]
+        else:
+            number_of_compressors = 2  # a third will be added as backup in the code
+        
+        if "inlet_pressure" in greenheart_config["h2_transport_compressor"].keys():
+            p_inlet = greenheart_config["h2_transport_compressor"]["inlet_pressure"]
+        else:
+            p_inlet = 20  # bar
+
         p_outlet = greenheart_config["h2_transport_compressor"][
             "outlet_pressure"
         ]  # bar
@@ -213,6 +220,7 @@ def run_h2_transport_pipe(
         h2_transport_pipe_results = run_pipe_analysis(
             export_pipe_length, mass_flow_rate, p_inlet, p_outlet, depth
         )
+        h2_transport_pipe_results["pipe length [km]"] = export_pipe_length
     else:
         h2_transport_pipe_results = pd.DataFrame.from_dict(
             {
@@ -230,6 +238,7 @@ def run_h2_transport_pipe(
                 "ROW cost [$]": [0 * 954576.9166912301],
                 "total capital cost [$]": [0 * 5433290.0184895478],
                 "annual operating cost [$]": [0.0],
+                "pipe length [km]": export_pipe_length,
             }
         )
     if verbose:
@@ -339,10 +348,11 @@ def run_h2_storage(
         h2_storage_results["storage_capex"] = 0.0
         h2_storage_results["storage_opex"] = 0.0
         h2_storage_results["storage_energy"] = 0.0
-
+        h2_storage_results["h2_storage_type"] = "none"
         h2_storage = None
 
     elif greenheart_config["h2_storage"]["type"] == "turbine":
+        h2_storage_results["h2_storage_type"] = "turbine"
         if design_scenario["h2_storage_location"] == "turbine":
             turbine = {
                 "tower_length": turbine_config["tower"]["length"],
@@ -398,8 +408,10 @@ def run_h2_storage(
         ]
         h2_storage_results["storage_opex"] = h2_storage.output_dict["pipe_storage_opex"]
         h2_storage_results["storage_energy"] = 0.0
+        h2_storage_results["h2_storage_type"] = "pipe"
 
     elif greenheart_config["h2_storage"]["type"] == "pressure_vessel":
+        h2_storage_results["h2_storage_type"] = "pressure_vessel"
         if design_scenario["h2_storage_location"] == "turbine":
             energy_cost = 0.0
 
@@ -511,6 +523,7 @@ def run_h2_storage(
             "salt_cavern_storage_opex"
         ]
         h2_storage_results["storage_energy"] = 0.0
+        h2_storage_results["h2_storage_type"] = "salt_cavern"
 
     elif greenheart_config["h2_storage"]["type"] == "lined_rock_cavern":
         # initialize dictionary for salt cavern storage parameters
@@ -534,13 +547,14 @@ def run_h2_storage(
             "lined_rock_cavern_storage_opex"
         ]
         h2_storage_results["storage_energy"] = 0.0
+        h2_storage_results["h2_storage_type"] = "lined_rock_cavern"
     else:
         raise (
             ValueError(
                 "H2 storage type %s was given, but must be one of ['none', 'turbine', 'pipe', 'pressure_vessel', 'salt_cavern', 'lined_rock_cavern']"
             )
         )
-
+    
     if verbose:
         print("\nH2 Storage Results:")
         print("H2 storage capex: ${0:,.0f}".format(h2_storage_results["storage_capex"]))

@@ -118,31 +118,21 @@ class Grid(PowerSource):
         """
         if self.site.follow_desired_schedule:
             # Desired schedule sets the upper bound of the system output, any over generation is curtailed
-            if self.site.curtailment_value_type == "interconnect_kw":
+            if self.site.curtailment_value_type == "grid":
                 lifetime_schedule: NDArrayFloat = np.tile([self.interconnect_kw],
                     len(total_gen))
-                desired_schedule = np.tile(
-                    [x * 1e3 for x in self.site.desired_schedule],
-                    int(project_life / (len(self.site.desired_schedule) // self.site.n_timesteps))
-                )
             elif self.site.curtailment_value_type == "desired_schedule":
                 lifetime_schedule: NDArrayFloat = np.tile([
                     x * 1e3 for x in self.site.desired_schedule],
                     int(project_life / (len(self.site.desired_schedule) // self.site.n_timesteps))
                 )
-                desired_schedule = lifetime_schedule
 
-            # Generate the final generation profile by curtailing over-generation
-            self.generation_profile = np.minimum(total_gen, lifetime_schedule)
+            self.generation_profile = list(np.minimum(total_gen, lifetime_schedule)) # TODO: remove list() cast once parent class uses numpy 
 
-            # Calculate missed load and missed load percentage
-            self.missed_load = np.array([
-                max(schedule - gen, 0) 
-                for schedule, gen in zip(desired_schedule, self.generation_profile)
-            ])
-            self.missed_load_percentage = sum(self.missed_load)/sum(desired_schedule)
+            self.missed_load = np.array([schedule - gen if gen > 0 else schedule for (schedule, gen) in
+                                     zip(lifetime_schedule, self.generation_profile)])
+            self.missed_load_percentage = sum(self.missed_load)/sum(lifetime_schedule)
 
-            # Calculate curtailed schedule and curtailed schedule percentage
             self.schedule_curtailed = np.array([gen - schedule if gen > schedule else 0. for (gen, schedule) in
                                             zip(total_gen, lifetime_schedule)])
             self.schedule_curtailed_percentage = sum(self.schedule_curtailed)/sum(lifetime_schedule)
@@ -150,14 +140,12 @@ class Grid(PowerSource):
             # NOTE: This is currently only happening for load following, would be good to make it more general
             #           i.e. so that this analysis can be used when load following isn't being used (without storage)
             #           for comparison 
-            # Hybrid power production for load following
             N_hybrid = len(self.generation_profile)
 
             final_power_production = total_gen
-            schedule = [x for x in desired_schedule]
+            schedule = [x for x in lifetime_schedule]
             hybrid_power = [(final_power_production[x] - (schedule[x]*0.95)) for x in range(len(final_power_production))]
 
-            # Count the instances where load is met
             load_met = len([i for i in hybrid_power if i  >= 0])
             self.time_load_met = 100 * load_met/N_hybrid
 
@@ -165,8 +153,8 @@ class Grid(PowerSource):
             power_met = np.where(final_power_array > schedule, schedule, final_power_array)
             self.capacity_factor_load = np.sum(power_met) / np.sum(schedule) * 100
 
-            logger.info('Percent of time firm power requirement is met: ', np.round(self.time_load_met,2))
-            logger.info('Percent total firm power requirement is satisfied: ', np.round(self.capacity_factor_load,2))
+            logger.info('Percent of time firm power requirement is met: {}'.format(np.round(self.time_load_met,2)))
+            logger.info('Percent total firm power requirement is satisfied: {}'.format(np.round(self.capacity_factor_load,2)))
 
             ERS_keys = ['min_regulation_hours', 'min_regulation_power']
             if dispatch_options is not None and dispatch_options.use_higher_hours:

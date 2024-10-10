@@ -117,7 +117,7 @@ class PEM_H2_Clusters:
         self.d_eol=self.find_eol_voltage_val(eol_eff_percent_loss)
         self.find_eol_voltage_curve(eol_eff_percent_loss)
         self.steady_deg_rate=self.reset_uptime_degradation_rate(uptime_hours_until_eol)
-
+        self.max_stack_life_hrs = uptime_hours_until_eol
         
     def run(self,input_external_power_kw):
         startup_time=600 #[sec]
@@ -280,10 +280,16 @@ class PEM_H2_Clusters:
         #number of hours operating
         operational_time_dt=np.sum(self.cluster_status) 
         
-        #time between replacement [hrs] based on number of hours operating
-        t_eod_operation_based = (1/frac_of_life_used)*operational_time_dt #[hrs]
-        #time between replacement [hrs] based on simulation length
-        t_eod_existance_based = (1/frac_of_life_used)*sim_time_dt
+        if frac_of_life_used>0:
+            
+            #time between replacement [hrs] based on number of hours operating
+            t_eod_operation_based = (1/frac_of_life_used)*operational_time_dt #[hrs]
+            #time between replacement [hrs] based on simulation length
+            t_eod_existance_based = (1/frac_of_life_used)*sim_time_dt
+        else:
+            self.d_eol_curve[-1]
+            t_eod_existance_based = self.max_stack_life_hrs
+            t_eod_operation_based = self.max_stack_life_hrs
         #CF shouldn't be different
         #just report out one capacity factor
         self.frac_of_life_used = frac_of_life_used

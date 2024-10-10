@@ -4,11 +4,6 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-try:
-    from mpi4py import MPI
-except:
-    MPI = False
-
 # set to logging.WARNING for fewer messages
 logging_level = logging.INFO
 
@@ -18,26 +13,26 @@ console_level = logging.WARNING
 
 # set up logging to file - see previous section for more details
 formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
-if MPI:
-    print("logging to stdout")
-    logging.basicConfig(level=logging_level,
-                        datefmt='%m-%d %H:%M',
-                        stream=sys.stdout)
-    handler = logging.StreamHandler()
-    handler.setFormatter(formatter)
-else:
-    run_suffix = '_' + datetime.now().isoformat().replace(':', '.')
-    log_path = Path.cwd() / "log"
-    if not os.path.isdir(log_path):
-        os.mkdir(log_path)
-    log_path = log_path / ("hybrid_systems" + run_suffix + ".log")
-    print(log_path)
+# if MPI:
+#     print("logging to stdout")
+#     logging.basicConfig(level=logging_level,
+#                         datefmt='%m-%d %H:%M',
+#                         stream=sys.stdout)
+#     handler = logging.StreamHandler()
+#     handler.setFormatter(formatter)
+
+run_suffix = '_' + datetime.now().isoformat().replace(':', '.')
+log_path = Path.cwd() / "log"
+if not os.path.isdir(log_path):
+    os.mkdir(log_path)
+log_path = log_path / ("hybrid_systems" + run_suffix + ".log")
+print(log_path)
     # logging.basicConfig(level=logging_level,
     #                     datefmt='%m-%d %H:%M',
     #                     filename=str(log_path),
     #                     filemode='w')
-    handler = logging.FileHandler(str(log_path))
-    handler.setFormatter(formatter)
+handler = logging.FileHandler(str(log_path))
+handler.setFormatter(formatter)
 
 # define a Handler which writes WARNING messages or higher to the sys.stderr
 console = logging.StreamHandler()

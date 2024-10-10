@@ -64,7 +64,10 @@ class WindResource(Resource):
             self.filename = ""
             self.calculate_heights_to_download()
         else:
-            self.filename = filepath
+            self.calculate_heights_to_download()
+            if self.filename == str(filepath):
+                self.filename = str(filepath)
+
 
         self.source = source
 

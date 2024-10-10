@@ -53,11 +53,18 @@ class SolarResource(Resource):
         self.__dict__.update(kwargs)
 
         # resource_files files
+        temp_filepath = os.path.join(self.path_resource,
+                                str(lat) + "_" + str(lon) + "_psmv3_" + str(self.interval) + "_" + str(
+                                    year) + ".csv")
+        
         if filepath == "":
-            filepath = os.path.join(self.path_resource,
-                                    str(lat) + "_" + str(lon) + "_psmv3_" + str(self.interval) + "_" + str(
-                                        year) + ".csv")
-        self.filename = filepath
+            self.filename = temp_filepath
+        else:
+            if str(filepath) != temp_filepath:
+                self.filename = temp_filepath
+            else:
+                self.filename = filepath
+
 
         self.check_download_dir()   # FIXME: This breaks if weather file is in the same directory as caller
 
