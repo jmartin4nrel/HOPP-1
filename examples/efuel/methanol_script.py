@@ -125,8 +125,8 @@ if __name__ == '__main__':
     catalyst = 'Ca/CZA'
     # catalyst = "CZA"
 
-    reactors = ['SMR','CO2 hydrogenation','RCC recycle','RCC recycle','RCC recycle','CO RCC','CO RCC','CO RCC','CO RCC']#,'CO RCC','CO RCC','CO RCC','CO RCC']
-    catalysts = ['None','None','CZA','Na/CZA','K/CZA','ZA-Z','K/ZA-Z','ZA','K/ZA']#,'ZA-Z 30','K/ZA-Z 30','ZA 30','K/ZA 30']
+    reactors = ['RCC recycle','RCC recycle','RCC recycle']#,'CO RCC','CO RCC','CO RCC','CO RCC','CO RCC','CO RCC']#'SMR','CO2 hydrogenation','RCC recycle','CO RCC','CO RCC','CO RCC','CO RCC']
+    catalysts = ['CZA','Ca/CZA','K/CZA']#,'ZA','K/ZA','Na/ZA','Au-Na/ZA','Na/ZA 30','Au-Na/ZA 30']#,'ZA-Z 30','K/ZA-Z 30','ZA 30','K/ZA 30']
 
     startup_year = 2023
     year_sweep = np.arange(2020,2055,5)
@@ -168,38 +168,38 @@ if __name__ == '__main__':
 
     ## One instance
 
-    start = time.time()
-    calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, 100, 0, dollar_year, startup_year, lat, lon, state,
-                         True, False, False)#, 42.4683794096513, 24.91935255018996)
-    stop = time.time()
-    print("Elapsed Time: {:.1f} seconds".format(stop-start))
-    
-    ## List
-
-    # x = len(reactors) #year_sweep
-    # lcom_array = np.zeros((x,))
-    # CI_array = np.zeros((x,))
-    # WC_array = np.zeros((x,))
-    # wind_cap_array = np.zeros((x,))
-    # pv_cap_array = np.zeros((x,))
     # start = time.time()
-    # with multiprocessing.Pool(num_cores) as p:
-    #     results = p.starmap(calculate_efuel_cost, arg_lists)
+    # calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, 100, 0, dollar_year, startup_year, lat, lon, state,
+    #                      True, False, False)#, 42.4683794096513, 24.91935255018996)
     # stop = time.time()
     # print("Elapsed Time: {:.1f} seconds".format(stop-start))
     
-    # result_array = np.array(results)
-    # for i in range(x):
-    #     lcom_array[i] = result_array[i,0]
-    #     CI_array[i] = result_array[i,1]
-    #     WC_array[i] = result_array[i,2]
-    #     wind_cap_array[i] = result_array[i,3]*100
-    #     pv_cap_array[i] = result_array[i,4]*100
-    # np.savetxt(output_dir/"lcom.csv",lcom_array,delimiter=',')
-    # np.savetxt(output_dir/"CI.csv",CI_array,delimiter=',')
-    # np.savetxt(output_dir/"WC.csv",WC_array,delimiter=',')
-    # np.savetxt(output_dir/"wind_cap.csv",wind_cap_array,delimiter=',')
-    # np.savetxt(output_dir/"pv_cap.csv",pv_cap_array,delimiter=',')
+    ## List
+
+    x = len(reactors) #year_sweep
+    lcom_array = np.zeros((x,))
+    CI_array = np.zeros((x,))
+    WC_array = np.zeros((x,))
+    wind_cap_array = np.zeros((x,))
+    pv_cap_array = np.zeros((x,))
+    start = time.time()
+    with multiprocessing.Pool(num_cores) as p:
+        results = p.starmap(calculate_efuel_cost, arg_lists)
+    stop = time.time()
+    print("Elapsed Time: {:.1f} seconds".format(stop-start))
+    
+    result_array = np.array(results)
+    for i in range(x):
+        lcom_array[i] = result_array[i,0]
+        CI_array[i] = result_array[i,1]
+        WC_array[i] = result_array[i,2]
+        wind_cap_array[i] = result_array[i,3]*100
+        pv_cap_array[i] = result_array[i,4]*100
+    np.savetxt(output_dir/"lcom.csv",lcom_array,delimiter=',')
+    np.savetxt(output_dir/"CI.csv",CI_array,delimiter=',')
+    np.savetxt(output_dir/"WC.csv",WC_array,delimiter=',')
+    np.savetxt(output_dir/"wind_cap.csv",wind_cap_array,delimiter=',')
+    np.savetxt(output_dir/"pv_cap.csv",pv_cap_array,delimiter=',')
     
     ## Grid
      
