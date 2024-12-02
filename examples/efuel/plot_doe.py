@@ -44,27 +44,35 @@ if __name__ == '__main__':
     # Read in experimental data
     current_dir = Path(__file__).parent.absolute()
     doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs.csv')
+    doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_out.csv')
 
     # Choose variable to fit surface to
-    fit_var = 'MeOH_prod'
+    
+    # fit_var = 'MeOH_prod'
     # fit_var = 'MeOH_sel'
     # fit_var = 'CO2_uptake'
-    fit_label = 'Methanol production [umol/g]\n\n\n'
+    fit_var = 'h2_ratio'
+    
+    # fit_label = 'Methanol production [umol/g]\n\n\n'
     # fit_label = 'Methanol selectivity [%]\n\n\n'
     # fit_label = 'Strong CO2 uptake [umol/g]\n\n\n'
-    levels = np.arange(10,61,5)
+    fit_label = 'Hydrogen:Methanol Ratio [kg/kg]'
+
+    # levels = np.arange(10,61,5)
     # levels = np.arange(10,101,10)
     # levels = np.arange(40,140,10)
+    levels = np.arange(0.18,0.28,0.01)
+
     b = doe_df.loc[:,fit_var].values
 
     # Choose quadratic or linear, interactions or no
     quad = True
-    inter = True
+    inter = False#True
 
     # Get A1, A2, and A3 as sorbent weight, hydrogenation pressure, and hydrogenation temperature
     A1 = doe_df.loc[:,'sorbent_wt_pct'].values
-    A2 = doe_df.loc[:,'hyd_P_bar'].values
-    A3 = doe_df.loc[:,'hyd_T_C'].values
+    A2 = doe_df.loc[:,'MeOH_prod'].values
+    A3 = doe_df.loc[:,'CO2_uptake'].values
 
     # Set up normalized A vectors and b vector
     A_orig = np.transpose(np.vstack((A1,A2,A3)))

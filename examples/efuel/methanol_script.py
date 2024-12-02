@@ -125,11 +125,13 @@ if __name__ == '__main__':
     catalyst = 'Ca/CZA'
     # catalyst = "CZA"
 
-    reactors = ['RCC recycle','RCC recycle','RCC recycle']#,'CO RCC','CO RCC','CO RCC','CO RCC','CO RCC','CO RCC']#'SMR','CO2 hydrogenation','RCC recycle','CO RCC','CO RCC','CO RCC','CO RCC']
-    catalysts = ['CZA','Ca/CZA','K/CZA']#,'ZA','K/ZA','Na/ZA','Au-Na/ZA','Na/ZA 30','Au-Na/ZA 30']#,'ZA-Z 30','K/ZA-Z 30','ZA 30','K/ZA 30']
+    reactor_df = pd.read_csv('inputs/Reactor_inputs_doe.csv')
+    
+    reactors = list(reactor_df['reactor_tech'])#['RCC recycle','RCC recycle','RCC recycle']#,'CO RCC','CO RCC','CO RCC','CO RCC','CO RCC','CO RCC']#'SMR','CO2 hydrogenation','RCC recycle','CO RCC','CO RCC','CO RCC','CO RCC']
+    catalysts = list(reactor_df['catalyst'])#['CZA','Ca/CZA','K/CZA']#,'ZA','K/ZA','Na/ZA','Au-Na/ZA','Na/ZA 30','Au-Na/ZA 30']#,'ZA-Z 30','K/ZA-Z 30','ZA 30','K/ZA 30']
 
     startup_year = 2023
-    year_sweep = np.arange(2020,2055,5)
+    # year_sweep = np.arange(2020,2055,5)
 
     # Pick a specific location
     lat = 32.337679

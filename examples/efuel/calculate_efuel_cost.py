@@ -46,7 +46,7 @@ def calculate_efuel_cost(main_path: Path,
     getattr(hi.system,'fuel').value('catalyst',catalyst)
     input_path = Path('inputs')
     output_path = Path('outputs')
-    fuel_inputs = pd.read_csv(input_path/'Reactor_inputs_w_coating.csv',index_col=[0,1])
+    fuel_inputs = pd.read_csv(input_path/'Reactor_inputs_doe.csv',index_col=[0,1])
     cost_list = ['toc','toc_kg_s','foc_yr','foc_kg_s_yr','voc_kg','co2']
     for cost in cost_list:
         if cost in fuel_inputs.columns:
