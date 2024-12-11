@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 import pickle
+import copy
 
 def set_A_mat(A_norm,quad,inter,cubic=False):
 
@@ -45,7 +46,169 @@ def set_A_mat(A_norm,quad,inter,cubic=False):
 
     return A
 
-def save_corrs(doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels, plot=False, filepath=None, log_inc=False, add_df=None):
+def read_intermediate(pkl_fp):
+
+    pickle_reader = open(pkl_fp,'rb')
+    old_results = pickle.load(pickle_reader)
+
+    X = old_results['X']
+    A_mean = old_results['A_mean']
+    A_std = old_results['A_std']
+    b_mean = old_results['b_mean']
+    b_std = old_results['b_std']
+    quad = old_results['quad']
+    inter = old_results['inter']
+
+    inter_mats = (X,A_mean,A_std,b_mean,b_std,inter)
+
+    return inter_mats
+    
+def transform(A1,A2,A3,inter_mats):
+
+    X,A_mean,A_std,b_mean,b_std,inter = inter_mats
+
+    A = np.transpose(np.vstack((A1,A2,A3)))
+    A_norm = np.divide(np.subtract(A,A_mean),A_std)
+    A = set_A_mat(A_norm,quad,inter)
+    fit = np.matmul(A,X)*b_std+b_mean
+
+    return fit
+    
+def make_transformed_fit(fit_var,X_grid,Y_grid,A1,orig_A2,orig_A3,X,A_mean,A_std,b_mean,b_std,quad,inter):
+    
+    if fit_var == 'rec_ratio':
+
+        # Load methanol selectivity and co2 conversion fits from DOE
+        pkl_fp = current_dir/'outputs'/'meoh_sel.pkl'
+        inter_mats_meoh = read_intermediate(pkl_fp)
+        pkl_fp = current_dir/'outputs'/'co2conv.pkl'
+        inter_mats_co2 = read_intermediate(pkl_fp)
+        fit_meoh = np.reshape(transform(A1,orig_A2,orig_A3,inter_mats_meoh),X_grid.shape)
+        fit_co2 = np.reshape(transform(A1,orig_A2,orig_A3,inter_mats_co2),X_grid.shape)
+
+        # Transform using fit from selectivity and conversion to recycle ratio
+        A2 = np.reshape(fit_meoh,(np.product(X_grid.shape)))
+        A3 = np.reshape(fit_co2,(np.product(Y_grid.shape)))
+        A = np.transpose(np.vstack((A1,A2,A3)))
+        A_norm = np.divide(np.subtract(A,A_mean),A_std)
+        A = set_A_mat(A_norm,quad,inter)
+        fit = np.reshape((np.matmul(A,X))*b_std+b_mean,X_grid.shape)
+
+    elif fit_var == 'tonne_cat':
+
+        # Load co2 uptake, methanol selectivity and co2 conversion fits from DOE
+        pkl_fp = current_dir/'outputs'/'co2up.pkl'
+        inter_mats_co2up = read_intermediate(pkl_fp)
+        pkl_fp = current_dir/'outputs'/'meoh_sel.pkl'
+        inter_mats_meoh = read_intermediate(pkl_fp)
+        pkl_fp = current_dir/'outputs'/'co2conv.pkl'
+        inter_mats_co2conv = read_intermediate(pkl_fp)
+        fit_co2up = np.reshape(transform(A1,orig_A2,orig_A3,inter_mats_co2up),X_grid.shape)
+        fit_meoh = np.reshape(transform(A1,orig_A2,orig_A3,inter_mats_meoh),X_grid.shape)
+        fit_co2conv = np.reshape(transform(A1,orig_A2,orig_A3,inter_mats_co2conv),X_grid.shape)
+        
+        # Calculate single-pass methanol productivity
+        fit_meoh_prod_single = np.multiply(np.multiply(fit_co2up,fit_meoh),fit_co2conv)/10000
+
+        # Transform methanol selectivity and CO2 conversion to recycle ratio
+        A2 = np.reshape(fit_meoh,(np.product(X_grid.shape)))
+        A3 = np.reshape(fit_co2conv,(np.product(Y_grid.shape)))
+        pkl_fp = current_dir/'outputs'/'rec_ratio.pkl'
+        inter_mats_ratio = read_intermediate(pkl_fp)
+        fit_ratio = np.reshape(transform(A1,A2,A3,inter_mats_ratio),X_grid.shape)
+
+        # Calculate methanol productivity with recycle
+        fit_meoh_prod_rec = np.multiply(fit_meoh_prod_single,fit_ratio)
+
+        # Transform methanol productivity and hydrogenation pressure to tonnes catalyst
+        pkl_fp = current_dir/'outputs'/'tonne_cat.pkl'
+        inter_mats_cat = read_intermediate(pkl_fp)
+        A3 = np.reshape(fit_meoh_prod_rec,(np.product(Y_grid.shape)))
+        fit = np.reshape(transform(A1,orig_A2,A3,inter_mats_cat),X_grid.shape)
+
+    elif fit_var == 'h2_ratio':
+
+        # Load co2 uptake, methanol selectivity and co2 conversion fits from DOE
+        pkl_fp = current_dir/'outputs'/'co2up.pkl'
+        inter_mats_co2up = read_intermediate(pkl_fp)
+        pkl_fp = current_dir/'outputs'/'meoh_sel.pkl'
+        inter_mats_meoh = read_intermediate(pkl_fp)
+        pkl_fp = current_dir/'outputs'/'co2conv.pkl'
+        inter_mats_co2conv = read_intermediate(pkl_fp)
+        fit_co2up = np.reshape(transform(A1,orig_A2,orig_A3,inter_mats_co2up),X_grid.shape)
+        fit_meoh = np.reshape(transform(A1,orig_A2,orig_A3,inter_mats_meoh),X_grid.shape)
+        fit_co2conv = np.reshape(transform(A1,orig_A2,orig_A3,inter_mats_co2conv),X_grid.shape)
+        
+        # Calculate single-pass methanol productivity
+        fit_meoh_prod_single = np.multiply(np.multiply(fit_co2up,fit_meoh),fit_co2conv)/10000
+
+        # Transform methanol productivity and co2 conversion to h2:methanol ratio
+        pkl_fp = current_dir/'outputs'/'h2_ratio_prod.pkl'
+        inter_mats_h2_ratio = read_intermediate(pkl_fp)
+        A2 = np.reshape(fit_meoh_prod_single,(np.product(Y_grid.shape)))
+        A3 = np.reshape(fit_co2conv,(np.product(Y_grid.shape)))
+        fit = np.reshape(transform(A1,A2,A3,inter_mats_h2_ratio),X_grid.shape)
+
+        # # Load co2 uptake fit from DOE
+        # pkl_fp = current_dir/'outputs'/'co2up.pkl'
+        # inter_mats_co2up = read_intermediate(pkl_fp)
+        # fit_co2up = np.reshape(transform(A1,orig_A2,orig_A3,inter_mats_co2up),X_grid.shape)
+
+        # #Transform hydrogenation pressure and co2 uptake to h2:methanol ratio
+        # pkl_fp = current_dir/'outputs'/'h2_ratio.pkl'
+        # inter_mats_h2_ratio = read_intermediate(pkl_fp)
+        # A3 = np.reshape(fit_co2up,(np.product(Y_grid.shape)))
+        # fit = np.reshape(transform(A1,orig_A2,A3,inter_mats_h2_ratio),X_grid.shape)
+
+    elif fit_var == 'LCOM':
+
+        # Load co2 uptake, methanol selectivity and co2 conversion fits from DOE
+        pkl_fp = current_dir/'outputs'/'co2up.pkl'
+        inter_mats_co2up = read_intermediate(pkl_fp)
+        pkl_fp = current_dir/'outputs'/'meoh_sel.pkl'
+        inter_mats_meoh = read_intermediate(pkl_fp)
+        pkl_fp = current_dir/'outputs'/'co2conv.pkl'
+        inter_mats_co2conv = read_intermediate(pkl_fp)
+        fit_co2up = np.reshape(transform(A1,orig_A2,orig_A3,inter_mats_co2up),X_grid.shape)
+        fit_meoh = np.reshape(transform(A1,orig_A2,orig_A3,inter_mats_meoh),X_grid.shape)
+        fit_co2conv = np.reshape(transform(A1,orig_A2,orig_A3,inter_mats_co2conv),X_grid.shape)
+        
+        # Calculate single-pass methanol productivity
+        fit_meoh_prod_single = np.multiply(np.multiply(fit_co2up,fit_meoh),fit_co2conv)/10000
+
+        # Transform methanol selectivity and CO2 conversion to recycle ratio
+        A2 = np.reshape(fit_meoh,(np.product(X_grid.shape)))
+        A3 = np.reshape(fit_co2conv,(np.product(Y_grid.shape)))
+        pkl_fp = current_dir/'outputs'/'rec_ratio.pkl'
+        inter_mats_ratio = read_intermediate(pkl_fp)
+        fit_ratio = np.reshape(transform(A1,A2,A3,inter_mats_ratio),X_grid.shape)
+
+        # Calculate methanol productivity with recycle
+        fit_meoh_prod_rec = np.multiply(fit_meoh_prod_single,fit_ratio)
+
+        # Transform methanol productivity and hydrogenation pressure to tonnes catalyst
+        pkl_fp = current_dir/'outputs'/'tonne_cat.pkl'
+        inter_mats_cat = read_intermediate(pkl_fp)
+        A3 = np.reshape(fit_meoh_prod_rec,(np.product(Y_grid.shape)))
+        fit_cat = np.reshape(transform(A1,orig_A2,A3,inter_mats_cat),X_grid.shape)
+
+        # Transform hydrogenation pressure and co2 uptake to h2:methanol ratio
+        pkl_fp = current_dir/'outputs'/'h2_ratio.pkl'
+        inter_mats_h2_ratio = read_intermediate(pkl_fp)
+        A3 = np.reshape(fit_co2up,(np.product(Y_grid.shape)))
+        fit_h2 = np.reshape(transform(A1,orig_A2,A3,inter_mats_h2_ratio),X_grid.shape)
+
+        # Transform h2 ratio and catalyst cost into LCOM
+        A2 = np.reshape(fit_h2,(np.product(X_grid.shape)))
+        A3 = np.reshape(fit_cat,(np.product(Y_grid.shape)))
+        pkl_fp = current_dir/'outputs'/'LCOM.pkl'
+        inter_mats_LCOM = read_intermediate(pkl_fp)
+        fit = np.reshape(transform(A1,A2,A3,inter_mats_LCOM),X_grid.shape)
+
+    return fit
+
+def save_corrs(title, doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels,
+               plot=False, filepath=None, log_inc=False, add_df=None, transform_fit=False):
 
     # Get A1, A2, and A3 as sorbent weight, hydrogenation pressure, and hydrogenation temperature
     A1 = doe_df.loc[:,var_names[0]].values
@@ -70,12 +233,31 @@ def save_corrs(doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_l
     X = np.linalg.lstsq(A,b_norm)[0]
 
     # Set up plots
+    if transform_fit:
+        var_names = ['sorbent_wt_pct','hyd_P_bar','hyd_T_C']
+        A1 = doe_df.loc[:,var_names[0]].values
+        A2 = doe_df.loc[:,var_names[1]].values
+        A3 = doe_df.loc[:,var_names[2]].values
+        A_orig = np.transpose(np.vstack((A1,A2,A3)))
+        var_labels = ['Sorbent Loading = {:.2f} wt %',
+                      'Hydrogenation Pressure [bar]',
+                      'Hydrog-\nenation\nTemp.\n[deg. C]']
     if var_names[1] == 'hyd_P_bar':
         x_levels = np.arange(8,33,1)
     elif var_names[1] == 'MeOH_sel':
         x_levels = np.arange(20,103,5)
     elif var_names[1] == 'h2_ratio':
         x_levels = np.arange(0.18,0.281,.01)
+    elif var_names[1] == 'CO2_conv':
+        x_levels = np.arange(56,102,2)
+    elif var_names[1] == 'CO2_uptake':
+        x_levels = np.arange(40,105,2)
+    elif var_names[1] == 'rec_ratio':
+        x_levels = np.arange(1,5.1,0.2)
+    elif var_names[1] == 'prod_sing':
+        x_levels = np.arange(14,50.1,2)
+    elif var_names[1] == 'prod_rec':
+        x_levels = np.arange(50,132,4)
     if var_names[2] == 'hyd_T_C':
         y_levels = np.arange(196,256,2)
     elif var_names[2] == 'CO2_conv':
@@ -84,10 +266,14 @@ def save_corrs(doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_l
         y_levels = np.arange(40,105,2)
     elif var_names[2] == 'prod_rec':
         y_levels = np.arange(50,132,4)
+    elif var_names[2] == 'prod_sing':
+        y_levels = np.arange(14,50.1,2)
     elif var_names[2] == 'rec_ratio':
         y_levels = np.arange(1,5.1,0.2)
     elif var_names[2] == 'tonne_cat':
         y_levels = np.arange(1200,2801,100)
+    elif var_names[2] == 'MeOH_sel':
+        y_levels = np.arange(20,103,5)
     # y_levels = np.arange(196,256,2)
     [X_grid,Y_grid] = np.meshgrid(x_levels,y_levels)
     X_vec = np.reshape(X_grid,(np.product(X_grid.shape)))
@@ -122,7 +308,7 @@ def save_corrs(doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_l
                 ax0 = plt.subplot(2,3,i+1)
                 # ax.set_position([ax.get_position().x0,ax.get_position().width,ax.get_position().y0+ax.get_position().height/2,ax.get_position().height/2])
                 ax0.set_position([.1,.9,.2,.05])
-                ax0.text(0.5,-4,'H2:Methanol Ratio\nCorrelations',horizontalalignment='center',fontsize=18)
+                ax0.text(0.5,-4,'{}\nCorrelations'.format(title),horizontalalignment='center',fontsize=18)
             if i == 1:
                 ax1 = plt.subplot(2,3,i+1)
                 # ax.set_position([ax.get_position().x0,ax.get_position().width,ax.get_position().y0+ax.get_position().height/2,ax.get_position().height/2])
@@ -149,6 +335,10 @@ def save_corrs(doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_l
             if i == 2:
                 ax.set_position([.78,.1,.2,.45])
             ax_list.append(ax)
+            if transform_fit:
+                fit = make_transformed_fit(fit_var,X_grid,Y_grid,A1,A2,A3,X,A_mean,A_std,b_mean,b_std,quad,inter)
+                fit = np.minimum(fit,max(levels))
+                fit = np.maximum(fit,min(levels))
             cplot = plt.contourf(X_grid,Y_grid,fit,levels=levels)
             plt.xlabel(var_labels[1])
             plt.ylabel(var_labels[2],rotation=0)
@@ -246,6 +436,7 @@ if __name__ == '__main__':
     
     # fit_label = 'Methanol production [umol/g]\n\n\n'
     fit_label = 'Strong CO2 uptake [umol/g]\n\n\n'
+    title = 'Strong CO2 uptake'
 
     levels = np.arange(40,111,5)
 
@@ -256,7 +447,7 @@ if __name__ == '__main__':
     var_names = ['sorbent_wt_pct','hyd_P_bar','hyd_T_C']
     var_labels = ['Sorbent Loading = {:.2f} wt %','Hydrogenation Pressure [bar]','Hydrog-\nenation\nTemp.\n[deg. C]']
     
-    save_corrs(doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels, log_inc=False, plot=False, filepath=current_dir/'outputs'/'co2up')
+    save_corrs(title, doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels, log_inc=False, plot=False, filepath=current_dir/'outputs'/'co2up')
 
     
     doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
@@ -268,7 +459,7 @@ if __name__ == '__main__':
     var_names = ['sorbent_wt_pct','hyd_P_bar','hyd_T_C']
     var_labels = ['Sorbent Loading = {:.2f} wt %','Hydrogenation Pressure [bar]','Hydrog-\nenation\nTemp.\n[deg. C]']
 
-    save_corrs(doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels, log_inc=False, plot=False, filepath=current_dir/'outputs'/'meoh_sel')
+    save_corrs(title, doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels, log_inc=False, plot=False, filepath=current_dir/'outputs'/'meoh_sel')
 
     
     doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
@@ -280,15 +471,15 @@ if __name__ == '__main__':
     var_names = ['sorbent_wt_pct','hyd_P_bar','hyd_T_C']
     var_labels = ['Sorbent Loading = {:.2f} wt %','Hydrogenation Pressure [bar]','Hydrog-\nenation\nTemp.\n[deg. C]']
 
-    save_corrs(doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels, log_inc=False, plot=False, filepath=current_dir/'outputs'/'co2conv')
+    save_corrs(title, doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels, log_inc=False, plot=False, filepath=current_dir/'outputs'/'co2conv')
 
-    # doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_out.csv')
+    # # doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_out.csv')
 
 
-    ''' 
-    Correlations with 2 projected points missing from DOE
+    # ''' 
+    # Correlations with 2 projected points missing from DOE
 
-    '''
+    # '''
 
     doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
     fit_var = 'rec_ratio'
@@ -299,7 +490,8 @@ if __name__ == '__main__':
     var_names = ['sorbent_wt_pct','MeOH_sel','CO2_conv']
     var_labels = ['Sorbent Loading = {:.2f} wt %','Methanol Selectivity %','CO2\nConversion\nEfficiency\n[%]']
 
-    save_corrs(doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels, log_inc=False, plot=False, filepath=current_dir/'outputs'/'rec_ratio')
+    save_corrs(title, doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels,
+               log_inc=False, plot=True, filepath=current_dir/'outputs'/'rec_ratio', transform_fit=True)
 
 
     doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
@@ -311,80 +503,95 @@ if __name__ == '__main__':
     var_names = ['sorbent_wt_pct','hyd_P_bar','prod_rec']
     var_labels = ['Sorbent Loading = {:.2f} wt %','Hydrogenation Pressure [bar]','Methanol\nProductivity\nwith\nRecycle\n[umol/g-cat]']
 
-    save_corrs(doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels, log_inc=False, plot=False, filepath=current_dir/'outputs'/'tonne_cat')
+    save_corrs(title, doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels,
+               log_inc=False, plot=True, filepath=current_dir/'outputs'/'tonne_cat', transform_fit=True)
 
 
     doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
     fit_var = 'h2_ratio'
-    fit_label = 'Methanol:H2 Ratio\n\n\n'
+    fit_label = 'H2:Methanol Ratio\n\n\n'
+    levels = np.arange(0.17,0.32,0.01)
+    quad = True
+    inter = False
+    var_names = ['sorbent_wt_pct','prod_sing','CO2_conv']
+    var_labels = ['Sorbent Loading = {:.2f} wt %','Hydrogenation Pressure [bar]','Methanol\nProductivity\nwith\nRecycle\n[umol/g-cat]']
+
+    save_corrs(title, doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels,
+               log_inc=False, plot=True, filepath=current_dir/'outputs'/'h2_ratio_prod', transform_fit=True)
+    
+    
+    doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
+    fit_var = 'h2_ratio'
+    fit_label = 'H2:Methanol Ratio\n\n\n'
     levels = np.arange(0.17,0.32,0.01)
     quad = True
     inter = False
     var_names = ['sorbent_wt_pct','hyd_P_bar','CO2_uptake']
-    var_labels = ['Sorbent Loading = {:.2f} wt %','Hydrogenation Pressure [bar]','Strong\nCO2\nUptake\n[umol/g]']
+    var_labels = ['Sorbent Loading = {:.2f} wt %','Hydrogenation Pressure [bar]','Methanol\nProductivity\nwith\nRecycle\n[umol/g-cat]']
 
-    save_corrs(doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels, log_inc=False, plot=False, filepath=current_dir/'outputs'/'h2_ratio')
+    save_corrs(title, doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels,
+               log_inc=False, plot=False, filepath=current_dir/'outputs'/'h2_ratio', transform_fit=True)
 
  
-    ''' 
-    Final economic correlations
+    # ''' 
+    # Final economic correlations
 
-    '''
-
-
-
-    doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
-    fit_var = 'LCOM'
-    fit_label = 'Levelized Cost of Methanol (LCOM) [$/kg]\n\n\n'
-    levels = np.arange(0.6,1.1,0.05)
-    quad = True
-    inter = True
-    var_names = ['sorbent_wt_pct','hyd_P_bar','hyd_T_C']
-    var_labels = ['Sorbent Loading = {:.2f} wt %','Hydrogenation Pressure [bar]','Hydrog-\nenation\nTemp.\n[deg. C]']
-
-    save_corrs(doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels, log_inc=False, plot=True, filepath=current_dir/'outputs'/'1step_LCOM')
-    
-    doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
-    add_pts = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
-    fit_var = 'tonne_cat'
-    fit_label = 'Catalyst Mass [tonne]\n\n\n'
-    levels = np.arange(1000,3401,200)
-    quad = True
-    inter = True
-    var_names = ['sorbent_wt_pct','hyd_P_bar','hyd_T_C']
-    var_labels = ['Sorbent Loading = {:.2f} wt %','Hydrog. P. [bar]','Hydrog. T. [deg C]']
-
-    save_corrs(doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels, log_inc=False, plot=True, filepath=current_dir/'outputs'/'1step_tonne_cat')
-
-
-    doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_out.csv')
-    doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
-    fit_var = 'h2_ratio'
-    fit_label = 'Methanol:H2 Ratio\n\n\n'
-    levels = np.arange(0.17,0.28,0.01)
-    quad = True
-    inter = True
-    var_names = ['sorbent_wt_pct','hyd_P_bar','hyd_T_C']
-    var_labels = ['Sorbent Loading = {:.2f} wt %','Hydrog. P. [bar]','Hydrog. T. [deg C]']
-
-    save_corrs(doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels, log_inc=False, plot=True, filepath=current_dir/'outputs'/'1steph2_ratio')
-
+    # '''
 
     doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
     # add_pts = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
     fit_var = 'LCOM'
     fit_label = 'Levelized Cost of Methanol (LCOM) [$/kg]\n\n\n'
-    levels = np.arange(0.6,1.1,0.05)
+    levels = np.arange(0.65,1.1,0.05)
     quad = True
-    inter = False
+    inter = True
     var_names = ['sorbent_wt_pct','h2_ratio','tonne_cat']
     var_labels = ['Sorbent Loading = {:.2f} wt %','H2:Methanol Ratio','Catalyst\nMass\n[Tonne]']
 
-    save_corrs(doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels, log_inc=False, plot=True, filepath=current_dir/'outputs'/'LCOM')#, add_df=add_pts)
+    save_corrs(title, doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels,
+               log_inc=False, plot=True, filepath=current_dir/'outputs'/'LCOM', transform_fit=True)#, add_df=add_pts)
+
+    # doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
+    # add_pts = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
+    # fit_var = 'tonne_cat'
+    # fit_label = 'Catalyst Mass [tonne]\n\n\n'
+    # title = 'Catalyst Mass'
+    # levels = np.arange(1000,3401,200)
+    # quad = True
+    # inter = True
+    # var_names = ['sorbent_wt_pct','hyd_P_bar','hyd_T_C']
+    # var_labels = ['Sorbent Loading = {:.2f} wt %','Hydrogenation Pressure [bar]','Strong\nCO2\nUptake\n[umol/g]']
+
+    # save_corrs(title, doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels,
+    #            log_inc=False, plot=True, filepath=current_dir/'outputs'/'1step_tonne_cat', transform_fit=False)
+
+
+    # doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_out.csv')
+    # doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
+    # fit_var = 'h2_ratio'
+    # fit_label = 'Methanol:H2 Ratio\n\n\n'
+    # levels = np.arange(0.17,0.28,0.01)
+    # quad = True
+    # inter = True
+    # var_names = ['sorbent_wt_pct','hyd_P_bar','hyd_T_C']
+    # var_labels = ['Sorbent Loading = {:.2f} wt %','Hydrogenation Pressure [bar]','Strong\nCO2\nUptake\n[umol/g]']
+
+    # save_corrs(title, doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels, log_inc=False, plot=False filepath=current_dir/'outputs'/'1steph2_ratio')
+
+
+    pkl_fp = current_dir/'outputs'/'meoh_sel.pkl'
+    inter_mats_meoh = read_intermediate(pkl_fp)
+
+    pkl_fp = current_dir/'outputs'/'co2conv.pkl'
+    inter_mats_co2 = read_intermediate(pkl_fp)
     
-    
-    
-    pickle_reader = open(current_dir/'outputs'/'co2up.pkl','rb')
+    pkl_fp = current_dir/'outputs'/'1steph2_ratio.pkl'
+    inter_mats_h2 = read_intermediate(pkl_fp)
+
+    pkl_fp = current_dir/'outputs'/'1step_tonne_cat.pkl'
+    inter_mats_t = read_intermediate(pkl_fp)
+
+    pickle_reader = open(current_dir/'outputs'/'LCOM.pkl','rb')
     old_results = pickle.load(pickle_reader)
 
     fit_var = old_results['fit_var']
@@ -399,6 +606,48 @@ if __name__ == '__main__':
     A_std = old_results['A_std']
     b_mean = old_results['b_mean']
     b_std = old_results['b_std']
-    
-    save_corrs(doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels, plot=False)
 
+    x_levels = np.arange(8,33,1)
+    y_levels = np.arange(196,256,2)
+    [X_grid,Y_grid] = np.meshgrid(x_levels,y_levels)
+    X_vec = np.reshape(X_grid,(np.product(X_grid.shape)))
+    Y_vec = np.reshape(Y_grid,(np.product(Y_grid.shape)))
+
+    fits_LCOM = []
+    A1 = [1.,3.,5.]
+    # Loop through sorbent loadings
+    A1s = np.unique(A1)
+    num_plots = len(A1s)
+    ax_list = []
+    num_points = 0
+    for i, wt_pct in enumerate(A1s):
+        
+        # Calculate fit surface at this loading
+        A1 = np.ones(len(X_vec))*wt_pct
+        A2 = X_vec
+        A3 = Y_vec
+
+        fit_h2 = transform(A1,A2,A3,inter_mats_h2)
+
+        fit_t = transform(A1,A2,A3,inter_mats_t)
+
+        A2 = np.reshape(fit_h2,(np.product(X_grid.shape)))
+        A3 = np.reshape(fit_t,(np.product(Y_grid.shape)))
+        
+        # A2 = np.reshape(fits_h2[i],(np.product(X_grid.shape)))
+        # A3 = np.reshape(fits_tonne[i],(np.product(Y_grid.shape)))
+        
+        A = np.transpose(np.vstack((A1,A2,A3)))
+        A_norm = np.divide(np.subtract(A,A_mean),A_std)
+        A = set_A_mat(A_norm,quad,inter)
+        fit = np.reshape((np.matmul(A,X))*b_std+b_mean,X_grid.shape)
+        # fit = np.minimum(fit,max(levels))
+        # fit = np.maximum(fit,min(levels))
+        fits_LCOM.append(copy.deepcopy(fit))
+    
+        plt.subplot(1,3,i+1)
+        cplot = plt.contourf(X_grid,Y_grid,copy.deepcopy(fit),levels=levels)
+        plt.set_cmap('turbo')
+        plt.colorbar(label=fit_label,orientation='horizontal')
+    
+    plt.show()
