@@ -495,7 +495,7 @@ if __name__ == '__main__':
     var_labels = ['Sorbent Loading = {:.2f} wt %','Hydrogenation Pressure [bar]','Hydrog-\nenation\nTemp.\n[deg. C]']
     
     save_corrs(title, doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels,
-               log_inc=False, plot=False, filepath=current_dir/'outputs'/'co2up')
+               log_inc=False, plot=True, filepath=current_dir/'outputs'/'co2up')
 
     
     doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
@@ -508,7 +508,7 @@ if __name__ == '__main__':
     var_labels = ['Sorbent Loading = {:.2f} wt %','Hydrogenation Pressure [bar]','Hydrog-\nenation\nTemp.\n[deg. C]']
 
     save_corrs(title, doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels,
-               log_inc=False, plot=False, filepath=current_dir/'outputs'/'meoh_sel')
+               log_inc=False, plot=True, filepath=current_dir/'outputs'/'meoh_sel')
 
     
     doe_df = pd.read_csv(current_dir/'inputs'/'doe_inputs_adj.csv')
@@ -598,6 +598,7 @@ if __name__ == '__main__':
     var_names = ['sorbent_wt_pct','h2_ratio','tonne_cat']
     # var_names = ['sorbent_wt_pct','hyd_P_bar','hyd_T_C']
     var_labels = ['Sorbent Loading = {:.2f} wt %','Hydrogenation Pressure [bar]','Hydrog-\nenation\nTemp.\n[deg. C]']
+    var_labels = ['Sorbent Loading = {:.2f} wt %','H2:Methanol Mass Ratio [-]','Catalyst\nMass\n[tonne]']
 
     save_corrs(title, doe_df, fit_var, fit_label, levels, quad, inter, var_names, var_labels,
                log_inc=False, plot=True, filepath=current_dir/'outputs'/'LCOM', transform_fit=False)#, add_df=add_pts)

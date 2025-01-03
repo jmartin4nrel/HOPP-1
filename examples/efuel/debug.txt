@@ -1,0 +1,1 @@
+https://developer.nrel.gov/api/wind-toolkit/v2/wind/wtk-srw-download?year=2013&lat=34.82703040147969&lon=-82.90810264614667&hubheight=100&api_key=OZugSWTN3AEplKcHE5XJQeo7PkBQGARATypqoNeV&email=jonathan.martin@nrel.gov

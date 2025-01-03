@@ -85,7 +85,7 @@ class Resource(metaclass=ABCMeta):
                     text_json = json.loads(r.text)
                     if 'errors' in text_json.keys():
                         err = text_json['errors']
-                    raise requests.exceptions.HTTPError(err)
+                    # raise requests.exceptions.HTTPError(err)
                 elif r.status_code == 404:
                     print(filename)
                     raise requests.exceptions.HTTPError

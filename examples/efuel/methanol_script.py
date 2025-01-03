@@ -117,18 +117,18 @@ if __name__ == '__main__':
 
     fuel = 'methanol'
     reactor = 'CO2 hydrogenation'
-    reactor = 'RCC recycle'
+    reactor = 'RCC DoE'
     # reactor = 'CO RCC'
     # reactor = 'SMR'
     # catalyst = 'ZA-Z'
-    # catalyst = 'None'
-    catalyst = 'Ca/CZA'
+    catalyst = 'None'
+    catalyst = 'Case 2b'
     # catalyst = "CZA"
 
     reactor_df = pd.read_csv('inputs/Reactor_inputs_doe.csv')
     
-    reactors = list(reactor_df['reactor_tech'])#['RCC recycle','RCC recycle','RCC recycle']#,'CO RCC','CO RCC','CO RCC','CO RCC','CO RCC','CO RCC']#'SMR','CO2 hydrogenation','RCC recycle','CO RCC','CO RCC','CO RCC','CO RCC']
-    catalysts = list(reactor_df['catalyst'])#['CZA','Ca/CZA','K/CZA']#,'ZA','K/ZA','Na/ZA','Au-Na/ZA','Na/ZA 30','Au-Na/ZA 30']#,'ZA-Z 30','K/ZA-Z 30','ZA 30','K/ZA 30']
+    # reactors = list(reactor_df['reactor_tech'])#['RCC recycle','RCC recycle','RCC recycle']#,'CO RCC','CO RCC','CO RCC','CO RCC','CO RCC','CO RCC']#'SMR','CO2 hydrogenation','RCC recycle','CO RCC','CO RCC','CO RCC','CO RCC']
+    # catalysts = list(reactor_df['catalyst'])#['CZA','Ca/CZA','K/CZA']#,'ZA','K/ZA','Na/ZA','Au-Na/ZA','Na/ZA 30','Au-Na/ZA 30']#,'ZA-Z 30','K/ZA-Z 30','ZA 30','K/ZA 30']
 
     startup_year = 2023
     # year_sweep = np.arange(2020,2055,5)
@@ -143,15 +143,15 @@ if __name__ == '__main__':
     # lon = -70.06423732247559
     # state = 'ME'
 
-    # Sweep through years/reactors
-    arg_lists = []
-    pct_overbuild = 0
-    pct_wind = 100
-    pct_overbuild = 0
-    for i in range(len(reactors)): #year_sweep
-        arg_list = [main_path, turndown_path, fuel, reactors[i], catalysts[i], pct_wind, pct_overbuild, dollar_year, startup_year, lat, lon, state,
-                        True, False, False]
-        arg_lists.append(arg_list)
+    # # Sweep through years/reactors
+    # arg_lists = []
+    # pct_overbuild = 0
+    # pct_wind = 100
+    # pct_overbuild = 0
+    # for i in range(len(reactors)): #year_sweep
+    #     arg_list = [main_path, turndown_path, fuel, reactors[i], catalysts[i], pct_wind, pct_overbuild, dollar_year, startup_year, lat, lon, state,
+    #                     True, False, False]
+    #     arg_lists.append(arg_list)
 
     # # Set up to optimize the % wind and % overbuild
     # arg_lists = []
@@ -168,7 +168,7 @@ if __name__ == '__main__':
     ### Run optimization on the e-fuel cost
     
 
-    ## One instance
+    # # One instance
 
     # start = time.time()
     # calculate_efuel_cost(main_path, turndown_path, fuel, reactor, catalyst, 100, 0, dollar_year, startup_year, lat, lon, state,
@@ -178,30 +178,30 @@ if __name__ == '__main__':
     
     ## List
 
-    x = len(reactors) #year_sweep
-    lcom_array = np.zeros((x,))
-    CI_array = np.zeros((x,))
-    WC_array = np.zeros((x,))
-    wind_cap_array = np.zeros((x,))
-    pv_cap_array = np.zeros((x,))
-    start = time.time()
-    with multiprocessing.Pool(num_cores) as p:
-        results = p.starmap(calculate_efuel_cost, arg_lists)
-    stop = time.time()
-    print("Elapsed Time: {:.1f} seconds".format(stop-start))
+    # x = len(reactors) #year_sweep
+    # lcom_array = np.zeros((x,))
+    # CI_array = np.zeros((x,))
+    # WC_array = np.zeros((x,))
+    # wind_cap_array = np.zeros((x,))
+    # pv_cap_array = np.zeros((x,))
+    # start = time.time()
+    # with multiprocessing.Pool(num_cores) as p:
+    #     results = p.starmap(calculate_efuel_cost, arg_lists)
+    # stop = time.time()
+    # print("Elapsed Time: {:.1f} seconds".format(stop-start))
     
-    result_array = np.array(results)
-    for i in range(x):
-        lcom_array[i] = result_array[i,0]
-        CI_array[i] = result_array[i,1]
-        WC_array[i] = result_array[i,2]
-        wind_cap_array[i] = result_array[i,3]*100
-        pv_cap_array[i] = result_array[i,4]*100
-    np.savetxt(output_dir/"lcom.csv",lcom_array,delimiter=',')
-    np.savetxt(output_dir/"CI.csv",CI_array,delimiter=',')
-    np.savetxt(output_dir/"WC.csv",WC_array,delimiter=',')
-    np.savetxt(output_dir/"wind_cap.csv",wind_cap_array,delimiter=',')
-    np.savetxt(output_dir/"pv_cap.csv",pv_cap_array,delimiter=',')
+    # result_array = np.array(results)
+    # for i in range(x):
+    #     lcom_array[i] = result_array[i,0]
+    #     CI_array[i] = result_array[i,1]
+    #     WC_array[i] = result_array[i,2]
+    #     wind_cap_array[i] = result_array[i,3]*100
+    #     pv_cap_array[i] = result_array[i,4]*100
+    # np.savetxt(output_dir/"lcom.csv",lcom_array,delimiter=',')
+    # np.savetxt(output_dir/"CI.csv",CI_array,delimiter=',')
+    # np.savetxt(output_dir/"WC.csv",WC_array,delimiter=',')
+    # np.savetxt(output_dir/"wind_cap.csv",wind_cap_array,delimiter=',')
+    # np.savetxt(output_dir/"pv_cap.csv",pv_cap_array,delimiter=',')
     
     ## Grid
      
@@ -233,107 +233,112 @@ if __name__ == '__main__':
     # np.savetxt(output_dir/"wind_cap.csv",wind_cap_array,delimiter=',')
     # np.savetxt(output_dir/"pv_cap.csv",pv_cap_array,delimiter=',')
 
-    ## All locations
+    # All locations
             
-    # load_caps = True
+    load_caps = True
 
-    # lats, lons, states = import_sites(resource_dir/'ngcc_sites_full.csv')
+    lats, lons, states = import_sites(resource_dir/'ngcc_sites_full.csv')
 
-    # x, y = np.shape(lats)
-    # lcom_array = np.zeros((x,y))
-    # CI_array = np.zeros((x,y))
-    # WC_array = np.zeros((x,y))
-    # if load_caps:
-    #     wind_cap_array = pd.read_csv("wind_cap.csv",header=None).values
-    #     pv_cap_array = pd.read_csv("pv_cap.csv",header=None).values
-    # else:
-    #     wind_cap_array = np.zeros((x,y))
-    #     pv_cap_array = np.zeros((x,y))
+    x, y = np.shape(lats)
+    lcom_array = np.zeros((x,y))
+    CI_array = np.zeros((x,y))
+    WC_array = np.zeros((x,y))
+    # lcom_array = pd.read_csv('lcom_2b.csv',header=None).values
+    # CI_array = pd.read_csv('CI_2b.csv',header=None).values
+    # WC_array = pd.read_csv('WC_2b.csv',header=None).values
+    if load_caps:
+        wind_cap_array = pd.read_csv("wind_cap.csv",header=None).values
+        pv_cap_array = pd.read_csv("pv_cap.csv",header=None).values
+    else:
+        wind_cap_array = np.zeros((x,y))
+        pv_cap_array = np.zeros((x,y))
     
-    # for i in range(x):
+    for i in range(x):
         
-    #     # Multiprocess site block
+        if i < 18:
 
-    #     # lat_list = lats[i]
-    #     # lon_list = lons[i]
-    #     # arg_lists = []
-    #     # for j in range(y):
-    #     #     arg_list = [main_path, turndown_path, fuel, reactor, catalyst, 50, 50, dollar_year, startup_year, lat_list[j], lon_list[j], states[i]]
-    #     #     arg_lists.append(arg_list)
-        
-    #     # start = time.time()
-    #     # with multiprocessing.Pool(num_cores) as p:
-    #     #     results = p.starmap(calculate_efuel_cost, arg_lists)
-    #     # stop = time.time()
-        
-    #     # Multiprocess optimizer block
-        
-    #     start = time.time()
+            # Multiprocess site block
+
+            lat_list = lats[i]
+            lon_list = lons[i]
+            arg_lists = []
+            for j in range(y):
+                arg_list = [main_path, turndown_path, fuel, reactor, catalyst, 90, 10, dollar_year, startup_year, lat_list[j], lon_list[j], states[i]]
+                arg_lists.append(arg_list)
             
-    #     results = np.zeros((y,3))
-
-    #     for j in range(y):
+            start = time.time()
+            with multiprocessing.Pool(num_cores) as p:
+                results = p.starmap(calculate_efuel_cost, arg_lists)
+            stop = time.time()
             
-    #         lat = lats[i,j]
-    #         lon = lons[i,j]
-    #         state = states[i]
-
-    #         if load_caps:
-    #             wind_cap = wind_cap_array[i,j]
-    #             pv_cap = pv_cap_array[i,j]
-    #         else:
-    #             wind_cap = None
-    #             pv_cap = None
+            # # Multiprocess optimizer block
             
-    #         if not globe.is_land(lat,lon):
-    #             arg_lists = []
-    #             pcts_wind = np.arange(10,110,20)
-    #             pcts_overbuild = np.arange(0,100,20)
-    #             for k in range(len(pcts_wind)):
-    #                 for l in range(len(pcts_overbuild)):
-    #                     arg_list = [main_path, turndown_path, fuel, reactor, catalyst, pcts_wind[k], pcts_overbuild[l], dollar_year, startup_year, lat, lon, state,
-    #                                 False, False, False, wind_cap, pv_cap]
-    #                     arg_lists.append(arg_list)
+            # start = time.time()
                 
-    #             with multiprocessing.Pool(num_cores) as p:
-    #                 pointresults = p.starmap(calculate_efuel_cost, arg_lists)
+            # results = np.zeros((y,3))
+
+            # for j in range(y):
                 
-    #             pointresults = np.array(pointresults)
+            #     lat = lats[i,j]
+            #     lon = lons[i,j]
+            #     state = states[i]
+
+            #     if load_caps:
+            #         wind_cap = wind_cap_array[i,j]
+            #         pv_cap = pv_cap_array[i,j]
+            #     else:
+            #         wind_cap = None
+            #         pv_cap = None
                 
-    #             lcom = pointresults[:,0]
-    #             ci = pointresults[:,1]
-    #             wc = pointresults[:,2]
+            #     if not globe.is_land(lat,lon):
+            #         arg_lists = []
+            #         pcts_wind = np.arange(10,110,20)
+            #         pcts_overbuild = np.arange(0,100,20)
+            #         for k in range(len(pcts_wind)):
+            #             for l in range(len(pcts_overbuild)):
+            #                 arg_list = [main_path, turndown_path, fuel, reactor, catalyst, pcts_wind[k], pcts_overbuild[l], dollar_year, startup_year, lat, lon, state,
+            #                             False, False, False, wind_cap, pv_cap]
+            #                 arg_lists.append(arg_list)
+                    
+            #         with multiprocessing.Pool(num_cores) as p:
+            #             pointresults = p.starmap(calculate_efuel_cost, arg_lists)
+                    
+            #         pointresults = np.array(pointresults)
+                    
+            #         lcom = pointresults[:,0]
+            #         ci = pointresults[:,1]
+            #         wc = pointresults[:,2]
 
-    #             min_arg = np.argmin(lcom)
+            #         min_arg = np.argmin(lcom)
 
-    #             results[j,0] = lcom[min_arg]
-    #             results[j,1] = ci[min_arg]
-    #             results[j,2] = wc[min_arg]
-    #         else:
-    #             results[j,0] = 0
-    #             results[j,1] = 0
-    #             results[j,2] = 0
+            #         results[j,0] = lcom[min_arg]
+            #         results[j,1] = ci[min_arg]
+            #         results[j,2] = wc[min_arg]
+            #     else:
+            #         results[j,0] = 0
+            #         results[j,1] = 0
+            #         results[j,2] = 0
 
-        
-    #     stop = time.time() 
+            
+            # stop = time.time() 
 
-    #     # End of alternating blocks
+            # End of alternating blocks
 
-    #     result_array = np.array(results)
-    #     lcom_array[i,:] = result_array[:,0]
-    #     CI_array[i,:] = result_array[:,1]
-    #     WC_array[i,:] = result_array[:,2]
-    #     wind_cap_array[i,:] = result_array[:,3]
-    #     pv_cap_array[i,:] = result_array[:,4]
-    #     np.savetxt("lcom.csv",lcom_array,delimiter=',')
-    #     np.savetxt("CI.csv",CI_array,delimiter=',')
-    #     np.savetxt("WC.csv",WC_array,delimiter=',')
-    #     if not load_caps:
-    #         np.savetxt("wind_cap.csv",wind_cap_array,delimiter=',')
-    #         np.savetxt("pv_cap.csv",pv_cap_array,delimiter=',')
-    #     write_time = time.time()
-        
-    #     print("Site #{} of {} complete, elapsed time: {:.1f} seconds ({:.1f} to write)".format(i+1,x,write_time-start,write_time-stop))
+            result_array = np.array(results)
+            lcom_array[i,:] = result_array[:,0]
+            CI_array[i,:] = result_array[:,1]
+            WC_array[i,:] = result_array[:,2]
+            wind_cap_array[i,:] = result_array[:,3]
+            pv_cap_array[i,:] = result_array[:,4]
+            np.savetxt("lcom_2b.csv",lcom_array,delimiter=',')
+            np.savetxt("CI_2b.csv",CI_array,delimiter=',')
+            np.savetxt("WC_2b.csv",WC_array,delimiter=',')
+            if not load_caps:
+                np.savetxt("wind_cap.csv",wind_cap_array,delimiter=',')
+                np.savetxt("pv_cap.csv",pv_cap_array,delimiter=',')
+            write_time = time.time()
+            
+            print("Site #{} of {} complete, elapsed time: {:.1f} seconds ({:.1f} to write)".format(i+1,x,write_time-start,write_time-stop))
 
     ## With optimizer
 
